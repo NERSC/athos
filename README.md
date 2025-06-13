@@ -4,7 +4,7 @@ ATHOS: Agentic Toolkit for HPC Operations Support
 
 ## Package Structure
 
-This monorepo contains three main packages that work together to provide agentic AI support for HPC operations:
+This monorepo contains three main packages and some additional folders that work together to provide agentic AI support for HPC operations:
 
 ### `athos-core/`
 **Core abstractions for ATHOS**
@@ -32,6 +32,15 @@ Contains pre-built, specialized agents designed for specific HPC support tasks. 
 - **Purpose**: Ready-to-use agents for HPC support tasks
 - **Dependencies**: `athos-core`, `athos-tools`
 - **Package**: `athos.agents`
+
+### `athos-integrations/`
+
+Bot integrations for ServiceNow, Slack, etc.
+We might have an installable package for each one separately, but TBD.
+
+### `eval/`
+
+Evaluation pipelines for HPC agents on test cases.
 
 ## Development Setup
 
