@@ -1,4 +1,4 @@
-from athos.core.agent_base import Agent
+from athos.core.agent import Agent
 from athos.tools.slurm_query import query_jobs
 
 class HPCSmolAgent(Agent):
