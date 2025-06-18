@@ -83,9 +83,10 @@ class SlurmCommandExecutor:
     @staticmethod
     def _validate_showquota_args(args: List[str]) -> None:
         """Validate showquota command arguments."""
-        # showquota typically doesn't take any parameters
-        if args:
-            raise ValueError("showquota command does not accept any parameters")
+        # showquota typically doesn't take any parameters, but we'll ignore any provided
+        # This allows the LLM to call the function with or without parameters
+        logger.info(f"showquota called with args: {args} - ignoring all arguments")
+        # Don't raise an error, just log and continue
     
     @staticmethod
     def _validate_sinfo_args(args: List[str]) -> None:
@@ -188,14 +189,7 @@ async def handle_list_tools() -> List[Tool]:
             description="Execute SLURM showquota command to display quota information for the current user (no parameters needed)",
             inputSchema={
                 "type": "object",
-                "properties": {
-                    "args": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Arguments to pass to the showquota command (should be empty array as showquota takes no parameters)",
-                        "default": []
-                    }
-                },
+                "properties": {},
                 "additionalProperties": False,
             },
         ),
@@ -227,6 +221,11 @@ async def handle_call_tool(name: str, arguments: dict) -> List[types.TextContent
     
     # Extract arguments
     args = arguments.get("args", [])
+    
+    # Special handling for showquota - always execute without parameters
+    if name == "showquota":
+        args = []
+        logger.info("showquota called - executing without any parameters")
     
     # Validate arguments type
     if not isinstance(args, list):

@@ -88,8 +88,9 @@ class HPCSmolAgent(Agent):
         self.enable_servicenow = enable_servicenow
         self.enable_rag = enable_rag
         
-        # Initialize tools
+        # Initialize tools and keep MCP connections alive
         self.tools = []
+        self.tool_collections = []  # Keep references to prevent context manager cleanup
         self._setup_tools()
         
         # Initialize agent
@@ -105,31 +106,44 @@ class HPCSmolAgent(Agent):
         # Get the athos tools directory path
         try:
             import athos.tools
-            athos_tools_path = athos.tools.__path__[0]
+            athos_tools_path = Path(athos.tools.__path__[0])
+            logger.info(f"Using athos.tools path: {athos_tools_path}")
         except (ImportError, AttributeError):
             # Fallback: calculate path relative to this file
             current_file = Path(__file__)
             athos_tools_path = current_file.parent.parent / "tools"
+            logger.info(f"Using fallback path: {athos_tools_path}")
         
         # SLURM tools
         if self.enable_slurm:
             try:
+                slurm_path = athos_tools_path / "slurm_mcp"
+                logger.info(f"SLURM MCP path: {slurm_path}")
+                logger.info(f"SLURM MCP path exists: {slurm_path.exists()}")
+                
                 slurm_parameters = StdioServerParameters(
                     command="uv",
                     args=["run", "python", "slurm_mcp_server.py"],
                     env={},
-                    cwd=str(athos_tools_path / "slurm_mcp")
+                    cwd=str(slurm_path)
                 )
                 
-                with ToolCollection.from_mcp(slurm_parameters, trust_remote_code=True) as slurm_tools:
-                    self.tools.extend(slurm_tools.tools)
-                    logger.info(f"Loaded {len(slurm_tools.tools)} SLURM tools")
+                # Create tool collection and enter the context manager
+                slurm_context = ToolCollection.from_mcp(slurm_parameters, trust_remote_code=True)
+                slurm_tools = slurm_context.__enter__()
+                self.tools.extend(slurm_tools.tools)
+                self.tool_collections.append(slurm_context)
+                logger.info(f"Loaded {len(slurm_tools.tools)} SLURM tools")
             except Exception as e:
                 logger.error(f"Failed to load SLURM tools: {e}")
         
         # ServiceNow tools
         if self.enable_servicenow:
             try:
+                servicenow_path = athos_tools_path / "servicenow-mcp"
+                logger.info(f"ServiceNow MCP path: {servicenow_path}")
+                logger.info(f"ServiceNow MCP path exists: {servicenow_path.exists()}")
+                
                 servicenow_parameters = StdioServerParameters(
                     command="uv",
                     args=["run", "python", "-m", "servicenow_mcp.cli"],
@@ -139,12 +153,15 @@ class HPCSmolAgent(Agent):
                         "SERVICENOW_PASSWORD": os.getenv("SERVICENOW_PASSWORD"),
                         "SERVICENOW_AUTH_TYPE": os.getenv("SERVICENOW_AUTH_TYPE")
                     },
-                    cwd=str(athos_tools_path / "servicenow-mcp")
+                    cwd=str(servicenow_path)
                 )
                 
-                with ToolCollection.from_mcp(servicenow_parameters, trust_remote_code=True) as sn_tools:
-                    self.tools.extend(sn_tools.tools)
-                    logger.info(f"Loaded {len(sn_tools.tools)} ServiceNow tools")
+                # Create tool collection and enter the context manager
+                sn_context = ToolCollection.from_mcp(servicenow_parameters, trust_remote_code=True)
+                sn_tools = sn_context.__enter__()
+                self.tools.extend(sn_tools.tools)
+                self.tool_collections.append(sn_context)
+                logger.info(f"Loaded {len(sn_tools.tools)} ServiceNow tools")
             except Exception as e:
                 logger.error(f"Failed to load ServiceNow tools: {e}")
         
@@ -158,13 +175,20 @@ class HPCSmolAgent(Agent):
                     cwd="/global/homes/z/zijielei/workspace/agentic_HPC/rag_mcp"
                 )
                 
-                with ToolCollection.from_mcp(rag_parameters, trust_remote_code=True) as rag_tools:
-                    self.tools.extend(rag_tools.tools)
-                    logger.info(f"Loaded {len(rag_tools.tools)} RAG tools")
+                # Create tool collection and enter the context manager
+                rag_context = ToolCollection.from_mcp(rag_parameters, trust_remote_code=True)
+                rag_tools = rag_context.__enter__()
+                self.tools.extend(rag_tools.tools)
+                self.tool_collections.append(rag_context)
+                logger.info(f"Loaded {len(rag_tools.tools)} RAG tools")
             except Exception as e:
                 logger.error(f"Failed to load RAG tools: {e}")
         
+        # Log all available tools
         logger.info(f"Total tools loaded: {len(self.tools)}")
+        logger.info("Available tools:")
+        for tool in self.tools:
+            logger.info(f"  - {tool.name}: {tool.description}")
     
     def run(self, prompt: str, **kwargs) -> Any:
         """
@@ -206,6 +230,42 @@ class HPCSmolAgent(Agent):
             List of tool names
         """
         return [tool.name for tool in self.tools]
+    
+    def close(self):
+        """Explicitly close the agent and clean up resources."""
+        try:
+            self.cleanup()
+            logger.info("Agent closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing agent: {e}")
+    
+    def cleanup(self):
+        """Clean up MCP connections."""
+        try:
+            for context in self.tool_collections:
+                if hasattr(context, '__exit__'):
+                    try:
+                        # Try to exit gracefully without forcing event loop closure
+                        context.__exit__(None, None, None)
+                    except RuntimeError as e:
+                        if "Cannot close a running event loop" in str(e):
+                            # Log but don't fail - this is expected when event loop is running
+                            logger.debug(f"Event loop cleanup skipped: {e}")
+                        else:
+                            # Re-raise other RuntimeErrors
+                            raise
+            self.tool_collections.clear()
+            logger.info("MCP connections cleaned up")
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure cleanup."""
+        try:
+            self.cleanup()
+        except Exception:
+            # Ignore errors in destructor to avoid masking other issues
+            pass
     
     def test_slurm_tools(self) -> str:
         """
@@ -249,6 +309,10 @@ def run_agent_with_tools():
 
 if __name__ == "__main__":
     # Example usage
-    agent = HPCSmolAgent()
-    result = agent.run("Show me my recent SLURM jobs")
-    print(result)
+    agent = HPCSmolAgent(enable_servicenow=True, enable_slurm=False)
+    try:
+        result = agent.run("Look for tickets related to user steven farrell")
+        print(result)
+    finally:
+        # Explicitly close the agent to clean up resources
+        agent.close()
