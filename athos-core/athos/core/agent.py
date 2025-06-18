@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
-from typing import Sequence, Any
+from typing import Sequence, Any, TYPE_CHECKING
 
-from .tool import Tool
+if TYPE_CHECKING:
+    from .tool import Tool
 
 class Agent(ABC):
-    tools: Sequence[Tool]
+    tools: Sequence['Tool']
     model: Any  # LLM backend wrapper
 
     @abstractmethod
