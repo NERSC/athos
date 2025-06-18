@@ -1,0 +1,39 @@
+# ServiceNow MCP Tool Packages Configuration
+# Define sets of tools to be exposed by the MCP server based on roles/workflows.
+# The MCP server loads tools based on the MCP_TOOL_PACKAGE environment variable.
+# If MCP_TOOL_PACKAGE is not set, 'service_desk' is loaded.
+# If MCP_TOOL_PACKAGE is set to 'none', no tools are loaded (except list_tool_packages).
+
+# --- Package Definitions ---
+
+none: []
+
+service_desk:
+  # Incident Management
+  - create_incident
+  - update_incident
+  - add_comment
+  - resolve_incident
+  - list_incidents
+  # User Lookup
+  - get_user
+  - list_users
+  # Knowledge Lookup
+  - get_article
+  - list_articles
+  - view_incident_logs
+
+full:
+  # Incident Management
+  - create_incident
+  - update_incident
+  - add_comment
+  - resolve_incident
+  - list_incidents
+  # User Lookup
+  - get_user
+  - list_users
+  # Knowledge Lookup
+  - get_article
+  - list_articles
+  - view_incident_logs
