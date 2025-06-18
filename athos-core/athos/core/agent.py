@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Sequence
+from typing import Sequence, Any
+
+from .tool import Tool
 
 class Agent(ABC):
     tools: Sequence[Tool]
