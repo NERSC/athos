@@ -1,14 +1,14 @@
 [tool.poetry]
 name = "athos"
 version = "0.1.0"
-description = "ATHOS monorepo for agentic HPC support"
+description = "ATHOS - Agentic HPC support framework"
 authors = ["NERSC"]
+packages = [{ include = "athos", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.8"
-athos-core = { path = "athos-core", develop = true }
-athos-tools = { path = "athos-tools", develop = true }
-athos-agents = { path = "athos-agents", develop = true }
+openai = "^1.0.0"
+openai-agents = "^0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
@@ -16,10 +16,3 @@ pytest = "^8.0.0"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-# [tool.poetry.workspace]
-# packages = [
-#   { path = "athos-core" },
-#   { path = "athos-tools" },
-#   { path = "athos-agents" }
-# ]
