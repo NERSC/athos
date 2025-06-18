@@ -9,6 +9,8 @@ packages = [{ include = "athos" }]
 python = ">=3.8"
 athos-core = { path = "../athos-core", develop = true }
 athos-tools = { path = "../athos-tools", develop = true }
+openai = "^1.0.0"
+openai-agents = "^0"
 
 [build-system]
 requires = ["poetry-core"]
