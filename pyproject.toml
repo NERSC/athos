@@ -1,18 +1,22 @@
-[tool.poetry]
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
 name = "athos"
 version = "0.1.0"
 description = "ATHOS - Agentic HPC support framework"
-authors = ["NERSC"]
-packages = [{ include = "athos", from = "src" }]
+authors = [{name = "NERSC"}]
+requires-python = ">=3.8"
+dependencies = [
+    "openai>=1.0.0,<2.0.0",
+    "openai-agents>=0.0.19,<0.1.0"
+]
 
-[tool.poetry.dependencies]
-python = ">=3.8"
-openai = "^1.0.0"
-openai-agents = "^0"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0,<9.0.0"
+]
 
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.0.0"
-
-[build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+[tool.setuptools.packages.find]
+where = ["src"]

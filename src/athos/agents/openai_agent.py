@@ -84,7 +84,7 @@ class OpenAIModelAgent(Agent):
 
 class OpenAITool(Tool):
     """
-    A skeleton OpenAI tool implementation.
+    A placeholder OpenAI tool implementation.
     """
 
     def __init__(self):

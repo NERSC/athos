@@ -15,7 +15,7 @@ def test_basic_usage():
     print("=== Basic Usage Test ===")
     
     # Initialize the agent
-    agent = OpenAIModelAgent(model="gpt-3.5-turbo")
+    agent = OpenAIModelAgent(model="lbl/cborg-coder:latest")
     
     # Simple prompt
     prompt = "What is the capital of France?"
@@ -29,7 +29,7 @@ def test_generate_response():
     """Test the generate_response method directly."""
     print("=== Generate Response Test ===")
     
-    agent = OpenAIModelAgent(model="gpt-3.5-turbo")
+    agent = OpenAIModelAgent(model="lbl/cborg-coder:latest")
     
     prompt = "Explain quantum computing in simple terms."
     response = agent.generate_response(prompt, max_tokens=100)
@@ -42,7 +42,7 @@ def test_chat_completion():
     """Test the chat_completion method with conversation history."""
     print("=== Chat Completion Test ===")
     
-    agent = OpenAIModelAgent(model="gpt-3.5-turbo")
+    agent = OpenAIModelAgent(model="lbl/cborg-coder:latest")
     
     messages = [
         {"role": "system", "content": "You are a helpful assistant that speaks like a pirate."},
@@ -63,7 +63,7 @@ def test_with_parameters():
     """Test with various OpenAI API parameters."""
     print("=== Parameters Test ===")
     
-    agent = OpenAIModelAgent(model="gpt-3.5-turbo")
+    agent = OpenAIModelAgent(model="lbl/cborg-coder:latest")
     
     prompt = "Write a haiku about programming."
     response = agent.run(
@@ -77,30 +77,30 @@ def test_with_parameters():
     print()
 
 
-def test_different_models():
-    """Test with different OpenAI models."""
-    print("=== Different Models Test ===")
+# def test_different_models():
+#     """Test with different OpenAI models."""
+#     print("=== Different Models Test ===")
     
-    models = ["gpt-3.5-turbo", "gpt-4"]
-    prompt = "What is artificial intelligence?"
+#     models = ["gpt-3.5-turbo", "gpt-4"]
+#     prompt = "What is artificial intelligence?"
     
-    for model in models:
-        try:
-            agent = OpenAIModelAgent(model=model)
-            response = agent.run(prompt, max_tokens=80)
-            print(f"Model: {model}")
-            print(f"Response: {response}")
-            print()
-        except Exception as e:
-            print(f"Error with model {model}: {e}")
-            print()
+#     for model in models:
+#         try:
+#             agent = OpenAIModelAgent(model=model)
+#             response = agent.run(prompt, max_tokens=80)
+#             print(f"Model: {model}")
+#             print(f"Response: {response}")
+#             print()
+#         except Exception as e:
+#             print(f"Error with model {model}: {e}")
+#             print()
 
 
 def test_conversation_flow():
     """Test a multi-turn conversation simulation."""
     print("=== Conversation Flow Test ===")
     
-    agent = OpenAIModelAgent(model="gpt-3.5-turbo")
+    agent = OpenAIModelAgent(model="lbl/cborg-coder:latest")
     
     # Simulate a conversation by building message history
     conversation = [
@@ -145,7 +145,7 @@ def main():
         test_generate_response()
         test_chat_completion()
         test_with_parameters()
-        test_different_models()
+        # test_different_models()
         test_conversation_flow()
         
         print("All tests completed successfully!")
