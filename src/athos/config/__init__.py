@@ -32,8 +32,10 @@ class ConfigLoader:
         # Replace ${VAR_NAME} with environment variable value
         def replace_env_var(match):
             var_name = match.group(1)
-            return os.getenv(var_name, match.group(0))  # Return original if env var not found
-        
+            env_value = os.getenv(var_name)
+            if env_value is None:
+                raise ValueError(f"Configuration environment variable '{var_name}' is not set")
+            return env_value
         return re.sub(r'\$\{([^}]+)\}', replace_env_var, var)
     
     @staticmethod
