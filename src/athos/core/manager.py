@@ -24,7 +24,7 @@ class AthosManager:
     - remove execution functionality from this class
     - make flow initialization more generic, no if/else
     - consider lazy initialization of flows, tools, etc.
-    - make model types flexible
+    - make model types flexible and/or fully optional
     """
     
     def __init__(self, config: AthosConfig):
