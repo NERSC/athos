@@ -10,7 +10,7 @@ from athos.config import (
     ConfigLoader
 )
 
-from athos.core.flows import ChatbotFlow, CodeAgentFlow
+from athos.core.flows import BaseFlow, ChatbotFlow, CodeAgentFlow
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -21,8 +21,8 @@ class AthosManager:
     """Main ATHOS agent flow manager.
     
     TODOs:
-    - rename for clarity
     - remove execution functionality from this class
+    - make flow initialization more generic, no if/else
     - consider lazy initialization of flows, tools, etc.
     - make model types flexible
     """
@@ -32,7 +32,7 @@ class AthosManager:
         # self.tool_manager = ToolManager()
         self.models: Dict[str, OpenAIServerModel] = {}
         self.loaded_tools: Dict[str, Tool] = {}
-        self.execution_flows: Dict[str, Any] = {}
+        self.flows: Dict[str, BaseFlow] = {}
         
         self._initialize_models()
         self._initialize_flows()
@@ -72,11 +72,9 @@ class AthosManager:
     
     def _initialize_flows(self):
         """Initialize all configured execution flows"""
-        logger.info('_initialize_execution_flows')
+        logger.info('_initialize_flows')
         for name, flow_config in self.config.execution_flows.items():
-            logger.info(f"{name} {flow_config}")
             model = self.models[flow_config.model]
-            logger.info(model)
             
             if flow_config.type == ExecutionFlowType.CHATBOT:
                 flow = ChatbotFlow(model, flow_config.system_prompt)
@@ -100,32 +98,22 @@ class AthosManager:
             else:
                 raise ValueError(f"Unknown execution flow type: {flow_config.type}")
             
-            self.execution_flows[name] = flow
+            self.flows[name] = flow
             logger.info(f"Initialized execution flow: {name}")
     
     async def execute_flow(self, flow_name: str, input_data: str) -> Any:
         """Execute a specific flow with input data"""
-        if flow_name not in self.execution_flows:
+        try:
+            flow = self.flows[flow_name]
+        except KeyError:
             raise ValueError(f"Unknown execution flow: {flow_name}")
         
-        flow = self.execution_flows[flow_name]
-        flow_config = self.config.execution_flows[flow_name]
-        
-        logger.info(f"Executing flow: {flow_name} with type: {flow_config.type.value}")
-        
-
-        if isinstance(flow, CodeAgentFlow):
-            return await flow.execute_task(input_data)
-        elif isinstance(flow, ChatbotFlow):
-            return await flow.process_message(input_data)
-        # elif isinstance(flow, PromptChainFlow):
-        #     return await flow.execute_chain(input_data)
-        else:
-            raise ValueError(f"Unknown flow type for {flow_name}")
+        logger.info(f"Executing flow: {flow_name} with type: {type(flow)}")
+        return await flow.execute(input_data)
     
     def list_flows(self) -> List[str]:
         """List all available execution flows"""
-        return list(self.execution_flows.keys())
+        return list(self.flows.keys())
     
     def get_flow_info(self, flow_name: str) -> Dict[str, Any]:
         """Get information about a specific flow"""

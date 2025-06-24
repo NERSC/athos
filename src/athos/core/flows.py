@@ -3,6 +3,7 @@
 # - create a Flow base class and consolidate the method names
 
 import asyncio
+from abc import ABC, abstractmethod
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -18,13 +19,26 @@ from smolagents import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-class ChatbotFlow:
+
+class BaseFlow(ABC):
+    """Base class for all agent execution flows"""
+    
+    @abstractmethod
+    async def execute(self, input_data: str) -> Any:
+        """Execute the flow with input data"""
+        pass
+
+class ChatbotFlow(BaseFlow):
     """Simple chatbot flow without tools; maintains conv history"""
     
     def __init__(self, model: OpenAIServerModel, system_prompt: Optional[str] = None):
         self.model = model
         self.system_prompt = system_prompt
         self.conversation_history: List[Dict[str, str]] = []
+    
+    async def execute(self, input_data: str) -> str:
+        """Execute the flow"""
+        return await self.process_message(input_data)
     
     async def process_message(self, message: str) -> str:
         """Process a single message through the chatbot"""
@@ -45,7 +59,7 @@ class ChatbotFlow:
         
         return response
 
-class CodeAgentFlow:
+class CodeAgentFlow(BaseFlow):
     """Code agent flow with tools"""
     
     def __init__(self, model: OpenAIServerModel, tools: List[Tool]):
@@ -55,6 +69,10 @@ class CodeAgentFlow:
             # system_prompt=system_prompt
         )
     
+    async def execute(self, input_data: str) -> str:
+        """Execute the flow with input data"""
+        return await self.execute_task(input_data)
+
     async def execute_task(self, task: str) -> str:
         """Execute a task using the code agent"""
         try:
@@ -64,13 +82,17 @@ class CodeAgentFlow:
             logger.error(f"Code agent execution failed: {e}")
             return f"Error: {str(e)}"
 
-# class PromptChainFlow:
+# class PromptChainFlow(BaseFlow):
 #     """Prompt chain flow for complex multi-step operations"""
     
 #     def __init__(self, model: HfApiModel, prompt_chain: List[Dict[str, str]]):
 #         self.model = model
 #         self.prompt_chain = prompt_chain
     
+#     async def execute(self, input_data: str) -> Dict[str, str]:
+#         """Execute the flow with input data"""
+#         return await self.execute_chain(input_data)
+
 #     async def execute_chain(self, initial_input: str) -> Dict[str, str]:
 #         """Execute the entire prompt chain"""
 #         results = {"initial_input": initial_input}
