@@ -7,6 +7,7 @@ class ExecutionFlowType(Enum):
     CHATBOT = "chatbot"
     CODE_AGENT = "code_agent"
     PROMPT_CHAIN = "prompt_chain"
+    TOOL_CALLING_AGENT = "tool_calling_agent"
 
 @dataclass
 class ModelConfig:

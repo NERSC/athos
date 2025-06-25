@@ -1,19 +1,19 @@
 """
-Basic usage examples for ATHOS
+NONWORKING DEPRECATED EXAMPLE.
+Demonstrates some possible use-cases with athos, but these are not fully implemented.
 """
 import asyncio
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from athos import create_athos_agent
+from athos.core.manager import create_athos_manager
 
 async def basic_chatbot_example():
     """Example of using the HPC chatbot flow"""
     print("=== Basic Chatbot Example ===")
     
     # Create ATHOS agent from configuration
-    agent = create_athos_agent("config.yaml")
+    agent = create_athos_manager("config.yaml")
     
     # List available flows
     print("Available flows:", agent.list_flows())
@@ -35,7 +35,7 @@ async def code_agent_example():
     """Example of using the code agent flow"""
     print("\n=== Code Agent Example ===")
     
-    agent = create_athos_agent("config.yaml")
+    agent = create_athos_manager("config.yaml")
     
     # Example tasks for the code agent
     tasks = [
@@ -54,7 +54,7 @@ async def problem_solving_example():
     """Example of using the problem-solving prompt chain"""
     print("\n=== Problem Solving Example ===")
     
-    agent = create_athos_agent("config.yaml")
+    agent = create_athos_manager("config.yaml")
     
     # Example problem scenarios
     problems = [
@@ -81,7 +81,7 @@ async def performance_optimization_example():
     """Example of using the performance optimization flow"""
     print("\n=== Performance Optimization Example ===")
     
-    agent = create_athos_agent("config.yaml")
+    agent = create_athos_manager("config.yaml")
     
     # Example performance issues
     scenarios = [

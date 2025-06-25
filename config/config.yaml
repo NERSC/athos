@@ -70,6 +70,17 @@ models:
     temperature: 0.5
     max_tokens: 1024
 
+# Tools for web agent
+tools:
+  websearch:
+    class_name: "DuckDuckGoSearchTool"
+    module_path: "smolagents.default_tools"
+    parameters: {}
+  webvisit:
+    class_name: "VisitWebpageTool"
+    module_path: "smolagents.default_tools"
+    parameters: {}
+
 # tools:
 #   # SLURM job management tool
 #   slurm_manager:
@@ -127,6 +138,13 @@ execution_flows:
     type: "code_agent"
     model: "gpt_4o"
     # system prompt: You are an HPC support chatbot.
+
+  # Web agent example
+  web_agent:
+    type: "tool_calling_agent"
+    model: "o4_mini"
+    tools: ["websearch", "webvisit"]
+    # Optionally, add a system_prompt to configure behavior
 
 #   # Code agent for automated HPC tasks
 #   hpc_automation:

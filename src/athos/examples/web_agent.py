@@ -1,0 +1,33 @@
+"""
+Standalone smolagents example
+"""
+
+import asyncio
+import argparse
+import pprint
+    
+from athos.core.manager import create_athos_manager
+
+async def main():
+    parser = argparse.ArgumentParser(description="ATHOS chatbot example")
+    parser.add_argument("--config", default="config/config.yaml",
+                        help="Path to configuration YAML file")
+    args = parser.parse_args()
+
+    mgr = create_athos_manager(args.config)
+
+    # Print some info about available flows
+    for flow in mgr.list_flows():
+        print(f"Flow: {flow}")
+        pprint.pprint(mgr.get_flow_info(flow))
+        print()
+
+    flow = "web_agent"
+
+    query = "What are some upcoming or ongoing training events at NERSC?"
+    result = await mgr.execute_flow(flow, query)
+    print(f"Query: {query}")
+    print(f"Result: {result}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

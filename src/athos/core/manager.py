@@ -10,7 +10,7 @@ from athos.config import (
     ConfigLoader
 )
 
-from athos.core.flows import BaseFlow, ChatbotFlow, CodeAgentFlow
+from athos.core.flows import BaseFlow, ChatbotFlow, CodeAgentFlow, ToolCallingAgentFlow
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -79,16 +79,23 @@ class AthosManager:
                 flow = ChatbotFlow(model, flow_config.system_prompt)
             
             elif flow_config.type == ExecutionFlowType.CODE_AGENT:
-                # Load required tools
                 tools = []
                 for tool_name in flow_config.tools:
                     logger.info(f"loading tool {tool_name}")
                     tool_config = self.config.tools[tool_name]
                     tool = self._load_tool(tool_config)
                     tools.append(tool)
-                
                 flow = CodeAgentFlow(model, tools)
-                logger.info(flow)
+                logger.info(f"Initialized CodeAgentFlow: {name}")
+            elif flow_config.type == ExecutionFlowType.TOOL_CALLING_AGENT:
+                tools = []
+                for tool_name in flow_config.tools:
+                    logger.info(f"loading tool {tool_name}")
+                    tool_config = self.config.tools[tool_name]
+                    tool = self._load_tool(tool_config)
+                    tools.append(tool)
+                flow = ToolCallingAgentFlow(model, tools)
+                logger.info(f"Initialized ToolCallingAgentFlow: {name}")
             
             elif flow_config.type == ExecutionFlowType.PROMPT_CHAIN:
                 raise NotImplementedError

@@ -10,6 +10,7 @@ from pathlib import Path
 import logging
 from smolagents import (
     CodeAgent, 
+    ToolCallingAgent,
     OpenAIServerModel, 
     ChatMessage,
     Tool,
@@ -34,16 +35,16 @@ class BaseFlow(ABC):
 
 class ChatbotFlow(BaseFlow):
     """Simple chatbot flow without tools; maintains conv history"""
-    
+
     def __init__(self, model: OpenAIServerModel, system_prompt: Optional[str] = None):
         self.model = model
         self.system_prompt = system_prompt
         self.conversation_history: List[Dict[str, str]] = []
-    
+
     async def execute(self, input_data: str) -> str:
         """Execute the flow"""
         return await self.process_message(input_data)
-    
+
     async def process_message(self, message: str) -> str:
         """Process a single message through the chatbot"""
         user_message = ChatMessage(role="user", content=message)
@@ -68,24 +69,39 @@ class CodeAgentFlow(BaseFlow):
     """Code agent flow with tools"""
     
     def __init__(self, model: OpenAIServerModel, tools: List[Tool]):
+        # Initialize CodeAgent for code generation and tool usage
         self.agent = CodeAgent(
             tools=tools,
             model=model,
-            # system_prompt=system_prompt
         )
     
     async def execute(self, input_data: str) -> str:
-        """Execute the flow with input data"""
-        return await self.execute_task(input_data)
-
-    async def execute_task(self, task: str) -> str:
-        """Execute a task using the code agent"""
+        """Execute the flow with input data using CodeAgent"""
         try:
-            result = await self.agent.run(task)
+            result = await asyncio.to_thread(self.agent.run, input_data)
             return result
         except Exception as e:
             logger.error(f"Code agent execution failed: {e}")
             return f"Error: {str(e)}"
+
+# Flow for smolagents ToolCallingAgent
+class ToolCallingAgentFlow(BaseFlow):
+    """Flow for agents that call tools using smolagents.ToolCallingAgent"""
+    def __init__(self, model: OpenAIServerModel, tools: List[Tool]):
+        self.agent = ToolCallingAgent(
+            tools=tools,
+            model=model,
+        )
+
+    async def execute(self, input_data: str) -> Any:
+        """Execute the flow with input data using ToolCallingAgent"""
+        try:
+            result = await asyncio.to_thread(self.agent.run, input_data)
+            return result
+        except Exception as e:
+            logger.error(f"ToolCallingAgent execution failed: {e}")
+            return f"Error: {str(e)}"
+
 
 # class PromptChainFlow(BaseFlow):
 #     """Prompt chain flow for complex multi-step operations"""
