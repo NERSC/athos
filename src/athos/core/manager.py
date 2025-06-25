@@ -29,7 +29,6 @@ class AthosManager:
     
     def __init__(self, config: AthosConfig):
         self.config = config
-        # self.tool_manager = ToolManager()
         self.models: Dict[str, OpenAIServerModel] = {}
         self.loaded_tools: Dict[str, Tool] = {}
         self.flows: Dict[str, BaseFlow] = {}
@@ -44,7 +43,6 @@ class AthosManager:
         
         try:
             # Dynamic import of tool class
-            # module_parts = tool_config.module_path.split('.')
             module = __import__(tool_config.module_path, fromlist=[tool_config.class_name])
             tool_class = getattr(module, tool_config.class_name)
             
