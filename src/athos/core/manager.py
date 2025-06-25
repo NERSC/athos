@@ -72,7 +72,6 @@ class AthosManager:
     
     def _initialize_flows(self):
         """Initialize all configured execution flows"""
-        logger.info('_initialize_flows')
         for name, flow_config in self.config.execution_flows.items():
             model = self.models[flow_config.model]
             

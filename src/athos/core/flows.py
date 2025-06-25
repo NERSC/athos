@@ -11,12 +11,16 @@ import logging
 from smolagents import (
     CodeAgent, 
     OpenAIServerModel, 
+    ChatMessage,
     Tool,
     # ToolCollection,
 )
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -42,22 +46,23 @@ class ChatbotFlow(BaseFlow):
     
     async def process_message(self, message: str) -> str:
         """Process a single message through the chatbot"""
-        user_message = {"role": "user", "content": message}
+        user_message = ChatMessage(role="user", content=message)
         self.conversation_history.append(user_message)
         
         # Add system prompt if provided
         messages = []
         if self.system_prompt:
-            messages.append({"role": "system", "content": self.system_prompt})
+            messages.append(ChatMessage(role="system",
+                                        content=self.system_prompt))
         
+        # Build input from full conversation history
         messages.extend(self.conversation_history)
         
-        # response = await self.model.async_invoke(messages)
         response = self.model(messages, stop_sequences=["END"])
-        assistant_message = {"role": "assistant", "content": response}
+        assistant_message = ChatMessage(role="assistant", content=response.content)
         self.conversation_history.append(assistant_message)
         
-        return response
+        return assistant_message.content
 
 class CodeAgentFlow(BaseFlow):
     """Code agent flow with tools"""
