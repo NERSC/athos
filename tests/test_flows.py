@@ -5,14 +5,25 @@ import pytest
 from athos.core.flows import ChatbotFlow
 
 
+class FakeResponse:
+    """A fake response object that mimics the expected model response"""
+    def __init__(self, content: str):
+        self.content = content
+
+
 class FakeModel:
     """A fake model that echoes the last user message"""
     def __call__(self, messages, stop_sequences=None):
         # Find the last user message in the list
         for msg in reversed(messages):
-            if msg.get('role') == 'user':
-                return f"echo: {msg.get('content')}"
-        return ""
+            if hasattr(msg, 'content') and hasattr(msg, 'role'):
+                # Handle ChatMessage objects
+                if msg.role == 'user':
+                    return FakeResponse(f"echo: {msg.content}")
+            elif isinstance(msg, dict) and msg.get('role') == 'user':
+                # Handle dict messages
+                return FakeResponse(f"echo: {msg.get('content')}")
+        return FakeResponse("")
 
 
 def test_chatbot_flow_basic():
@@ -34,6 +45,7 @@ def test_chatbot_flow_basic():
     # All roles in history are user or assistant
     roles = {entry.get('role') for entry in flow.conversation_history}
     assert roles <= {"user", "assistant"}
+
 
 def test_chatbot_flow_without_system_prompt():
     fake_model = FakeModel()
