@@ -1,0 +1,10 @@
+title: training job fails with connection to the C10d store has failed.
+attachment: job.sh
+attachment: slurm-1045810.out
+description:
+I am trying to train an NLP model on Perlmutter. I tested a script one 1 GPU
+and it worked fine, but when I try to use torchrun to train the model on 8 GPUs
+I am getting this error:
+0: torch.distributed.elastic.rendezvous.api.RendezvousConnectionError: The connection to the C10d store has failed. See inner exception for details.
+Could this be because of a network issue on Perlmutter, or am I doing something wrong?
+I attached my slurm log and my job script.

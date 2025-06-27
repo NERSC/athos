@@ -1,0 +1,21 @@
+Hello,
+
+I am trying to submit a job to Perlmutter but getting an error.
+
+My job script looks like this:
+
+#!/bin/bash
+#SBATCH -C gpu
+#SBATCH -q debug
+#SBATCH -t 8:00:00
+#SBATCH --gpus-per-node=4
+#SBATCH --ntasks-per-node=4
+module load pytorch
+python train.py
+
+but when I submit I get the following error
+
+sbatch: error: QOSMaxWallDurationPerJobLimit
+sbatch: error: Batch job submission failed: Job violates accounting/QOS policy (job submit limit, user's size and/or time limits)
+
+Can you please help me fix this?

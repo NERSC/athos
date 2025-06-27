@@ -1,0 +1,8 @@
+training job hanging
+
+I'm encountering an issue trying to run a huggingface training job on perlmutter.
+My script seems to start but never shows any progress until the job exits with
+
+slurmstepd: error: *** JOB 1045796 ON nid001049 CANCELLED AT 2025-05-30T16:37:24 DUE TO TIME LIMIT ***
+
+I've attached my job script: job.sh

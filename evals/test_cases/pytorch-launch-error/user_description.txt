@@ -1,0 +1,9 @@
+Hello. I am trying to run parallel training of a pytorch model with DDP on Perlmutter,
+but I'm not sure I have things setup correctly because the training doesn't seem to be progressing any faster when I go from 1 node to 2 nodes.
+I'm running a hugging face script to train an NLP model.
+Can you please tell me what I might be doing incorrectly?
+
+My job script is attached as job.sh and an example log file is attached as slurm-1045807.out
+
+attachment: job.sh
+attachment: slurm-1045807.out
