@@ -68,6 +68,12 @@ Custom tools designed for HPC operations:
 
 Main command-line interface for running ATHOS agents with configuration-driven execution.
 
+### `evals/`
+**Test cases and evaluation pipeline**
+
+Synthetic use cases to evaluate performance of agent configurations.
+See [evals/README.md](evals/README.md) for instructions on how to run.
+
 ## Key Architecture Notes
 
 - The project uses a **configuration-driven approach** where agents, tools, and execution flows are defined in YAML configuration files
