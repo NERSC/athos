@@ -7,11 +7,12 @@ name = "athos"
 version = "0.1.0"
 description = "ATHOS - Agentic HPC support framework"
 authors = [{name = "NERSC"}]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "openai>=1.0.0,<2.0.0",
     "openai-agents>=0.0.19,<0.1.0",
-    "smolagents>=1.19.0,<2.0.0",
+    "mcp>=1.9.0,<2.0.0",
+    "smolagents[mcp]>=1.19.0,<2.0.0",
     "duckduckgo_search",
     "markdownify",
 ]
