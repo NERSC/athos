@@ -9,6 +9,12 @@ class ExecutionFlowType(Enum):
     PROMPT_CHAIN = "prompt_chain"
     TOOL_CALLING_AGENT = "tool_calling_agent"
 
+class ToolType(Enum):
+    """Supported tool types"""
+    REGULAR = "regular"
+    MCP_STDIO = "mcp_stdio"
+    MCP_SSE = "mcp_sse"
+
 @dataclass
 class ModelConfig:
     """Configuration for AI models"""
@@ -21,12 +27,31 @@ class ModelConfig:
     system_prompt: Optional[str] = None
 
 @dataclass
+class MCPServerConfig:
+    """Configuration for MCP server connection"""
+    # For stdio transport
+    command: Optional[str] = None
+    args: List[str] = field(default_factory=list)
+    env: Dict[str, str] = field(default_factory=dict)
+    
+    # For SSE transport
+    url: Optional[str] = None
+    headers: Dict[str, str] = field(default_factory=dict)
+
+@dataclass
 class ToolConfig:
-    """Configuration for tools"""
+    """Configuration for tools (regular and MCP)"""
     name: str
-    class_name: str
-    module_path: str
+    tool_type: ToolType = ToolType.REGULAR
+    
+    # Regular tool fields
+    class_name: Optional[str] = None
+    module_path: Optional[str] = None
     parameters: Dict[str, Any] = field(default_factory=dict)
+    
+    # MCP tool fields
+    mcp_config: Optional[MCPServerConfig] = None
+    mcp_tool_name: Optional[str] = None  # Specific tool name from MCP server
 
 @dataclass
 class ExecutionFlowConfig:

@@ -81,6 +81,52 @@ tools:
     module_path: "smolagents.default_tools"
     parameters: {}
 
+  # MCP Tools Examples
+  # ServiceNow MCP server (stdio transport)
+  servicenow_mcp:
+    tool_type: "mcp_stdio"
+    mcp_config:
+      command: "python"
+      args: ["-m", "servicenow_mcp"]
+      env:
+        SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
+        SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
+        SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
+    # Optional: specify a specific tool name from the MCP server
+    # mcp_tool_name: "create_incident"
+
+  # GitHub MCP server (stdio transport)
+  github_mcp:
+    tool_type: "mcp_stdio"
+    mcp_config:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-github"]
+      env:
+        GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
+
+  # Filesystem MCP server (stdio transport)
+  filesystem_mcp:
+    tool_type: "mcp_stdio"
+    mcp_config:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"]
+
+  # SQLite MCP server (stdio transport)
+  sqlite_mcp:
+    tool_type: "mcp_stdio"
+    mcp_config:
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "/path/to/database.db"]
+
+  # Example SSE-based MCP server (remote transport)
+  remote_mcp_example:
+    tool_type: "mcp_sse"
+    mcp_config:
+      url: "https://api.example.com/mcp"
+      headers:
+        Authorization: "Bearer ${API_TOKEN}"
+        Content-Type: "application/json"
+
 # tools:
 #   # SLURM job management tool
 #   slurm_manager:
@@ -145,6 +191,36 @@ execution_flows:
     model: "o4_mini"
     tools: ["websearch", "webvisit"]
     # Optionally, add a system_prompt to configure behavior
+
+  # MCP-enabled agent example
+  mcp_agent:
+    type: "tool_calling_agent"
+    model: "gpt_4o"
+    tools: ["github_mcp", "filesystem_mcp"]
+    system_prompt: |
+      You are an AI assistant with access to GitHub and filesystem tools via MCP.
+      You can help with repository management, file operations, and development tasks.
+      Always be careful with file operations and ask for confirmation before making changes.
+
+  # ServiceNow integration agent
+  servicenow_agent:
+    type: "tool_calling_agent"
+    model: "claude_sonnet"
+    tools: ["servicenow_mcp"]
+    system_prompt: |
+      You are a ServiceNow integration assistant. You can help create incidents,
+      manage service requests, and interact with ServiceNow instances.
+      Always provide clear summaries of actions taken.
+
+  # Mixed tools agent (regular + MCP)
+  mixed_tools_agent:
+    type: "tool_calling_agent"
+    model: "gpt_4o"
+    tools: ["websearch", "github_mcp", "sqlite_mcp"]
+    system_prompt: |
+      You are a versatile assistant with access to web search, GitHub, and database tools.
+      You can research topics online, manage code repositories, and query databases.
+      Combine these capabilities to provide comprehensive assistance.
 
 #   # Code agent for automated HPC tasks
 #   hpc_automation:
