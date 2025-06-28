@@ -39,7 +39,7 @@ class ChatbotFlow(BaseFlow):
     def __init__(self, model: OpenAIServerModel, system_prompt: Optional[str] = None):
         self.model = model
         self.system_prompt = system_prompt
-        self.conversation_history: List[Dict[str, str]] = []
+        self.conversation_history: List[ChatMessage] = []
 
     async def execute(self, input_data: str) -> str:
         """Execute the flow"""
