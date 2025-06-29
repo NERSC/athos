@@ -30,14 +30,14 @@ class AthosManager:
     - consider lazy initialization of flows, tools, etc.
     - make model types flexible and/or fully optional
     """
-    
+
     def __init__(self, config: AthosConfig):
         self.config = config
         self.models: Dict[str, OpenAIServerModel] = {}
         self.loaded_tools: Dict[str, Tool] = {}
         self.mcp_clients: Dict[str, MCPClient] = {}
         self.flows: Dict[str, BaseFlow] = {}
-        
+
         self._initialize_models()
         self._initialize_flows()
 
@@ -65,25 +65,25 @@ class AthosManager:
                 logger.info(f"Created MCP SSE client: {cache_key}")
         else:
             raise ValueError("MCP config must specify either command or url")
-            
+
         return self.mcp_clients[cache_key]
-    
+
     def _load_mcp_tools(self, tool_config: ToolConfig) -> List[Tool]:
         """Load tools from MCP server"""
         if not tool_config.mcp_config:
             raise ValueError(f"MCP tool {tool_config.name} missing mcp_config")
-            
+
         try:
             mcp_client = self._create_mcp_client(tool_config.mcp_config)
             all_tools = list(mcp_client.get_tools())
-            
+
             # If specific tool name specified, filter for it
             if tool_config.mcp_tool_name:
                 filtered_tools = [t for t in all_tools if t.name == tool_config.mcp_tool_name]
                 if not filtered_tools:
                     raise ValueError(f"Tool '{tool_config.mcp_tool_name}' not found in MCP server")
                 return filtered_tools
-            
+
             return all_tools
             
         except Exception as e:
@@ -94,39 +94,39 @@ class AthosManager:
         """Load a tool from configuration (regular or MCP)"""
         if tool_config.name in self.loaded_tools:
             return self.loaded_tools[tool_config.name]
-        
+
         try:
             if tool_config.tool_type == ToolType.REGULAR:
                 # Existing regular tool loading logic
                 module = __import__(tool_config.module_path, fromlist=[tool_config.class_name])
                 tool_class = getattr(module, tool_config.class_name)
-                
+
                 # Instantiate tool with parameters
                 tool_instance = tool_class(**tool_config.parameters)
                 self.loaded_tools[tool_config.name] = tool_instance
-                
+
                 logger.info(f"Loaded regular tool: {tool_config.name}")
                 return tool_instance
-                
+
             elif tool_config.tool_type in [ToolType.MCP_STDIO, ToolType.MCP_SSE]:
                 # New MCP tool loading logic
                 mcp_tools = self._load_mcp_tools(tool_config)
-                
+
                 # Cache tools individually
                 for tool in mcp_tools:
                     cache_key = f"{tool_config.name}:{tool.name}"
                     self.loaded_tools[cache_key] = tool
-                    
+
                 logger.info(f"Loaded {len(mcp_tools)} MCP tools for: {tool_config.name}")
                 return mcp_tools if len(mcp_tools) > 1 else mcp_tools[0]
-                
+
             else:
                 raise ValueError(f"Unknown tool type: {tool_config.tool_type}")
-                
+
         except Exception as e:
             logger.error(f"Failed to load tool {tool_config.name}: {e}")
             raise
-    
+
     def _initialize_models(self):
         """Initialize all configured models"""
         for name, model_config in self.config.models.items():
@@ -137,22 +137,22 @@ class AthosManager:
             )
             self.models[name] = model
             logger.info(f"Initialized model: {name}")
-    
+
     def _initialize_flows(self):
         """Initialize all configured execution flows"""
         for name, flow_config in self.config.execution_flows.items():
             model = self.models[flow_config.model]
-            
+
             if flow_config.type == ExecutionFlowType.CHATBOT:
                 flow = ChatbotFlow(model, flow_config.system_prompt)
-            
+
             elif flow_config.type == ExecutionFlowType.CODE_AGENT:
                 tools = []
                 for tool_name in flow_config.tools:
                     logger.info(f"loading tool {tool_name}")
                     tool_config = self.config.tools[tool_name]
                     loaded_tool = self._load_tool(tool_config)
-                    
+
                     # Handle both single tools and lists of tools (from MCP)
                     if isinstance(loaded_tool, list):
                         tools.extend(loaded_tool)
@@ -166,7 +166,7 @@ class AthosManager:
                     logger.info(f"loading tool {tool_name}")
                     tool_config = self.config.tools[tool_name]
                     loaded_tool = self._load_tool(tool_config)
-                    
+
                     # Handle both single tools and lists of tools (from MCP)
                     if isinstance(loaded_tool, list):
                         tools.extend(loaded_tool)
@@ -174,36 +174,36 @@ class AthosManager:
                         tools.append(loaded_tool)
                 flow = ToolCallingAgentFlow(model, tools)
                 logger.info(f"Initialized ToolCallingAgentFlow: {name}")
-            
+
             elif flow_config.type == ExecutionFlowType.PROMPT_CHAIN:
                 raise NotImplementedError
                 # flow = PromptChainFlow(model, flow_config.prompt_chain)
-            
+
             else:
                 raise ValueError(f"Unknown execution flow type: {flow_config.type}")
-            
+
             self.flows[name] = flow
             logger.info(f"Initialized execution flow: {name}")
-    
+
     async def execute_flow(self, flow_name: str, input_data: str) -> Any:
         """Execute a specific flow with input data"""
         try:
             flow = self.flows[flow_name]
         except KeyError:
             raise ValueError(f"Unknown execution flow: {flow_name}")
-        
+
         logger.info(f"Executing flow: {flow_name} with type: {type(flow)}")
         return await flow.execute(input_data)
-    
+
     def list_flows(self) -> List[str]:
         """List all available execution flows"""
         return list(self.flows.keys())
-    
+
     def get_flow_info(self, flow_name: str) -> Dict[str, Any]:
         """Get information about a specific flow"""
         if flow_name not in self.config.execution_flows:
             raise ValueError(f"Unknown execution flow: {flow_name}")
-        
+
         flow_config = self.config.execution_flows[flow_name]
         return {
             "name": flow_config.name,
@@ -212,7 +212,7 @@ class AthosManager:
             "tools": flow_config.tools,
             "has_prompt_chain": flow_config.prompt_chain is not None
         }
-    
+
     def close(self):
         """Clean up resources, particularly MCP clients"""
         for client_key, client in self.mcp_clients.items():
@@ -224,7 +224,7 @@ class AthosManager:
                 logger.info(f"Closed MCP client: {client_key}")
             except Exception as e:
                 logger.warning(f"Error closing MCP client {client_key}: {e}")
-        
+
         self.mcp_clients.clear()
         logger.info("AthosManager cleanup completed")
 

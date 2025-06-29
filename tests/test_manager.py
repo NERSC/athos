@@ -1,171 +1,643 @@
-import asyncio
 import pytest
-import types
+from unittest.mock import Mock, patch, AsyncMock
+import asyncio
 
-import athos.core.manager as manager_module
-import athos.core.flows as flows_module
-from athos.core.manager import AthosManager
-from athos.config.models import (
-    AthosConfig,
-    ModelConfig,
-    ToolConfig,
-    ExecutionFlowConfig,
-    ExecutionFlowType,
+from athos.core.manager import AthosManager, create_athos_manager
+from athos.config import (
+    AthosConfig, ToolConfig, ToolType, MCPServerConfig,
+    ExecutionFlowType, ModelConfig, ExecutionFlowConfig
 )
+from smolagents import Tool
+from smolagents.mcp_client import MCPClient
 
 
-class FakeResponse:
-    def __init__(self, content: str):
-        self.content = content
+class TestAthosManager:
 
-
-class FakeModel:
-    def __init__(self, model_id: str, api_base=None, api_key=None):
-        self.model_id = model_id
-        self.api_base = api_base
-        self.api_key = api_key
-
-    def __call__(self, messages, stop_sequences=None):
-        return FakeResponse("fake response")
-
-
-class DummyCodeAgent:
-    def __init__(self, tools, model):
-        self.tools = tools
-        self.model = model
-
-    def run(self, input_data: str) -> str:
-        return f"Ran DummyCodeAgent with {input_data}"
-
-
-class DummyToolCallingAgent:
-    def __init__(self, tools, model):
-        self.tools = tools
-        self.model = model
-
-    def run(self, input_data: str) -> str:
-        return f"Ran DummyToolCallingAgent with {input_data}"
-
-
-@pytest.fixture(autouse=True)
-def patch_models_and_agents(monkeypatch):
-    # Patch model and agent classes to use test fakes
-    monkeypatch.setattr(manager_module, 'OpenAIServerModel', FakeModel)
-    monkeypatch.setattr(flows_module, 'CodeAgent', DummyCodeAgent)
-    monkeypatch.setattr(flows_module, 'ToolCallingAgent', DummyToolCallingAgent)
-
-
-def build_manager():
-    # Create a sample configuration with one model, one tool, and three flows
-    models = {
-        'mymodel': ModelConfig(name='mymodel', model_id='model1')
-    }
-    tools = {
-        'simple': ToolConfig(
-            name='simple',
-            class_name='SimpleNamespace',
-            module_path='types',
-            parameters={'x': 1}
+    @pytest.fixture
+    def mock_model_config(self):
+        return ModelConfig(
+            name="test-model",
+            model_id="test-model",
+            api_base="http://test-api",
+            api_key="test-key"
         )
-    }
-    execution_flows = {
-        'chatflow': ExecutionFlowConfig(
-            name='chatflow',
+
+    @pytest.fixture
+    def mock_tool_config(self):
+        return ToolConfig(
+            name="test_tool",
+            tool_type=ToolType.REGULAR,
+            module_path="test.module",
+            class_name="TestTool",
+            parameters={"param1": "value1"}
+        )
+
+    @pytest.fixture
+    def mock_mcp_tool_config(self):
+        return ToolConfig(
+            name="mcp_tool",
+            tool_type=ToolType.MCP_STDIO,
+            mcp_config=MCPServerConfig(
+                command="test-command",
+                args=["arg1", "arg2"]
+            )
+        )
+
+    @pytest.fixture
+    def mock_flow_config(self):
+        return ExecutionFlowConfig(
+            name="test_flow",
             type=ExecutionFlowType.CHATBOT,
-            model='mymodel',
+            model="test_model",
             tools=[],
-            system_prompt='sys'
-        ),
-        'codeflow': ExecutionFlowConfig(
-            name='codeflow',
+            system_prompt="Test prompt"
+        )
+
+    @pytest.fixture
+    def mock_config(self, mock_model_config, mock_tool_config, mock_flow_config):
+        return AthosConfig(
+            models={"test_model": mock_model_config},
+            tools={"test_tool": mock_tool_config},
+            execution_flows={"test_flow": mock_flow_config}
+        )
+
+    @patch('athos.core.manager.OpenAIServerModel')
+    def test_initialize_models(self, mock_openai_model, mock_config):
+        """Test model initialization"""
+        manager = AthosManager(mock_config)
+
+        mock_openai_model.assert_called_once_with(
+            model_id="test-model",
+            api_base="http://test-api",
+            api_key="test-key"
+        )
+        assert "test_model" in manager.models
+
+    @patch('athos.core.manager.MCPClient')
+    @patch('athos.core.manager.StdioServerParameters')
+    def test_create_mcp_client_stdio(self, mock_stdio_params, mock_mcp_client, mock_config):
+        """Test MCP client creation for stdio"""
+        manager = AthosManager(mock_config)
+
+        mcp_config = MCPServerConfig(
+            command="test-command",
+            args=["arg1", "arg2"],
+            env={"ENV_VAR": "value"}
+        )
+
+        client = manager._create_mcp_client(mcp_config)
+
+        mock_stdio_params.assert_called_once_with(
+            command="test-command",
+            args=["arg1", "arg2"],
+            env={"ENV_VAR": "value"}
+        )
+        mock_mcp_client.assert_called_once()
+        assert client is not None
+
+    @patch('athos.core.manager.MCPClient')
+    def test_create_mcp_client_sse(self, mock_mcp_client, mock_config):
+        """Test MCP client creation for SSE"""
+        manager = AthosManager(mock_config)
+
+        mcp_config = MCPServerConfig(
+            url="http://test-url",
+            headers={"Authorization": "Bearer token"}
+        )
+
+        client = manager._create_mcp_client(mcp_config)
+
+        mock_mcp_client.assert_called_once_with({
+            "url": "http://test-url",
+            "headers": {"Authorization": "Bearer token"}
+        })
+        assert client is not None
+
+    def test_create_mcp_client_invalid_config(self, mock_config):
+        """Test MCP client creation with invalid config"""
+        manager = AthosManager(mock_config)
+
+        invalid_config = MCPServerConfig()  # No command or url
+
+        with pytest.raises(ValueError, match="MCP config must specify either command or url"):
+            manager._create_mcp_client(invalid_config)
+
+    @patch('athos.core.manager.AthosManager._create_mcp_client')
+    def test_load_mcp_tools_success(self, mock_create_client, mock_config):
+        """Test successful MCP tool loading"""
+        manager = AthosManager(mock_config)
+
+        # Mock MCP client and tools
+        mock_tool1 = Mock(spec=Tool)
+        mock_tool1.name = "tool1"
+        mock_tool2 = Mock(spec=Tool)
+        mock_tool2.name = "tool2"
+
+        mock_client = Mock(spec=MCPClient)
+        mock_client.get_tools.return_value = [mock_tool1, mock_tool2]
+        mock_create_client.return_value = mock_client
+
+        tool_config = ToolConfig(
+            name="mcp_tool",
+            tool_type=ToolType.MCP_STDIO,
+            mcp_config=MCPServerConfig(command="test-command")
+        )
+
+        tools = manager._load_mcp_tools(tool_config)
+
+        assert len(tools) == 2
+        assert tools[0].name == "tool1"
+        assert tools[1].name == "tool2"
+
+    @patch('athos.core.manager.AthosManager._create_mcp_client')
+    def test_load_mcp_tools_filtered(self, mock_create_client, mock_config):
+        """Test MCP tool loading with specific tool name filter"""
+        manager = AthosManager(mock_config)
+
+        mock_tool1 = Mock(spec=Tool)
+        mock_tool1.name = "tool1"
+        mock_tool2 = Mock(spec=Tool)
+        mock_tool2.name = "tool2"
+
+        mock_client = Mock(spec=MCPClient)
+        mock_client.get_tools.return_value = [mock_tool1, mock_tool2]
+        mock_create_client.return_value = mock_client
+
+        tool_config = ToolConfig(
+            name="mcp_tool",
+            tool_type=ToolType.MCP_STDIO,
+            mcp_config=MCPServerConfig(command="test-command"),
+            mcp_tool_name="tool1"
+        )
+
+        tools = manager._load_mcp_tools(tool_config)
+
+        assert len(tools) == 1
+        assert tools[0].name == "tool1"
+
+    def test_load_mcp_tools_missing_config(self, mock_config):
+        """Test MCP tool loading with missing config"""
+        manager = AthosManager(mock_config)
+
+        tool_config = ToolConfig(
+            name="mcp_tool",
+            tool_type=ToolType.MCP_STDIO
+            # Missing mcp_config
+        )
+
+        with pytest.raises(ValueError, match="MCP tool mcp_tool missing mcp_config"):
+            manager._load_mcp_tools(tool_config)
+
+    @patch('builtins.__import__')
+    def test_load_regular_tool_success(self, mock_import, mock_config):
+        """Test successful regular tool loading"""
+        manager = AthosManager(mock_config)
+
+        # Mock the imported module and tool class
+        mock_tool_instance = Mock(spec=Tool)
+        mock_tool_class = Mock(return_value=mock_tool_instance)
+        mock_module = Mock()
+        mock_module.TestTool = mock_tool_class
+        mock_import.return_value = mock_module
+
+        tool_config = ToolConfig(
+            name="test_tool",
+            tool_type=ToolType.REGULAR,
+            module_path="test.module",
+            class_name="TestTool",
+            parameters={"param1": "value1"}
+        )
+
+        result = manager._load_tool(tool_config)
+
+        mock_import.assert_any_call("test.module", fromlist=["TestTool"])
+        mock_tool_class.assert_called_once_with(param1="value1")
+        assert result == mock_tool_instance
+        assert manager.loaded_tools["test_tool"] == mock_tool_instance
+
+    @patch('athos.core.manager.AthosManager._load_mcp_tools')
+    def test_load_mcp_tool_success(self, mock_load_mcp_tools, mock_config):
+        """Test successful MCP tool loading"""
+        manager = AthosManager(mock_config)
+
+        mock_tool = Mock(spec=Tool)
+        mock_tool.name = "mcp_tool_1"
+        mock_load_mcp_tools.return_value = [mock_tool]
+
+        tool_config = ToolConfig(
+            name="mcp_tool",
+            tool_type=ToolType.MCP_STDIO,
+            mcp_config=MCPServerConfig(command="test-command")
+        )
+
+        result = manager._load_tool(tool_config)
+
+        assert result == mock_tool
+        assert manager.loaded_tools["mcp_tool:mcp_tool_1"] == mock_tool
+
+    def test_load_tool_cached(self, mock_config):
+        """Test tool loading from cache"""
+        manager = AthosManager(mock_config)
+
+        cached_tool = Mock(spec=Tool)
+        manager.loaded_tools["test_tool"] = cached_tool
+
+        tool_config = ToolConfig(name="test_tool", tool_type=ToolType.REGULAR)
+
+        result = manager._load_tool(tool_config)
+
+        assert result == cached_tool
+
+    def test_load_tool_unknown_type(self, mock_config):
+        """Test tool loading with unknown type"""
+        manager = AthosManager(mock_config)
+
+        tool_config = ToolConfig(
+            name="unknown_tool",
+            tool_type="UNKNOWN_TYPE"  # Invalid type
+        )
+
+        with pytest.raises(ValueError, match="Unknown tool type"):
+            manager._load_tool(tool_config)
+
+    @patch('athos.core.manager.ChatbotFlow')
+    @patch('athos.core.manager.OpenAIServerModel')
+    def test_initialize_chatbot_flow(self, mock_model, mock_chatbot_flow, mock_config):
+        """Test chatbot flow initialization"""
+        mock_flow_instance = Mock()
+        mock_chatbot_flow.return_value = mock_flow_instance
+
+        manager = AthosManager(mock_config)
+
+        mock_chatbot_flow.assert_called_once()
+        assert "test_flow" in manager.flows
+        assert manager.flows["test_flow"] == mock_flow_instance
+
+    @patch('athos.core.manager.CodeAgentFlow')
+    @patch('athos.core.manager.AthosManager._load_tool')
+    @patch('athos.core.manager.OpenAIServerModel')
+    def test_initialize_code_agent_flow(self, mock_model, mock_load_tool, mock_code_flow):
+        """Test code agent flow initialization"""
+        # Setup config with code agent flow
+        flow_config = ExecutionFlowConfig(
+            name="code_flow",
             type=ExecutionFlowType.CODE_AGENT,
-            model='mymodel',
-            tools=['simple']
-        ),
-        'toolcallflow': ExecutionFlowConfig(
-            name='toolcallflow',
-            type=ExecutionFlowType.TOOL_CALLING_AGENT,
-            model='mymodel',
-            tools=['simple']
-        ),
-    }
-    config = AthosConfig(
-        models=models,
-        tools=tools,
-        execution_flows=execution_flows
-    )
-    return AthosManager(config)
+            model="test_model",
+            tools=["test_tool"]
+        )
+
+        config = AthosConfig(
+            models={"test_model": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            tools={"test_tool": ToolConfig(name="test_tool", tool_type=ToolType.REGULAR)},
+            execution_flows={"code_flow": flow_config}
+        )
+
+        mock_tool = Mock(spec=Tool)
+        mock_load_tool.return_value = mock_tool
+        mock_flow_instance = Mock()
+        mock_code_flow.return_value = mock_flow_instance
+
+        manager = AthosManager(config)
+
+        mock_load_tool.assert_called_once()
+        mock_code_flow.assert_called_once()
+        assert "code_flow" in manager.flows
+
+    @pytest.mark.asyncio
+    async def test_execute_flow_success(self, mock_config):
+        """Test successful flow execution"""
+        manager = AthosManager(mock_config)
+
+        mock_flow = AsyncMock()
+        mock_flow.execute.return_value = "test result"
+        manager.flows["test_flow"] = mock_flow
+
+        result = await manager.execute_flow("test_flow", "test input")
+
+        mock_flow.execute.assert_called_once_with("test input")
+        assert result == "test result"
+
+    @pytest.mark.asyncio
+    async def test_execute_flow_unknown(self, mock_config):
+        """Test execution of unknown flow"""
+        manager = AthosManager(mock_config)
+
+        with pytest.raises(ValueError, match="Unknown execution flow: unknown_flow"):
+            await manager.execute_flow("unknown_flow", "test input")
+
+    def test_list_flows(self, mock_config):
+        """Test listing available flows"""
+        manager = AthosManager(mock_config)
+
+        flows = manager.list_flows()
+
+        assert "test_flow" in flows
+        assert len(flows) == 1
+
+    def test_get_flow_info_success(self, mock_config):
+        """Test getting flow information"""
+        manager = AthosManager(mock_config)
+
+        info = manager.get_flow_info("test_flow")
+
+        expected_info = {
+            "name": "test_flow",
+            "type": "chatbot",
+            "model": "test_model",
+            "tools": [],
+            "has_prompt_chain": False
+        }
+
+        assert info == expected_info
+
+    def test_get_flow_info_unknown(self, mock_config):
+        """Test getting info for unknown flow"""
+        manager = AthosManager(mock_config)
+
+        with pytest.raises(ValueError, match="Unknown execution flow: unknown_flow"):
+            manager.get_flow_info("unknown_flow")
+
+    def test_close_cleanup(self, mock_config):
+        """Test cleanup of resources"""
+        manager = AthosManager(mock_config)
+
+        # Add mock MCP client
+        mock_client = Mock()
+        mock_client.close = Mock()
+        manager.mcp_clients["test_client"] = mock_client
+
+        manager.close()
+
+        mock_client.close.assert_called_once()
+        assert len(manager.mcp_clients) == 0
+
+    def test_close_cleanup_no_close_method(self, mock_config):
+        """Test cleanup when client has no close method"""
+        manager = AthosManager(mock_config)
+
+        # Add mock MCP client without close method
+        mock_client = Mock(spec=[])  # No close method
+        manager.mcp_clients["test_client"] = mock_client
+
+        # Should not raise exception
+        manager.close()
+
+        assert len(manager.mcp_clients) == 0
 
 
-def test_initialize_and_list_and_info():
-    manager = build_manager()
-    # Models and flows initialized
-    assert set(manager.models.keys()) == {'mymodel'}
-    assert isinstance(manager.models['mymodel'], FakeModel)
-    assert set(manager.flows.keys()) == {'chatflow', 'codeflow', 'toolcallflow'}
-    # list_flows
-    flows_list = manager.list_flows()
-    assert set(flows_list) == {'chatflow', 'codeflow', 'toolcallflow'}
-    # get_flow_info for chatbot
-    info = manager.get_flow_info('chatflow')
-    assert info == {
-        'name': 'chatflow',
-        'type': ExecutionFlowType.CHATBOT.value,
-        'model': 'mymodel',
-        'tools': [],
-        'has_prompt_chain': False
-    }
-    # get_flow_info for code agent
-    info2 = manager.get_flow_info('codeflow')
-    assert info2['name'] == 'codeflow'
-    assert info2['type'] == ExecutionFlowType.CODE_AGENT.value
-    assert info2['model'] == 'mymodel'
-    assert info2['tools'] == ['simple']
-    assert info2['has_prompt_chain'] is False
-    # Unknown flow info raises
-    with pytest.raises(ValueError):
-        manager.get_flow_info('unknown')
+class TestCreateAthosManager:
+
+    @patch('athos.core.manager.ConfigLoader.load_config')
+    @patch('athos.core.manager.AthosManager')
+    def test_create_athos_manager(self, mock_manager_class, mock_load_config):
+        """Test factory function for creating ATHOS manager"""
+        mock_config = Mock(spec=AthosConfig)
+        mock_load_config.return_value = mock_config
+        mock_manager_instance = Mock()
+        mock_manager_class.return_value = mock_manager_instance
+
+        result = create_athos_manager("test_config.yaml")
+
+        mock_load_config.assert_called_once_with("test_config.yaml")
+        mock_manager_class.assert_called_once_with(mock_config)
+        assert result == mock_manager_instance
 
 
-def test_execute_flows():
-    manager = build_manager()
-    # Chatbot flow execution
-    result_chat = asyncio.run(manager.execute_flow('chatflow', 'hello'))
-    assert result_chat == 'fake response'
-    # Code agent flow execution
-    result_code = asyncio.run(manager.execute_flow('codeflow', 'run it'))
-    assert result_code == 'Ran DummyCodeAgent with run it'
-    # Tool calling agent flow execution
-    result_toolcall = asyncio.run(manager.execute_flow('toolcallflow', 'task'))
-    assert result_toolcall == 'Ran DummyToolCallingAgent with task'
-    # Unknown flow execution raises
-    with pytest.raises(ValueError):
-        asyncio.run(manager.execute_flow('noflow', 'x'))
+# Integration test fixtures and helpers
+class TestAthosManagerIntegration:
+    """Integration tests that test multiple components together"""
+
+    @pytest.fixture
+    def full_config(self):
+        """Complete configuration for integration testing"""
+        return AthosConfig(
+            models={
+                "gpt4": ModelConfig(
+                    name="gpt-4",
+                    model_id="gpt-4",
+                    api_base="https://api.openai.com/v1",
+                    api_key="test-key"
+                )
+            },
+            tools={
+                "calculator": ToolConfig(
+                    name="calculator",
+                    tool_type=ToolType.REGULAR,
+                    module_path="test.tools",
+                    class_name="Calculator",
+                    parameters={}
+                ),
+                "file_manager": ToolConfig(
+                    name="file_manager",
+                    tool_type=ToolType.MCP_STDIO,
+                    mcp_config=MCPServerConfig(
+                        command="file-server",
+                        args=["--root", "/tmp"]
+                    )
+                )
+            },
+            execution_flows={
+                "chat": ExecutionFlowConfig(
+                    name="chat",
+                    type=ExecutionFlowType.CHATBOT,
+                    model="gpt4",
+                    tools=[],
+                    system_prompt="You are a helpful assistant"
+                ),
+                "coding": ExecutionFlowConfig(
+                    name="coding",
+                    type=ExecutionFlowType.CODE_AGENT,
+                    model="gpt4",
+                    tools=["calculator", "file_manager"]
+                )
+            }
+        )
+
+    @patch('athos.core.manager.OpenAIServerModel')
+    @patch('builtins.__import__')
+    @patch('athos.core.manager.MCPClient')
+    def test_full_initialization(self, mock_mcp_client, mock_import, mock_openai_model, full_config):
+        """Test complete manager initialization with multiple components"""
+        # Mock regular tool
+        mock_calculator = Mock(spec=Tool)
+        mock_calculator_class = Mock(return_value=mock_calculator)
+        mock_module = Mock()
+        mock_module.Calculator = mock_calculator_class
+        mock_import.return_value = mock_module
+
+        # Mock MCP tools
+        mock_mcp_tool = Mock(spec=Tool)
+        mock_mcp_tool.name = "read_file"
+        mock_client_instance = Mock()
+        mock_client_instance.get_tools.return_value = [mock_mcp_tool]
+        mock_mcp_client.return_value = mock_client_instance
+
+        with patch('athos.core.manager.StdioServerParameters'), \
+             patch('athos.core.manager.ChatbotFlow') as mock_chatbot_flow, \
+             patch('athos.core.manager.CodeAgentFlow') as mock_code_flow:
+
+            manager = AthosManager(full_config)
+
+            # Verify models initialized
+            assert len(manager.models) == 1
+            assert "gpt4" in manager.models
+
+            # Verify tools loaded
+            assert len(manager.loaded_tools) >= 2  # calculator + mcp tools
+
+            # Verify flows initialized
+            assert len(manager.flows) == 2
+            assert "chat" in manager.flows
+            assert "coding" in manager.flows
+
+            # Verify flow constructors called
+            mock_chatbot_flow.assert_called_once()
+            mock_code_flow.assert_called_once()
+
+    @patch('athos.core.manager.OpenAIServerModel')
+    def test_error_handling_during_initialization(self, mock_openai_model):
+        """Test error handling during manager initialization"""
+        # Config with invalid tool
+        config = AthosConfig(
+            models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            tools={"bad_tool": ToolConfig(
+                name="bad_tool",
+                tool_type=ToolType.REGULAR,
+                module_path="nonexistent.module",
+                class_name="NonexistentClass"
+            )},
+            execution_flows={"test_flow": ExecutionFlowConfig(
+                name="test_flow",
+                type=ExecutionFlowType.CODE_AGENT,
+                model="test",
+                tools=["bad_tool"]
+            )}
+        )
+
+        with pytest.raises(Exception):  # Should fail during tool loading
+            AthosManager(config)
+
+    @pytest.mark.asyncio
+    @patch('athos.core.manager.OpenAIServerModel')
+    async def test_end_to_end_flow_execution(self, mock_openai_model):
+        """Test end-to-end flow execution"""
+        config = AthosConfig(
+            models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            tools={},
+            execution_flows={"chat": ExecutionFlowConfig(
+                name="chat",
+                type=ExecutionFlowType.CHATBOT,
+                model="test",
+                tools=[],
+                system_prompt="Test prompt"
+            )}
+        )
+
+        with patch('athos.core.manager.ChatbotFlow') as mock_chatbot_flow:
+            mock_flow_instance = AsyncMock()
+            mock_flow_instance.execute.return_value = "Hello, world!"
+            mock_chatbot_flow.return_value = mock_flow_instance
+
+            manager = AthosManager(config)
+            result = await manager.execute_flow("chat", "Hello")
+
+            assert result == "Hello, world!"
+            mock_flow_instance.execute.assert_called_once_with("Hello")
 
 
-def test_load_tool_caching_and_failure():
-    # Manager with no initial config
-    empty_config = AthosConfig(models={}, tools={}, execution_flows={})
-    manager = AthosManager(empty_config)
-    # Successful load and caching
-    tc = ToolConfig(
-        name='simple2',
-        class_name='SimpleNamespace',
-        module_path='types',
-        parameters={'a': 10, 'b': 20}
-    )
-    tool1 = manager._load_tool(tc)
-    assert isinstance(tool1, types.SimpleNamespace)
-    assert tool1.a == 10 and tool1.b == 20
-    # Cached on second load
-    tool2 = manager._load_tool(tc)
-    assert tool2 is tool1
-    # Failure on bad module
-    bad_tc = ToolConfig(
-        name='bad',
-        class_name='X',
-        module_path='nonexistent',
-        parameters={}
-    )
-    with pytest.raises(ModuleNotFoundError):
-        manager._load_tool(bad_tc)
+# Performance and edge case tests
+class TestAthosManagerEdgeCases:
+
+    def test_empty_config(self):
+        """Test manager with minimal/empty configuration"""
+        config = AthosConfig(models={}, tools={}, execution_flows={})
+
+        manager = AthosManager(config)
+
+        assert len(manager.models) == 0
+        assert len(manager.loaded_tools) == 0
+        assert len(manager.flows) == 0
+        assert manager.list_flows() == []
+
+    def test_mcp_client_caching(self):
+        """Test that MCP clients are properly cached"""
+        config = AthosConfig(models={}, tools={}, execution_flows={})
+        manager = AthosManager(config)
+
+        mcp_config = MCPServerConfig(command="test-command")
+
+        with patch('athos.core.manager.MCPClient') as mock_mcp_client, \
+             patch('athos.core.manager.StdioServerParameters'):
+
+            # First call should create client
+            client1 = manager._create_mcp_client(mcp_config)
+
+            # Second call should return cached client
+            client2 = manager._create_mcp_client(mcp_config)
+
+            assert client1 is client2
+            assert mock_mcp_client.call_count == 1
+
+    def test_tool_loading_with_list_return(self):
+        """Test tool loading when MCP returns multiple tools"""
+        config = AthosConfig(models={}, tools={}, execution_flows={})
+        manager = AthosManager(config)
+
+        tool_config = ToolConfig(
+            name="multi_tool",
+            tool_type=ToolType.MCP_STDIO,
+            mcp_config=MCPServerConfig(command="test")
+        )
+
+        mock_tools = []
+        for i in range(3):
+            mock_tool = Mock(spec=Tool)
+            mock_tool.name = f"tool_{i}"
+            mock_tools.append(mock_tool)
+
+        with patch.object(manager, '_load_mcp_tools', return_value=mock_tools):
+            result = manager._load_tool(tool_config)
+
+            assert result == mock_tools
+            # Check that all tools are cached individually
+            for i, tool in enumerate(mock_tools):
+                cache_key = f"multi_tool:tool_{i}"
+                assert cache_key in manager.loaded_tools
+
+    @pytest.mark.asyncio
+    async def test_concurrent_flow_execution(self):
+        """Test concurrent execution of multiple flows"""
+        config = AthosConfig(
+            models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            tools={},
+            execution_flows={
+                "flow1": ExecutionFlowConfig(
+                    name="flow1", type=ExecutionFlowType.CHATBOT,
+                    model="test", tools=[], system_prompt="Test 1"
+                ),
+                "flow2": ExecutionFlowConfig(
+                    name="flow2", type=ExecutionFlowType.CHATBOT,
+                    model="test", tools=[], system_prompt="Test 2"
+                )
+            }
+        )
+
+        with patch('athos.core.manager.OpenAIServerModel'), \
+             patch('athos.core.manager.ChatbotFlow') as mock_chatbot_flow:
+
+            mock_flow1 = AsyncMock()
+            mock_flow1.execute.return_value = "Result 1"
+            mock_flow2 = AsyncMock()
+            mock_flow2.execute.return_value = "Result 2"
+
+            mock_chatbot_flow.side_effect = [mock_flow1, mock_flow2]
+
+            manager = AthosManager(config)
+
+            # Execute flows concurrently
+            results = await asyncio.gather(
+                manager.execute_flow("flow1", "Input 1"),
+                manager.execute_flow("flow2", "Input 2")
+            )
+
+            assert results == ["Result 1", "Result 2"]
