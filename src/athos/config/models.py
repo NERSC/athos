@@ -9,6 +9,11 @@ class ExecutionFlowType(Enum):
     PROMPT_CHAIN = "prompt_chain"
     TOOL_CALLING_AGENT = "tool_calling_agent"
 
+class MCPType(Enum):
+    """Supported MCP server types"""
+    MCP_STDIO = "mcp_stdio"
+    MCP_SSE = "mcp_sse"
+
 @dataclass
 class ModelConfig:
     """Configuration for AI models"""
@@ -21,8 +26,22 @@ class ModelConfig:
     system_prompt: Optional[str] = None
 
 @dataclass
+class MCPServerConfig:
+    """Configuration for MCP server connection"""
+    name: str
+    mcp_type: MCPType
+    # For stdio transport
+    command: Optional[str] = None
+    args: List[str] = field(default_factory=list)
+    env: Dict[str, str] = field(default_factory=dict)
+    
+    # For SSE transport
+    url: Optional[str] = None
+    headers: Dict[str, str] = field(default_factory=dict)
+
+@dataclass
 class ToolConfig:
-    """Configuration for tools"""
+    """Configuration for regular tools only"""
     name: str
     class_name: str
     module_path: str
@@ -34,6 +53,7 @@ class ExecutionFlowConfig:
     name: str
     type: ExecutionFlowType
     model: str
+    mcp_servers: List[str] = field(default_factory=list)
     tools: List[str] = field(default_factory=list)
     prompt_chain: Optional[List[Dict[str, str]]] = None
     system_prompt: Optional[str] = None
@@ -44,6 +64,7 @@ class AthosConfig:
     """Main ATHOS configuration"""
     models: Dict[str, ModelConfig]
     tools: Dict[str, ToolConfig]
+    mcp_servers: Dict[str, MCPServerConfig]
     execution_flows: Dict[str, ExecutionFlowConfig]
     hpc_cluster_config: Optional[Dict[str, Any]] = None
     logging_config: Optional[Dict[str, Any]] = None

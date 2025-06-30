@@ -1,6 +1,7 @@
 # ATHOS Configuration File
 # Example configuration for HPC operations toolkit
 
+# Model instances that can be used by agents
 models:
   # # Primary model for general tasks
   # llama_3_8b:
@@ -70,7 +71,48 @@ models:
     temperature: 0.5
     max_tokens: 1024
 
-# Tools for web agent
+# MCP servers
+mcp_servers:
+  # WARNING: filesystem_mcp is given edit privs in current working directory
+  filesystem_mcp:
+    mcp_type: "mcp_stdio"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+  
+  servicenow_mcp:
+    mcp_type: "mcp_stdio"
+    command: "python"
+    args: ["-m", "servicenow_mcp"]
+    env:
+      SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
+      SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
+      SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
+
+  # Additional MCP servers can be added here as comments for reference:
+  #
+  # # GitHub MCP server (stdio transport)
+  # github_mcp:
+  #   mcp_type: "mcp_stdio"
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-github"]
+  #   env:
+  #     GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
+  #
+  # # SQLite MCP server (stdio transport)
+  # sqlite_mcp:
+  #   mcp_type: "mcp_stdio"
+  #   command: "npx"
+  #   args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "/path/to/database.db"]
+  #
+  # # Example SSE-based MCP server (remote transport)
+  # remote_mcp_example:
+  #   mcp_type: "mcp_sse"
+  #   url: "https://api.example.com/mcp"
+  #   headers:
+  #     Authorization: "Bearer ${API_TOKEN}"
+  #     Content-Type: "application/json"
+
+# Regular and custom tools (non-MCP)
 tools:
   websearch:
     class_name: "DuckDuckGoSearchTool"
@@ -81,48 +123,48 @@ tools:
     module_path: "smolagents.default_tools"
     parameters: {}
 
-# tools:
-#   # SLURM job management tool
-#   slurm_manager:
-#     class_name: "SlurmManager"
-#     module_path: "athos.tools.slurm_tools"
-#     parameters:
-#       cluster_name: "hpc_cluster_01"
-#       default_partition: "compute"
-#       max_job_time: "24:00:00"
+  # # SLURM job management tool
+  # slurm_manager:
+  #   class_name: "SlurmManager"
+  #   module_path: "athos.tools.slurm_tools"
+  #   parameters:
+  #     cluster_name: "hpc_cluster_01"
+  #     default_partition: "compute"
+  #     max_job_time: "24:00:00"
 
-#   # System monitoring tool
-#   system_monitor:
-#     class_name: "SystemMonitor"
-#     module_path: "athos.tools.monitoring_tools"
-#     parameters:
-#       check_interval: 30
-#       metrics: ["cpu", "memory", "disk", "network"]
+  # # System monitoring tool
+  # system_monitor:
+  #   class_name: "SystemMonitor"
+  #   module_path: "athos.tools.monitoring_tools"
+  #   parameters:
+  #     check_interval: 30
+  #     metrics: ["cpu", "memory", "disk", "network"]
 
-#   # Performance profiler
-#   perf_profiler:
-#     class_name: "PerformanceProfiler"
-#     module_path: "athos.tools.profiling_tools"
-#     parameters:
-#       profiling_tools: ["perf", "gprof", "valgrind"]
-#       output_format: "json"
+  # # Performance profiler
+  # perf_profiler:
+  #   class_name: "PerformanceProfiler"
+  #   module_path: "athos.tools.profiling_tools"
+  #   parameters:
+  #     profiling_tools: ["perf", "gprof", "valgrind"]
+  #     output_format: "json"
 
-#   # Module environment manager
-#   module_manager:
-#     class_name: "ModuleManager"
-#     module_path: "athos.tools.environment_tools"
-#     parameters:
-#       module_system: "lmod"
-#       default_modules: ["gcc/11.2.0", "openmpi/4.1.1"]
+  # # Module environment manager
+  # module_manager:
+  #   class_name: "ModuleManager"
+  #   module_path: "athos.tools.environment_tools"
+  #   parameters:
+  #     module_system: "lmod"
+  #     default_modules: ["gcc/11.2.0", "openmpi/4.1.1"]
 
-#   # File system utilities
-#   filesystem_tool:
-#     class_name: "FileSystemTool"
-#     module_path: "athos.tools.filesystem_tools"
-#     parameters:
-#       scratch_dirs: ["/scratch", "/tmp"]
-#       home_quota_check: true
+  # # File system utilities
+  # filesystem_tool:
+  #   class_name: "FileSystemTool"
+  #   module_path: "athos.tools.filesystem_tools"
+  #   parameters:
+  #     scratch_dirs: ["/scratch", "/tmp"]
+  #     home_quota_check: true
 
+# Agent Execution Flows define the agent system
 execution_flows:
   # Simple chatbot for general HPC questions
   hpc_chatbot:
@@ -132,125 +174,144 @@ execution_flows:
       You are an HPC support chatbot. Answer questions about cluster usage, 
       job submission, software modules, and general HPC best practices.
       Keep responses concise but informative.
-  
-  # Code agent with no tools
-  hpc_simple_agent:
-    type: "code_agent"
-    model: "gpt_4o"
-    # system prompt: You are an HPC support chatbot.
 
   # Web agent example
   web_agent:
     type: "tool_calling_agent"
     model: "o4_mini"
     tools: ["websearch", "webvisit"]
-    # Optionally, add a system_prompt to configure behavior
 
-#   # Code agent for automated HPC tasks
-#   hpc_automation:
-#     type: "code_agent"
-#     model: "code_llama"
-#     tools: ["slurm_manager", "system_monitor", "module_manager", "filesystem_tool"]
-#     system_prompt: |
-#       You are an HPC automation agent. You can manage SLURM jobs, monitor system resources,
-#       handle environment modules, and perform file system operations.
-#       Always verify operations before execution and provide clear feedback.
+  # MCP-enabled agent example
+  filesystem_agent:
+    type: "tool_calling_agent"
+    model: "gpt_4o"
+    mcp_servers: ["filesystem_mcp"]
 
-#   # Quick support agent with minimal tools
-#   quick_support:
-#     type: "code_agent"
-#     model: "phi_3_mini"
-#     tools: ["system_monitor", "filesystem_tool"]
-#     system_prompt: |
-#       You are a quick support agent for basic HPC queries and monitoring.
-#       Provide fast responses for simple tasks and system checks.
+  # # ServiceNow integration agent
+  # servicenow_agent:
+  #   type: "tool_calling_agent"
+  #   model: "claude_sonnet"
+  #   tools: ["servicenow_mcp"]
+  #   system_prompt: |
+  #     You are a ServiceNow integration assistant. You can help create incidents,
+  #     manage service requests, and interact with ServiceNow instances.
+  #     Always provide clear summaries of actions taken.
 
-#   # Comprehensive problem diagnosis and resolution
-#   problem_solver:
-#     type: "prompt_chain"
-#     model: "llama_3_8b"
-#     prompt_chain:
-#       - name: "diagnose"
-#         prompt: |
-#           Analyze the following HPC problem or issue:
-          
-#           Problem: {current_input}
-          
-#           Please provide a detailed diagnosis including:
-#           1. Problem identification and classification
-#           2. Most likely root causes
-#           3. System components that might be affected
-#           4. Information needed for further investigation
-          
-#           Focus on HPC-specific issues like job failures, performance problems, 
-#           resource conflicts, or system errors.
+  # # Mixed tools agent (regular + MCP)
+  # mixed_tools_agent:
+  #   type: "tool_calling_agent"
+  #   model: "gpt_4o"
+  #   tools: ["websearch", "github_mcp", "sqlite_mcp"]
+  #   system_prompt: |
+  #     You are a versatile assistant with access to web search, GitHub, and database tools.
+  #     You can research topics online, manage code repositories, and query databases.
+  #     Combine these capabilities to provide comprehensive assistance.
 
-#       - name: "propose_solution"
-#         prompt: |
-#           Based on the following diagnosis:
-          
-#           {diagnose}
-          
-#           Please propose specific solutions including:
-#           1. Step-by-step resolution procedures
-#           2. Alternative approaches if the primary solution fails
-#           3. Commands or scripts needed (if applicable)
-#           4. Expected outcomes and verification steps
-#           5. Prevention measures for the future
-          
-#           Prioritize solutions by likelihood of success and ease of implementation.
+  # # Code agent for automated HPC tasks
+  # hpc_automation:
+  #   type: "code_agent"
+  #   model: "code_llama"
+  #   tools: ["slurm_manager", "system_monitor", "module_manager", "filesystem_tool"]
+  #   system_prompt: |
+  #     You are an HPC automation agent. You can manage SLURM jobs, monitor system resources,
+  #     handle environment modules, and perform file system operations.
+  #     Always verify operations before execution and provide clear feedback.
 
-#       - name: "reflection"
-#         prompt: |
-#           Review the diagnosis and proposed solutions:
-          
-#           Diagnosis: {diagnose}
-          
-#           Proposed Solutions: {propose_solution}
-          
-#           Please provide:
-#           1. Critical review of the proposed solutions
-#           2. Potential risks or side effects
-#           3. Additional considerations for HPC environments
-#           4. Final recommendations with confidence levels
-          
-#           Ensure all recommendations follow HPC best practices and consider 
-#           multi-user environment implications.
+  # # Quick support agent with minimal tools
+  # quick_support:
+  #   type: "code_agent"
+  #   model: "phi_3_mini"
+  #   tools: ["system_monitor", "filesystem_tool"]
+  #   system_prompt: |
+  #     You are a quick support agent for basic HPC queries and monitoring.
+  #     Provide fast responses for simple tasks and system checks.
 
-#   # Performance optimization workflow
-#   performance_optimizer:
-#     type: "prompt_chain"
-#     model: "code_llama"
-#     prompt_chain:
-#       - name: "analyze_performance"
-#         prompt: |
-#           Analyze the following performance issue or optimization request:
+  # # Comprehensive problem diagnosis and resolution
+  # problem_solver:
+  #   type: "prompt_chain"
+  #   model: "llama_3_8b"
+  #   prompt_chain:
+  #     - name: "diagnose"
+  #       prompt: |
+  #         Analyze the following HPC problem or issue:
           
-#           {current_input}
+  #         Problem: {current_input}
           
-#           Provide analysis covering:
-#           1. Performance bottleneck identification
-#           2. Resource utilization patterns
-#           3. Scalability considerations
-#           4. Profiling recommendations
+  #         Please provide a detailed diagnosis including:
+  #         1. Problem identification and classification
+  #         2. Most likely root causes
+  #         3. System components that might be affected
+  #         4. Information needed for further investigation
           
-#           Focus on HPC-specific performance aspects like parallelization efficiency,
-#           memory bandwidth, network communication, and I/O patterns.
+  #         Focus on HPC-specific issues like job failures, performance problems, 
+  #         resource conflicts, or system errors.
 
-#       - name: "optimization_strategy"
-#         prompt: |
-#           Based on this performance analysis:
+  #     - name: "propose_solution"
+  #       prompt: |
+  #         Based on the following diagnosis:
           
-#           {analyze_performance}
+  #         {diagnose}
           
-#           Develop an optimization strategy including:
-#           1. Code-level optimizations
-#           2. Compiler and runtime optimizations
-#           3. Job configuration improvements
-#           4. Resource allocation recommendations
-#           5. Implementation priority and expected impact
+  #         Please propose specific solutions including:
+  #         1. Step-by-step resolution procedures
+  #         2. Alternative approaches if the primary solution fails
+  #         3. Commands or scripts needed (if applicable)
+  #         4. Expected outcomes and verification steps
+  #         5. Prevention measures for the future
           
-#           Provide specific examples and code snippets where applicable.
+  #         Prioritize solutions by likelihood of success and ease of implementation.
+
+  #     - name: "reflection"
+  #       prompt: |
+  #         Review the diagnosis and proposed solutions:
+          
+  #         Diagnosis: {diagnose}
+          
+  #         Proposed Solutions: {propose_solution}
+          
+  #         Please provide:
+  #         1. Critical review of the proposed solutions
+  #         2. Potential risks or side effects
+  #         3. Additional considerations for HPC environments
+  #         4. Final recommendations with confidence levels
+          
+  #         Ensure all recommendations follow HPC best practices and consider 
+  #         multi-user environment implications.
+
+  # # Performance optimization workflow
+  # performance_optimizer:
+  #   type: "prompt_chain"
+  #   model: "code_llama"
+  #   prompt_chain:
+  #     - name: "analyze_performance"
+  #       prompt: |
+  #         Analyze the following performance issue or optimization request:
+          
+  #         {current_input}
+          
+  #         Provide analysis covering:
+  #         1. Performance bottleneck identification
+  #         2. Resource utilization patterns
+  #         3. Scalability considerations
+  #         4. Profiling recommendations
+          
+  #         Focus on HPC-specific performance aspects like parallelization efficiency,
+  #         memory bandwidth, network communication, and I/O patterns.
+
+  #     - name: "optimization_strategy"
+  #       prompt: |
+  #         Based on this performance analysis:
+          
+  #         {analyze_performance}
+          
+  #         Develop an optimization strategy including:
+  #         1. Code-level optimizations
+  #         2. Compiler and runtime optimizations
+  #         3. Job configuration improvements
+  #         4. Resource allocation recommendations
+  #         5. Implementation priority and expected impact
+          
+  #         Provide specific examples and code snippets where applicable.
 
 # # HPC cluster configuration
 # hpc_cluster_config:
