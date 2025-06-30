@@ -11,7 +11,8 @@ from athos.config.models import (
     MCPServerConfig,
     ExecutionFlowConfig,
     ExecutionFlowType,
-    ToolType
+    ToolType,
+    MCPType
 )
 
 class ConfigLoader:
@@ -57,13 +58,37 @@ class ConfigLoader:
                 max_tokens=model_data.get('max_tokens', 1024),
                 system_prompt=model_data.get('system_prompt')
             )
-        
+
+        # Parse MCP servers
+        mcp_servers = {}
+        for name, mcp_data in config_data.get('mcp_servers', {}).items():
+            mcp_type = MCPType(mcp_data.get('mcp_type', 'mcp_stdio'))
+            # Expand environment variables in MCP config
+            env_vars = {}
+            for key, value in mcp_data.get('env', {}).items():
+                env_vars[key] = ConfigLoader._expand_env_var(value) if isinstance(value, str) else value
+
+            headers = {}
+            for key, value in mcp_data.get('headers', {}).items():
+                headers[key] = ConfigLoader._expand_env_var(value) if isinstance(value, str) else value
+
+            mcp_servers[name] = MCPServerConfig(
+                name=name,
+                mcp_type=mcp_type,
+                command=mcp_data.get('command'),
+                args=mcp_data.get('args', []),
+                env=env_vars,
+                url=ConfigLoader._expand_env_var(mcp_data.get('url')) if mcp_data.get('url') else None,
+                headers=headers
+            )
+
         # Parse tools
         tools = {}
         for name, tool_data in config_data.get('tools', {}).items():
             tool_type = ToolType(tool_data.get('tool_type', 'regular'))
             
             # Parse MCP config if present
+            # TODO: remove this from tools
             mcp_config = None
             if 'mcp_config' in tool_data:
                 mcp_data = tool_data['mcp_config']
@@ -102,6 +127,7 @@ class ConfigLoader:
                 name=name,
                 type=flow_type,
                 model=flow_data['model'],
+                mcp_servers=flow_data.get('mcp_servers', []),
                 tools=flow_data.get('tools', []),
                 prompt_chain=flow_data.get('prompt_chain'),
                 system_prompt=flow_data.get('system_prompt'),
@@ -111,6 +137,7 @@ class ConfigLoader:
         return AthosConfig(
             models=models,
             tools=tools,
+            mcp_servers=mcp_servers,
             execution_flows=execution_flows,
             hpc_cluster_config=config_data.get('hpc_cluster_config'),
             logging_config=config_data.get('logging_config')
@@ -119,19 +146,39 @@ class ConfigLoader:
     @staticmethod
     def _validate_config(config: AthosConfig) -> None:
         """Validate the parsed configuration"""
+        # Validate MCP configurations
+        for mcp_name, mcp_config in config.mcp_servers.items():
+            ConfigLoader._validate_mcp_config(mcp_config)
+
         # Validate tool configurations
         for tool_name, tool_config in config.tools.items():
             ConfigLoader._validate_tool_config(tool_config)
         
-        # Validate execution flows reference valid tools and models
+        # Validate execution flows reference valid MCP servers, tools, and models
         for flow_name, flow_config in config.execution_flows.items():
             if flow_config.model not in config.models:
                 raise ValueError(f"Flow '{flow_name}' references unknown model '{flow_config.model}'")
+
+            for mcp_name in flow_config.mcp_servers:
+                if mcp_name not in config.mcp_servers:
+                    raise ValueError(f"Flow '{flow_name}' references unknown MCP '{mcp_name}")
             
             for tool_name in flow_config.tools:
                 if tool_name not in config.tools:
                     raise ValueError(f"Flow '{flow_name}' references unknown tool '{tool_name}'")
+
+    @staticmethod
+    def _validate_mcp_config(mcp_config: MCPServerConfig) -> None:
+        """Validate MCP server configuration"""
+        if mcp_config.mcp_type == MCPType.MCP_STDIO and not mcp_config.command:
+            raise ValueError(f"MCP stdio server '{mcp_config.name}' missing command in config")
     
+        if mcp_config.mcp_type == MCPType.MCP_SSE and not mcp_config.url:
+            raise ValueError(f"MCP SSE server '{mcp_config.name}' missing url in config")
+    
+        if mcp_config.mcp_type not in [MCPType.MCP_SSE, MCPType.MCP_STDIO]:
+            raise ValueError(f"Unknown MCP server type: {mcp_config.mcp_type}")
+
     @staticmethod
     def _validate_tool_config(tool_config: ToolConfig) -> None:
         """Validate tool configuration"""

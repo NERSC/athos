@@ -4,7 +4,7 @@ import asyncio
 
 from athos.core.manager import AthosManager, create_athos_manager
 from athos.config import (
-    AthosConfig, ToolConfig, ToolType, MCPServerConfig,
+    AthosConfig, ToolConfig, ToolType, MCPServerConfig, MCPType,
     ExecutionFlowType, ModelConfig, ExecutionFlowConfig
 )
 from smolagents import Tool
@@ -38,9 +38,20 @@ class TestAthosManager:
             name="mcp_tool",
             tool_type=ToolType.MCP_STDIO,
             mcp_config=MCPServerConfig(
+                name="mcp_tool_server",
+                mcp_type=MCPType.MCP_STDIO,
                 command="test-command",
                 args=["arg1", "arg2"]
             )
+        )
+
+    @pytest.fixture
+    def mock_mcp_server_config(self):
+        return MCPServerConfig(
+            name="test_mcp_server",
+            mcp_type=MCPType.MCP_STDIO,
+            command="test-mcp-command",
+            args=["--arg1", "value1"]
         )
 
     @pytest.fixture
@@ -54,10 +65,11 @@ class TestAthosManager:
         )
 
     @pytest.fixture
-    def mock_config(self, mock_model_config, mock_tool_config, mock_flow_config):
+    def mock_config(self, mock_model_config, mock_tool_config, mock_mcp_server_config, mock_flow_config):
         return AthosConfig(
             models={"test_model": mock_model_config},
             tools={"test_tool": mock_tool_config},
+            mcp_servers={"test_mcp_server": mock_mcp_server_config},
             execution_flows={"test_flow": mock_flow_config}
         )
 
@@ -80,6 +92,8 @@ class TestAthosManager:
         manager = AthosManager(mock_config)
 
         mcp_config = MCPServerConfig(
+            name="test_stdio_server",
+            mcp_type=MCPType.MCP_STDIO,
             command="test-command",
             args=["arg1", "arg2"],
             env={"ENV_VAR": "value"}
@@ -101,6 +115,8 @@ class TestAthosManager:
         manager = AthosManager(mock_config)
 
         mcp_config = MCPServerConfig(
+            name="test_sse_server",
+            mcp_type=MCPType.MCP_SSE,
             url="http://test-url",
             headers={"Authorization": "Bearer token"}
         )
@@ -117,9 +133,12 @@ class TestAthosManager:
         """Test MCP client creation with invalid config"""
         manager = AthosManager(mock_config)
 
-        invalid_config = MCPServerConfig()  # No command or url
+        invalid_config = MCPServerConfig(
+            name="invalid_server",
+            mcp_type="INVALID_TYPE"  # Invalid MCP type
+        )
 
-        with pytest.raises(ValueError, match="MCP config must specify either command or url"):
+        with pytest.raises(ValueError, match="Unsupported MCP type INVALID_TYPE"):
             manager._create_mcp_client(invalid_config)
 
     @patch('athos.core.manager.AthosManager._create_mcp_client')
@@ -140,7 +159,11 @@ class TestAthosManager:
         tool_config = ToolConfig(
             name="mcp_tool",
             tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(command="test-command")
+            mcp_config=MCPServerConfig(
+                name="test_server",
+                mcp_type=MCPType.MCP_STDIO,
+                command="test-command"
+            )
         )
 
         tools = manager._load_mcp_tools(tool_config)
@@ -166,7 +189,11 @@ class TestAthosManager:
         tool_config = ToolConfig(
             name="mcp_tool",
             tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(command="test-command"),
+            mcp_config=MCPServerConfig(
+                name="test_server",
+                mcp_type=MCPType.MCP_STDIO,
+                command="test-command"
+            ),
             mcp_tool_name="tool1"
         )
 
@@ -227,7 +254,11 @@ class TestAthosManager:
         tool_config = ToolConfig(
             name="mcp_tool",
             tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(command="test-command")
+            mcp_config=MCPServerConfig(
+                name="test_server",
+                mcp_type=MCPType.MCP_STDIO,
+                command="test-command"
+            )
         )
 
         result = manager._load_tool(tool_config)
@@ -289,6 +320,7 @@ class TestAthosManager:
         config = AthosConfig(
             models={"test_model": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
             tools={"test_tool": ToolConfig(name="test_tool", tool_type=ToolType.REGULAR)},
+            mcp_servers={},
             execution_flows={"code_flow": flow_config}
         )
 
@@ -431,9 +463,19 @@ class TestAthosManagerIntegration:
                     name="file_manager",
                     tool_type=ToolType.MCP_STDIO,
                     mcp_config=MCPServerConfig(
+                        name="file_manager_server",
+                        mcp_type=MCPType.MCP_STDIO,
                         command="file-server",
                         args=["--root", "/tmp"]
                     )
+                )
+            },
+            mcp_servers={
+                "file_manager_server": MCPServerConfig(
+                    name="file_manager_server",
+                    mcp_type=MCPType.MCP_STDIO,
+                    command="file-server",
+                    args=["--root", "/tmp"]
                 )
             },
             execution_flows={
@@ -506,6 +548,7 @@ class TestAthosManagerIntegration:
                 module_path="nonexistent.module",
                 class_name="NonexistentClass"
             )},
+            mcp_servers={},
             execution_flows={"test_flow": ExecutionFlowConfig(
                 name="test_flow",
                 type=ExecutionFlowType.CODE_AGENT,
@@ -524,6 +567,7 @@ class TestAthosManagerIntegration:
         config = AthosConfig(
             models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
             tools={},
+            mcp_servers={},
             execution_flows={"chat": ExecutionFlowConfig(
                 name="chat",
                 type=ExecutionFlowType.CHATBOT,
@@ -550,7 +594,7 @@ class TestAthosManagerEdgeCases:
 
     def test_empty_config(self):
         """Test manager with minimal/empty configuration"""
-        config = AthosConfig(models={}, tools={}, execution_flows={})
+        config = AthosConfig(models={}, tools={}, mcp_servers={}, execution_flows={})
 
         manager = AthosManager(config)
 
@@ -561,10 +605,14 @@ class TestAthosManagerEdgeCases:
 
     def test_mcp_client_caching(self):
         """Test that MCP clients are properly cached"""
-        config = AthosConfig(models={}, tools={}, execution_flows={})
+        config = AthosConfig(models={}, tools={}, mcp_servers={}, execution_flows={})
         manager = AthosManager(config)
 
-        mcp_config = MCPServerConfig(command="test-command")
+        mcp_config = MCPServerConfig(
+            name="test_server",
+            mcp_type=MCPType.MCP_STDIO,
+            command="test-command"
+        )
 
         with patch('athos.core.manager.MCPClient') as mock_mcp_client, \
              patch('athos.core.manager.StdioServerParameters'):
@@ -580,13 +628,17 @@ class TestAthosManagerEdgeCases:
 
     def test_tool_loading_with_list_return(self):
         """Test tool loading when MCP returns multiple tools"""
-        config = AthosConfig(models={}, tools={}, execution_flows={})
+        config = AthosConfig(models={}, tools={}, mcp_servers={}, execution_flows={})
         manager = AthosManager(config)
 
         tool_config = ToolConfig(
             name="multi_tool",
             tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(command="test")
+            mcp_config=MCPServerConfig(
+                name="test_server",
+                mcp_type=MCPType.MCP_STDIO,
+                command="test"
+            )
         )
 
         mock_tools = []
@@ -610,6 +662,7 @@ class TestAthosManagerEdgeCases:
         config = AthosConfig(
             models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
             tools={},
+            mcp_servers={},
             execution_flows={
                 "flow1": ExecutionFlowConfig(
                     name="flow1", type=ExecutionFlowType.CHATBOT,

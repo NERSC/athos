@@ -9,6 +9,7 @@ from athos.config import (
     AthosConfig,
     ToolConfig,
     ToolType,
+    MCPType,
     MCPServerConfig,
     ExecutionFlowType,
     ConfigLoader
@@ -43,30 +44,52 @@ class AthosManager:
 
     def _create_mcp_client(self, mcp_config: MCPServerConfig) -> MCPClient:
         """Create and cache MCP client based on configuration"""
-        # Create cache key based on config
-        if mcp_config.command:
-            cache_key = f"stdio:{mcp_config.command}"
-            if cache_key not in self.mcp_clients:
-                params = StdioServerParameters(
-                    command=mcp_config.command,
-                    args=mcp_config.args,
-                    env=mcp_config.env
-                )
-                self.mcp_clients[cache_key] = MCPClient(params)
-                logger.info(f"Created MCP stdio client: {cache_key}")
-        elif mcp_config.url:
-            cache_key = f"sse:{mcp_config.url}"
-            if cache_key not in self.mcp_clients:
-                params = dict(
-                    url=mcp_config.url,
-                    headers=mcp_config.headers
-                )
-                self.mcp_clients[cache_key] = MCPClient(params)
-                logger.info(f"Created MCP SSE client: {cache_key}")
+        if mcp_config.name in self.mcp_clients:
+            return self.mcp_clients[mcp_config.name]
+        
+        if mcp_config.mcp_type == MCPType.MCP_STDIO:
+            params = StdioServerParameters(
+                command=mcp_config.command,
+                args=mcp_config.args,
+                env=mcp_config.env
+            )
+        elif mcp_config.mcp_type == MCPType.MCP_SSE:
+            params = dict(
+                url=mcp_config.url,
+                headers=mcp_config.headers
+            )
         else:
-            raise ValueError("MCP config must specify either command or url")
+            raise ValueError(f"Unsupported MCP type {mcp_config.mcp_type}")
+        
+        mcp_client = MCPClient(params)
+        logger.info(f"Create MCP client: {params}")
+        self.mcp_clients[mcp_config.name] = mcp_client
+        return mcp_client
+    
+        # # Create cache key based on config
+        # if mcp_config.command:
+        #     cache_key = f"stdio:{mcp_config.command}"
+        #     if cache_key not in self.mcp_clients:
+        #         params = StdioServerParameters(
+        #             command=mcp_config.command,
+        #             args=mcp_config.args,
+        #             env=mcp_config.env
+        #         )
+        #         self.mcp_clients[cache_key] = MCPClient(params)
+        #         logger.info(f"Created MCP stdio client: {cache_key}")
+        # elif mcp_config.url:
+        #     cache_key = f"sse:{mcp_config.url}"
+        #     if cache_key not in self.mcp_clients:
+        #         params = dict(
+        #             url=mcp_config.url,
+        #             headers=mcp_config.headers
+        #         )
+        #         self.mcp_clients[cache_key] = MCPClient(params)
+        #         logger.info(f"Created MCP SSE client: {cache_key}")
+        # else:
+        #     raise ValueError("MCP config must specify either command or url")
 
-        return self.mcp_clients[cache_key]
+        # return self.mcp_clients[cache_key]
 
     def _load_mcp_tools(self, tool_config: ToolConfig) -> List[Tool]:
         """Load tools from MCP server"""
@@ -91,7 +114,10 @@ class AthosManager:
             raise
 
     def _load_tool(self, tool_config: ToolConfig) -> Union[Tool, List[Tool]]:
-        """Load a tool from configuration (regular or MCP)"""
+        """Load a tool from configuration (regular or MCP)
+        
+        TODO: remove MCP stuff from here, return only single tool.
+        """
         if tool_config.name in self.loaded_tools:
             return self.loaded_tools[tool_config.name]
 
@@ -143,10 +169,19 @@ class AthosManager:
         for name, flow_config in self.config.execution_flows.items():
             model = self.models[flow_config.model]
 
+            # TODO: improve this to have less duplication,
+            # make more scalable / extensible
+
             if flow_config.type == ExecutionFlowType.CHATBOT:
                 flow = ChatbotFlow(model, flow_config.system_prompt)
 
             elif flow_config.type == ExecutionFlowType.CODE_AGENT:
+                mcp_servers = []
+                for mcp_name in flow_config.mcp_servers:
+                    logger.info(f"loading MCP server {mcp_name}")
+                    mcp_config = self.config.mcp_servers[mcp_name]
+                    # FINISHME
+                    # loaded_mcp = 
                 tools = []
                 for tool_name in flow_config.tools:
                     logger.info(f"loading tool {tool_name}")

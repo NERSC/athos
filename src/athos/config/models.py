@@ -15,6 +15,11 @@ class ToolType(Enum):
     MCP_STDIO = "mcp_stdio"
     MCP_SSE = "mcp_sse"
 
+class MCPType(Enum):
+    """Supported MCP server types"""
+    MCP_STDIO = "mcp_stdio"
+    MCP_SSE = "mcp_sse"
+
 @dataclass
 class ModelConfig:
     """Configuration for AI models"""
@@ -29,6 +34,8 @@ class ModelConfig:
 @dataclass
 class MCPServerConfig:
     """Configuration for MCP server connection"""
+    name: str
+    mcp_type: MCPType
     # For stdio transport
     command: Optional[str] = None
     args: List[str] = field(default_factory=list)
@@ -59,6 +66,7 @@ class ExecutionFlowConfig:
     name: str
     type: ExecutionFlowType
     model: str
+    mcp_servers: List[str] = field(default_factory=list)
     tools: List[str] = field(default_factory=list)
     prompt_chain: Optional[List[Dict[str, str]]] = None
     system_prompt: Optional[str] = None
@@ -69,6 +77,7 @@ class AthosConfig:
     """Main ATHOS configuration"""
     models: Dict[str, ModelConfig]
     tools: Dict[str, ToolConfig]
+    mcp_servers: Dict[str, MCPServerConfig]
     execution_flows: Dict[str, ExecutionFlowConfig]
     hpc_cluster_config: Optional[Dict[str, Any]] = None
     logging_config: Optional[Dict[str, Any]] = None

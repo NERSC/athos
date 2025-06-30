@@ -70,6 +70,13 @@ models:
     temperature: 0.5
     max_tokens: 1024
 
+# MCP servers
+mcp_servers:
+  filesystem_mcp:
+    mcp_type: "mcp_stdio"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "./temp"]
+
 # Tools for web agent
 tools:
   websearch:
@@ -86,6 +93,7 @@ tools:
   servicenow_mcp:
     tool_type: "mcp_stdio"
     mcp_config:
+      name: "servicenow_mcp"
       command: "python"
       args: ["-m", "servicenow_mcp"]
       env:
@@ -95,14 +103,14 @@ tools:
     # Optional: specify a specific tool name from the MCP server
     # mcp_tool_name: "create_incident"
 
-  # GitHub MCP server (stdio transport)
-  github_mcp:
-    tool_type: "mcp_stdio"
-    mcp_config:
-      command: "npx"
-      args: ["-y", "@modelcontextprotocol/server-github"]
-      env:
-        GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
+  # # GitHub MCP server (stdio transport)
+  # github_mcp:
+  #   tool_type: "mcp_stdio"
+  #   mcp_config:
+  #     command: "npx"
+  #     args: ["-y", "@modelcontextprotocol/server-github"]
+  #     env:
+  #       GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
 
   # Filesystem MCP server (stdio transport)
   filesystem_mcp:
@@ -111,21 +119,21 @@ tools:
       command: "npx"
       args: ["-y", "@modelcontextprotocol/server-filesystem", "/allowed/path"]
 
-  # SQLite MCP server (stdio transport)
-  sqlite_mcp:
-    tool_type: "mcp_stdio"
-    mcp_config:
-      command: "npx"
-      args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "/path/to/database.db"]
+  # # SQLite MCP server (stdio transport)
+  # sqlite_mcp:
+  #   tool_type: "mcp_stdio"
+  #   mcp_config:
+  #     command: "npx"
+  #     args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "/path/to/database.db"]
 
-  # Example SSE-based MCP server (remote transport)
-  remote_mcp_example:
-    tool_type: "mcp_sse"
-    mcp_config:
-      url: "https://api.example.com/mcp"
-      headers:
-        Authorization: "Bearer ${API_TOKEN}"
-        Content-Type: "application/json"
+  # # Example SSE-based MCP server (remote transport)
+  # remote_mcp_example:
+  #   tool_type: "mcp_sse"
+  #   mcp_config:
+  #     url: "https://api.example.com/mcp"
+  #     headers:
+  #       Authorization: "Bearer ${API_TOKEN}"
+  #       Content-Type: "application/json"
 
 # tools:
 #   # SLURM job management tool
