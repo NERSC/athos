@@ -109,14 +109,6 @@ class AthosManager:
                 flow = ChatbotFlow(model, flow_config.system_prompt)
 
             elif flow_config.type == ExecutionFlowType.CODE_AGENT:
-                # Load MCP servers
-                mcp_clients = []
-                for mcp_name in flow_config.mcp_servers:
-                    logger.info(f"loading MCP server {mcp_name}")
-                    mcp_config = self.config.mcp_servers[mcp_name]
-                    mcp_client = self._create_mcp_client(mcp_config)
-                    mcp_clients.append(mcp_client)
-                
                 # Load regular tools
                 tools = []
                 for tool_name in flow_config.tools:
@@ -124,19 +116,20 @@ class AthosManager:
                     tool_config = self.config.tools[tool_name]
                     loaded_tool = self._load_tool(tool_config)
                     tools.append(loaded_tool)
+
+                # Load MCP servers
+                mcp_clients = []
+                for mcp_name in flow_config.mcp_servers:
+                    logger.info(f"loading MCP server {mcp_name}")
+                    mcp_config = self.config.mcp_servers[mcp_name]
+                    mcp_client = self._create_mcp_client(mcp_config)
+                    tools.extend(mcp_client.get_tools())
+                    mcp_clients.append(mcp_client)
                 
                 flow = CodeAgentFlow(model, tools)
                 logger.info(f"Initialized CodeAgentFlow: {name}")
                 
             elif flow_config.type == ExecutionFlowType.TOOL_CALLING_AGENT:
-                # Load MCP servers
-                mcp_clients = []
-                for mcp_name in flow_config.mcp_servers:
-                    logger.info(f"loading MCP server {mcp_name}")
-                    mcp_config = self.config.mcp_servers[mcp_name]
-                    mcp_client = self._create_mcp_client(mcp_config)
-                    mcp_clients.append(mcp_client)
-                
                 # Load regular tools
                 tools = []
                 for tool_name in flow_config.tools:
@@ -144,6 +137,15 @@ class AthosManager:
                     tool_config = self.config.tools[tool_name]
                     loaded_tool = self._load_tool(tool_config)
                     tools.append(loaded_tool)
+
+                # Load MCP servers
+                mcp_clients = []
+                for mcp_name in flow_config.mcp_servers:
+                    logger.info(f"loading MCP server {mcp_name}")
+                    mcp_config = self.config.mcp_servers[mcp_name]
+                    mcp_client = self._create_mcp_client(mcp_config)
+                    tools.extend(mcp_client.get_tools())
+                    mcp_clients.append(mcp_client)
                 
                 flow = ToolCallingAgentFlow(model, tools)
                 logger.info(f"Initialized ToolCallingAgentFlow: {name}")
@@ -183,20 +185,18 @@ class AthosManager:
             "type": flow_config.type.value,
             "model": flow_config.model,
             "tools": flow_config.tools,
+            "mcp_servers": flow_config.mcp_servers,
             "has_prompt_chain": flow_config.prompt_chain is not None
         }
 
     def close(self):
         """Clean up resources, particularly MCP clients"""
-        for client_key, client in self.mcp_clients.items():
+        for client_name, client in self.mcp_clients.items():
             try:
-                # Note: MCPClient may not have explicit close method
-                # This is a placeholder for proper cleanup if needed
-                if hasattr(client, 'close'):
-                    client.close()
-                logger.info(f"Closed MCP client: {client_key}")
+                client.disconnect()
+                logger.info(f"Closed MCP client: {client_name}")
             except Exception as e:
-                logger.warning(f"Error closing MCP client {client_key}: {e}")
+                logger.warning(f"Error closing MCP client {client_name}: {e}")
 
         self.mcp_clients.clear()
         logger.info("AthosManager cleanup completed")
