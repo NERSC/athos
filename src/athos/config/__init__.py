@@ -11,7 +11,6 @@ from athos.config.models import (
     MCPServerConfig,
     ExecutionFlowConfig,
     ExecutionFlowType,
-    ToolType,
     MCPType
 )
 
@@ -85,38 +84,11 @@ class ConfigLoader:
         # Parse tools
         tools = {}
         for name, tool_data in config_data.get('tools', {}).items():
-            tool_type = ToolType(tool_data.get('tool_type', 'regular'))
-            
-            # Parse MCP config if present
-            # TODO: remove this from tools
-            mcp_config = None
-            if 'mcp_config' in tool_data:
-                mcp_data = tool_data['mcp_config']
-                # Expand environment variables in MCP config
-                env_vars = {}
-                for key, value in mcp_data.get('env', {}).items():
-                    env_vars[key] = ConfigLoader._expand_env_var(value) if isinstance(value, str) else value
-                
-                headers = {}
-                for key, value in mcp_data.get('headers', {}).items():
-                    headers[key] = ConfigLoader._expand_env_var(value) if isinstance(value, str) else value
-                
-                mcp_config = MCPServerConfig(
-                    command=mcp_data.get('command'),
-                    args=mcp_data.get('args', []),
-                    env=env_vars,
-                    url=ConfigLoader._expand_env_var(mcp_data.get('url')) if mcp_data.get('url') else None,
-                    headers=headers
-                )
-            
             tools[name] = ToolConfig(
                 name=name,
-                tool_type=tool_type,
                 class_name=tool_data.get('class_name'),
                 module_path=tool_data.get('module_path'),
-                parameters=tool_data.get('parameters', {}),
-                mcp_config=mcp_config,
-                mcp_tool_name=tool_data.get('mcp_tool_name')
+                parameters=tool_data.get('parameters', {})
             )
         
         # Parse execution flows
@@ -182,19 +154,5 @@ class ConfigLoader:
     @staticmethod
     def _validate_tool_config(tool_config: ToolConfig) -> None:
         """Validate tool configuration"""
-        if tool_config.tool_type == ToolType.REGULAR:
-            if not tool_config.class_name or not tool_config.module_path:
-                raise ValueError(f"Regular tool '{tool_config.name}' missing class_name or module_path")
-        
-        elif tool_config.tool_type in [ToolType.MCP_STDIO, ToolType.MCP_SSE]:
-            if not tool_config.mcp_config:
-                raise ValueError(f"MCP tool '{tool_config.name}' missing mcp_config")
-            
-            if tool_config.tool_type == ToolType.MCP_STDIO and not tool_config.mcp_config.command:
-                raise ValueError(f"MCP stdio tool '{tool_config.name}' missing command in mcp_config")
-            
-            if tool_config.tool_type == ToolType.MCP_SSE and not tool_config.mcp_config.url:
-                raise ValueError(f"MCP SSE tool '{tool_config.name}' missing url in mcp_config")
-        
-        else:
-            raise ValueError(f"Unknown tool type: {tool_config.tool_type}")
+        if not tool_config.class_name or not tool_config.module_path:
+            raise ValueError(f"Tool '{tool_config.name}' missing class_name or module_path")

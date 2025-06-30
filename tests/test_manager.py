@@ -4,7 +4,7 @@ import asyncio
 
 from athos.core.manager import AthosManager, create_athos_manager
 from athos.config import (
-    AthosConfig, ToolConfig, ToolType, MCPServerConfig, MCPType,
+    AthosConfig, ToolConfig, MCPServerConfig, MCPType,
     ExecutionFlowType, ModelConfig, ExecutionFlowConfig
 )
 from smolagents import Tool
@@ -26,23 +26,9 @@ class TestAthosManager:
     def mock_tool_config(self):
         return ToolConfig(
             name="test_tool",
-            tool_type=ToolType.REGULAR,
             module_path="test.module",
             class_name="TestTool",
             parameters={"param1": "value1"}
-        )
-
-    @pytest.fixture
-    def mock_mcp_tool_config(self):
-        return ToolConfig(
-            name="mcp_tool",
-            tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(
-                name="mcp_tool_server",
-                mcp_type=MCPType.MCP_STDIO,
-                command="test-command",
-                args=["arg1", "arg2"]
-            )
         )
 
     @pytest.fixture
@@ -141,83 +127,12 @@ class TestAthosManager:
         with pytest.raises(ValueError, match="Unsupported MCP type INVALID_TYPE"):
             manager._create_mcp_client(invalid_config)
 
-    @patch('athos.core.manager.AthosManager._create_mcp_client')
-    def test_load_mcp_tools_success(self, mock_create_client, mock_config):
-        """Test successful MCP tool loading"""
-        manager = AthosManager(mock_config)
-
-        # Mock MCP client and tools
-        mock_tool1 = Mock(spec=Tool)
-        mock_tool1.name = "tool1"
-        mock_tool2 = Mock(spec=Tool)
-        mock_tool2.name = "tool2"
-
-        mock_client = Mock(spec=MCPClient)
-        mock_client.get_tools.return_value = [mock_tool1, mock_tool2]
-        mock_create_client.return_value = mock_client
-
-        tool_config = ToolConfig(
-            name="mcp_tool",
-            tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(
-                name="test_server",
-                mcp_type=MCPType.MCP_STDIO,
-                command="test-command"
-            )
-        )
-
-        tools = manager._load_mcp_tools(tool_config)
-
-        assert len(tools) == 2
-        assert tools[0].name == "tool1"
-        assert tools[1].name == "tool2"
-
-    @patch('athos.core.manager.AthosManager._create_mcp_client')
-    def test_load_mcp_tools_filtered(self, mock_create_client, mock_config):
-        """Test MCP tool loading with specific tool name filter"""
-        manager = AthosManager(mock_config)
-
-        mock_tool1 = Mock(spec=Tool)
-        mock_tool1.name = "tool1"
-        mock_tool2 = Mock(spec=Tool)
-        mock_tool2.name = "tool2"
-
-        mock_client = Mock(spec=MCPClient)
-        mock_client.get_tools.return_value = [mock_tool1, mock_tool2]
-        mock_create_client.return_value = mock_client
-
-        tool_config = ToolConfig(
-            name="mcp_tool",
-            tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(
-                name="test_server",
-                mcp_type=MCPType.MCP_STDIO,
-                command="test-command"
-            ),
-            mcp_tool_name="tool1"
-        )
-
-        tools = manager._load_mcp_tools(tool_config)
-
-        assert len(tools) == 1
-        assert tools[0].name == "tool1"
-
-    def test_load_mcp_tools_missing_config(self, mock_config):
-        """Test MCP tool loading with missing config"""
-        manager = AthosManager(mock_config)
-
-        tool_config = ToolConfig(
-            name="mcp_tool",
-            tool_type=ToolType.MCP_STDIO
-            # Missing mcp_config
-        )
-
-        with pytest.raises(ValueError, match="MCP tool mcp_tool missing mcp_config"):
-            manager._load_mcp_tools(tool_config)
+    # Note: MCP tool loading tests removed as MCP functionality
+    # has been moved out of the tool building path
 
     @patch('builtins.__import__')
-    def test_load_regular_tool_success(self, mock_import, mock_config):
-        """Test successful regular tool loading"""
+    def test_load_tool_success(self, mock_import, mock_config):
+        """Test successful tool loading"""
         manager = AthosManager(mock_config)
 
         # Mock the imported module and tool class
@@ -229,7 +144,6 @@ class TestAthosManager:
 
         tool_config = ToolConfig(
             name="test_tool",
-            tool_type=ToolType.REGULAR,
             module_path="test.module",
             class_name="TestTool",
             parameters={"param1": "value1"}
@@ -242,30 +156,6 @@ class TestAthosManager:
         assert result == mock_tool_instance
         assert manager.loaded_tools["test_tool"] == mock_tool_instance
 
-    @patch('athos.core.manager.AthosManager._load_mcp_tools')
-    def test_load_mcp_tool_success(self, mock_load_mcp_tools, mock_config):
-        """Test successful MCP tool loading"""
-        manager = AthosManager(mock_config)
-
-        mock_tool = Mock(spec=Tool)
-        mock_tool.name = "mcp_tool_1"
-        mock_load_mcp_tools.return_value = [mock_tool]
-
-        tool_config = ToolConfig(
-            name="mcp_tool",
-            tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(
-                name="test_server",
-                mcp_type=MCPType.MCP_STDIO,
-                command="test-command"
-            )
-        )
-
-        result = manager._load_tool(tool_config)
-
-        assert result == mock_tool
-        assert manager.loaded_tools["mcp_tool:mcp_tool_1"] == mock_tool
-
     def test_load_tool_cached(self, mock_config):
         """Test tool loading from cache"""
         manager = AthosManager(mock_config)
@@ -273,23 +163,15 @@ class TestAthosManager:
         cached_tool = Mock(spec=Tool)
         manager.loaded_tools["test_tool"] = cached_tool
 
-        tool_config = ToolConfig(name="test_tool", tool_type=ToolType.REGULAR)
+        tool_config = ToolConfig(
+            name="test_tool",
+            class_name="TestTool",
+            module_path="test.module"
+        )
 
         result = manager._load_tool(tool_config)
 
         assert result == cached_tool
-
-    def test_load_tool_unknown_type(self, mock_config):
-        """Test tool loading with unknown type"""
-        manager = AthosManager(mock_config)
-
-        tool_config = ToolConfig(
-            name="unknown_tool",
-            tool_type="UNKNOWN_TYPE"  # Invalid type
-        )
-
-        with pytest.raises(ValueError, match="Unknown tool type"):
-            manager._load_tool(tool_config)
 
     @patch('athos.core.manager.ChatbotFlow')
     @patch('athos.core.manager.OpenAIServerModel')
@@ -319,7 +201,11 @@ class TestAthosManager:
 
         config = AthosConfig(
             models={"test_model": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
-            tools={"test_tool": ToolConfig(name="test_tool", tool_type=ToolType.REGULAR)},
+            tools={"test_tool": ToolConfig(
+                name="test_tool",
+                class_name="TestTool",
+                module_path="test.module"
+            )},
             mcp_servers={},
             execution_flows={"code_flow": flow_config}
         )
@@ -454,20 +340,9 @@ class TestAthosManagerIntegration:
             tools={
                 "calculator": ToolConfig(
                     name="calculator",
-                    tool_type=ToolType.REGULAR,
                     module_path="test.tools",
                     class_name="Calculator",
                     parameters={}
-                ),
-                "file_manager": ToolConfig(
-                    name="file_manager",
-                    tool_type=ToolType.MCP_STDIO,
-                    mcp_config=MCPServerConfig(
-                        name="file_manager_server",
-                        mcp_type=MCPType.MCP_STDIO,
-                        command="file-server",
-                        args=["--root", "/tmp"]
-                    )
                 )
             },
             mcp_servers={
@@ -490,7 +365,8 @@ class TestAthosManagerIntegration:
                     name="coding",
                     type=ExecutionFlowType.CODE_AGENT,
                     model="gpt4",
-                    tools=["calculator", "file_manager"]
+                    tools=["calculator"],
+                    mcp_servers=["file_manager_server"]
                 )
             }
         )
@@ -507,11 +383,8 @@ class TestAthosManagerIntegration:
         mock_module.Calculator = mock_calculator_class
         mock_import.return_value = mock_module
 
-        # Mock MCP tools
-        mock_mcp_tool = Mock(spec=Tool)
-        mock_mcp_tool.name = "read_file"
+        # Mock MCP client for MCP servers
         mock_client_instance = Mock()
-        mock_client_instance.get_tools.return_value = [mock_mcp_tool]
         mock_mcp_client.return_value = mock_client_instance
 
         with patch('athos.core.manager.StdioServerParameters'), \
@@ -525,7 +398,7 @@ class TestAthosManagerIntegration:
             assert "gpt4" in manager.models
 
             # Verify tools loaded
-            assert len(manager.loaded_tools) >= 2  # calculator + mcp tools
+            assert len(manager.loaded_tools) >= 1  # calculator tool
 
             # Verify flows initialized
             assert len(manager.flows) == 2
@@ -544,7 +417,6 @@ class TestAthosManagerIntegration:
             models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
             tools={"bad_tool": ToolConfig(
                 name="bad_tool",
-                tool_type=ToolType.REGULAR,
                 module_path="nonexistent.module",
                 class_name="NonexistentClass"
             )},
@@ -626,35 +498,33 @@ class TestAthosManagerEdgeCases:
             assert client1 is client2
             assert mock_mcp_client.call_count == 1
 
-    def test_tool_loading_with_list_return(self):
-        """Test tool loading when MCP returns multiple tools"""
+    def test_tool_caching_behavior(self):
+        """Test tool caching behavior"""
         config = AthosConfig(models={}, tools={}, mcp_servers={}, execution_flows={})
         manager = AthosManager(config)
 
         tool_config = ToolConfig(
-            name="multi_tool",
-            tool_type=ToolType.MCP_STDIO,
-            mcp_config=MCPServerConfig(
-                name="test_server",
-                mcp_type=MCPType.MCP_STDIO,
-                command="test"
-            )
+            name="test_tool",
+            module_path="test.module",
+            class_name="TestTool"
         )
 
-        mock_tools = []
-        for i in range(3):
-            mock_tool = Mock(spec=Tool)
-            mock_tool.name = f"tool_{i}"
-            mock_tools.append(mock_tool)
+        mock_tool = Mock(spec=Tool)
+        
+        with patch('builtins.__import__') as mock_import:
+            mock_tool_class = Mock(return_value=mock_tool)
+            mock_module = Mock()
+            mock_module.TestTool = mock_tool_class
+            mock_import.return_value = mock_module
 
-        with patch.object(manager, '_load_mcp_tools', return_value=mock_tools):
-            result = manager._load_tool(tool_config)
+            # First load
+            result1 = manager._load_tool(tool_config)
+            # Second load should use cache
+            result2 = manager._load_tool(tool_config)
 
-            assert result == mock_tools
-            # Check that all tools are cached individually
-            for i, tool in enumerate(mock_tools):
-                cache_key = f"multi_tool:tool_{i}"
-                assert cache_key in manager.loaded_tools
+            assert result1 == mock_tool
+            assert result2 == mock_tool
+            assert mock_import.call_count == 1  # Only called once due to caching
 
     @pytest.mark.asyncio
     async def test_concurrent_flow_execution(self):

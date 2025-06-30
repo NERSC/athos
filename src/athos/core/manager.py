@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, List, Any, Union
+from typing import Dict, List, Any
 
 from smolagents import OpenAIServerModel, Tool
 from mcp import StdioServerParameters
@@ -8,7 +8,6 @@ from smolagents.mcp_client import MCPClient
 from athos.config import (
     AthosConfig,
     ToolConfig,
-    ToolType,
     MCPType,
     MCPServerConfig,
     ExecutionFlowType,
@@ -66,88 +65,23 @@ class AthosManager:
         self.mcp_clients[mcp_config.name] = mcp_client
         return mcp_client
     
-        # # Create cache key based on config
-        # if mcp_config.command:
-        #     cache_key = f"stdio:{mcp_config.command}"
-        #     if cache_key not in self.mcp_clients:
-        #         params = StdioServerParameters(
-        #             command=mcp_config.command,
-        #             args=mcp_config.args,
-        #             env=mcp_config.env
-        #         )
-        #         self.mcp_clients[cache_key] = MCPClient(params)
-        #         logger.info(f"Created MCP stdio client: {cache_key}")
-        # elif mcp_config.url:
-        #     cache_key = f"sse:{mcp_config.url}"
-        #     if cache_key not in self.mcp_clients:
-        #         params = dict(
-        #             url=mcp_config.url,
-        #             headers=mcp_config.headers
-        #         )
-        #         self.mcp_clients[cache_key] = MCPClient(params)
-        #         logger.info(f"Created MCP SSE client: {cache_key}")
-        # else:
-        #     raise ValueError("MCP config must specify either command or url")
 
-        # return self.mcp_clients[cache_key]
-
-    def _load_mcp_tools(self, tool_config: ToolConfig) -> List[Tool]:
-        """Load tools from MCP server"""
-        if not tool_config.mcp_config:
-            raise ValueError(f"MCP tool {tool_config.name} missing mcp_config")
-
-        try:
-            mcp_client = self._create_mcp_client(tool_config.mcp_config)
-            all_tools = list(mcp_client.get_tools())
-
-            # If specific tool name specified, filter for it
-            if tool_config.mcp_tool_name:
-                filtered_tools = [t for t in all_tools if t.name == tool_config.mcp_tool_name]
-                if not filtered_tools:
-                    raise ValueError(f"Tool '{tool_config.mcp_tool_name}' not found in MCP server")
-                return filtered_tools
-
-            return all_tools
-            
-        except Exception as e:
-            logger.error(f"Failed to load MCP tools for {tool_config.name}: {e}")
-            raise
-
-    def _load_tool(self, tool_config: ToolConfig) -> Union[Tool, List[Tool]]:
-        """Load a tool from configuration (regular or MCP)
-        
-        TODO: remove MCP stuff from here, return only single tool.
-        """
+    def _load_tool(self, tool_config: ToolConfig) -> Tool:
+        """Load a regular tool from configuration"""
         if tool_config.name in self.loaded_tools:
             return self.loaded_tools[tool_config.name]
 
         try:
-            if tool_config.tool_type == ToolType.REGULAR:
-                # Existing regular tool loading logic
-                module = __import__(tool_config.module_path, fromlist=[tool_config.class_name])
-                tool_class = getattr(module, tool_config.class_name)
+            # Load regular tool
+            module = __import__(tool_config.module_path, fromlist=[tool_config.class_name])
+            tool_class = getattr(module, tool_config.class_name)
 
-                # Instantiate tool with parameters
-                tool_instance = tool_class(**tool_config.parameters)
-                self.loaded_tools[tool_config.name] = tool_instance
+            # Instantiate tool with parameters
+            tool_instance = tool_class(**tool_config.parameters)
+            self.loaded_tools[tool_config.name] = tool_instance
 
-                logger.info(f"Loaded regular tool: {tool_config.name}")
-                return tool_instance
-
-            elif tool_config.tool_type in [ToolType.MCP_STDIO, ToolType.MCP_SSE]:
-                # New MCP tool loading logic
-                mcp_tools = self._load_mcp_tools(tool_config)
-
-                # Cache tools individually
-                for tool in mcp_tools:
-                    cache_key = f"{tool_config.name}:{tool.name}"
-                    self.loaded_tools[cache_key] = tool
-
-                logger.info(f"Loaded {len(mcp_tools)} MCP tools for: {tool_config.name}")
-                return mcp_tools if len(mcp_tools) > 1 else mcp_tools[0]
-
-            else:
-                raise ValueError(f"Unknown tool type: {tool_config.tool_type}")
+            logger.info(f"Loaded regular tool: {tool_config.name}")
+            return tool_instance
 
         except Exception as e:
             logger.error(f"Failed to load tool {tool_config.name}: {e}")
@@ -176,37 +110,42 @@ class AthosManager:
                 flow = ChatbotFlow(model, flow_config.system_prompt)
 
             elif flow_config.type == ExecutionFlowType.CODE_AGENT:
-                mcp_servers = []
+                # Load MCP servers
+                mcp_clients = []
                 for mcp_name in flow_config.mcp_servers:
                     logger.info(f"loading MCP server {mcp_name}")
                     mcp_config = self.config.mcp_servers[mcp_name]
-                    # FINISHME
-                    # loaded_mcp = 
+                    mcp_client = self._create_mcp_client(mcp_config)
+                    mcp_clients.append(mcp_client)
+                
+                # Load regular tools
                 tools = []
                 for tool_name in flow_config.tools:
                     logger.info(f"loading tool {tool_name}")
                     tool_config = self.config.tools[tool_name]
                     loaded_tool = self._load_tool(tool_config)
-
-                    # Handle both single tools and lists of tools (from MCP)
-                    if isinstance(loaded_tool, list):
-                        tools.extend(loaded_tool)
-                    else:
-                        tools.append(loaded_tool)
+                    tools.append(loaded_tool)
+                
                 flow = CodeAgentFlow(model, tools)
                 logger.info(f"Initialized CodeAgentFlow: {name}")
+                
             elif flow_config.type == ExecutionFlowType.TOOL_CALLING_AGENT:
+                # Load MCP servers
+                mcp_clients = []
+                for mcp_name in flow_config.mcp_servers:
+                    logger.info(f"loading MCP server {mcp_name}")
+                    mcp_config = self.config.mcp_servers[mcp_name]
+                    mcp_client = self._create_mcp_client(mcp_config)
+                    mcp_clients.append(mcp_client)
+                
+                # Load regular tools
                 tools = []
                 for tool_name in flow_config.tools:
                     logger.info(f"loading tool {tool_name}")
                     tool_config = self.config.tools[tool_name]
                     loaded_tool = self._load_tool(tool_config)
-
-                    # Handle both single tools and lists of tools (from MCP)
-                    if isinstance(loaded_tool, list):
-                        tools.extend(loaded_tool)
-                    else:
-                        tools.append(loaded_tool)
+                    tools.append(loaded_tool)
+                
                 flow = ToolCallingAgentFlow(model, tools)
                 logger.info(f"Initialized ToolCallingAgentFlow: {name}")
 
