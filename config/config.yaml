@@ -167,27 +167,20 @@ tools:
 
 # Agent Execution Flows define the agent system
 execution_flows:
-  # # Simple chatbot for general HPC questions
-  # hpc_chatbot:
-  #   type: "chatbot"
-  #   model: "cborg_chat"
-  #   system_prompt: |
-  #     You are an HPC support chatbot. Answer questions about cluster usage, 
-  #     job submission, software modules, and general HPC best practices.
-  #     Keep responses concise but informative.
-  
-  # # Code agent with no tools
-  # hpc_simple_agent:
-  #   type: "code_agent"
-  #   model: "gpt_4o"
-  #   # system prompt: You are an HPC support chatbot.
+  # Simple chatbot for general HPC questions
+  hpc_chatbot:
+    type: "chatbot"
+    model: "cborg_chat"
+    system_prompt: |
+      You are an HPC support chatbot. Answer questions about cluster usage, 
+      job submission, software modules, and general HPC best practices.
+      Keep responses concise but informative.
 
-  # # Web agent example
-  # web_agent:
-  #   type: "tool_calling_agent"
-  #   model: "o4_mini"
-  #   tools: ["websearch", "webvisit"]
-  #   # Optionally, add a system_prompt to configure behavior
+  # Web agent example
+  web_agent:
+    type: "tool_calling_agent"
+    model: "o4_mini"
+    tools: ["websearch", "webvisit"]
 
   # MCP-enabled agent example
   filesystem_agent:
