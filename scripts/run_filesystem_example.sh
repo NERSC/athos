@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# ATHOS Filesystem Demo Runner
+# ATHOS Filesystem Agent Example Runner
 # This script runs the ATHOS-based filesystem demonstration
 
-echo "🚀 Starting ATHOS Filesystem Demo..."
+echo "🚀 Starting ATHOS Filesystem Agent Example..."
 echo "This demo shows filesystem operations using the ATHOS framework"
 echo ""
 
@@ -29,9 +29,12 @@ fi
 echo "✅ MCP filesystem server is available"
 echo ""
 
+# Set demo directory (can be overridden by environment variable)
+DEMO_DIR=${ATHOS_DEMO_DIR:-"./athos_filesystem_demo"}
+
 # Run the demo
 ls config/
-python -m athos.examples.filesystem_demo --config $PWD/config/config.yaml
+python -m athos.examples.filesystem_agent --config $PWD/config/config.yaml --demo-dir "$DEMO_DIR"
 
 echo ""
-echo "📝 Demo completed! Check the 'athos_filesystem_demo' directory for created files."
+echo "📝 Demo completed! Check the '$DEMO_DIR' directory for created files."

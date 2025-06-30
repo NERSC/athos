@@ -1,5 +1,5 @@
 """
-ATHOS Filesystem Demo - Demonstration of filesystem operations using ATHOS framework
+ATHOS Filesystem Agent example - Demonstration of filesystem operations using ATHOS framework
 
 This script demonstrates how to use the ATHOS framework with MCP filesystem tools
 to perform file and directory operations. It replicates the functionality of the
@@ -135,12 +135,12 @@ async def demonstrate_file_exploration_task(mgr, flow_name: str):
     return True
 
 
-def setup_demo_workspace():
+def setup_demo_workspace(demo_dir: str = "./athos_filesystem_demo"):
     """Set up a clean workspace for the demo"""
     print("🔧 Setting up demo workspace...")
     
     # Create a working directory for the demo
-    work_dir = Path("./athos_filesystem_demo")
+    work_dir = Path(demo_dir)
     work_dir.mkdir(exist_ok=True)
     
     # Change to the working directory
@@ -172,6 +172,8 @@ async def main():
                         help="Path to configuration YAML file")
     parser.add_argument("--flow", default="filesystem_agent",
                         help="Name of the filesystem flow to use")
+    parser.add_argument("--demo-dir", default="./athos_filesystem_demo",
+                        help="Directory to use for demo files (default: ./athos_filesystem_demo)")
     args = parser.parse_args()
     
     # Check for required environment variables
@@ -186,7 +188,7 @@ async def main():
         print("Continuing with demo (may fail if API access is required)...\n")
     
     # Set up workspace
-    original_dir, work_dir = setup_demo_workspace()
+    original_dir, work_dir = setup_demo_workspace(args.demo_dir)
     
     try:
         # Initialize ATHOS manager
