@@ -73,19 +73,21 @@ models:
 
 # MCP servers
 mcp_servers:
+  # WARNING: filesystem_mcp is given edit privs in current working directory
   filesystem_mcp:
     mcp_type: "mcp_stdio"
     command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "./temp"]
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
   
-  servicenow_mcp:
-    mcp_type: "mcp_stdio"
-    command: "python"
-    args: ["-m", "servicenow_mcp"]
-    env:
-      SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
-      SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
-      SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
+  # Disabling servicenow mcp for now because code currently requires the SN env vars.
+  # servicenow_mcp:
+  #   mcp_type: "mcp_stdio"
+  #   command: "python"
+  #   args: ["-m", "servicenow_mcp"]
+  #   env:
+  #     SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
+  #     SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
+  #     SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
 
   # Additional MCP servers can be added here as comments for reference:
   #
@@ -165,37 +167,33 @@ tools:
 
 # Agent Execution Flows define the agent system
 execution_flows:
-  # Simple chatbot for general HPC questions
-  hpc_chatbot:
-    type: "chatbot"
-    model: "cborg_chat"
-    system_prompt: |
-      You are an HPC support chatbot. Answer questions about cluster usage, 
-      job submission, software modules, and general HPC best practices.
-      Keep responses concise but informative.
+  # # Simple chatbot for general HPC questions
+  # hpc_chatbot:
+  #   type: "chatbot"
+  #   model: "cborg_chat"
+  #   system_prompt: |
+  #     You are an HPC support chatbot. Answer questions about cluster usage, 
+  #     job submission, software modules, and general HPC best practices.
+  #     Keep responses concise but informative.
   
-  # Code agent with no tools
-  hpc_simple_agent:
-    type: "code_agent"
-    model: "gpt_4o"
-    # system prompt: You are an HPC support chatbot.
+  # # Code agent with no tools
+  # hpc_simple_agent:
+  #   type: "code_agent"
+  #   model: "gpt_4o"
+  #   # system prompt: You are an HPC support chatbot.
 
-  # Web agent example
-  web_agent:
-    type: "tool_calling_agent"
-    model: "o4_mini"
-    tools: ["websearch", "webvisit"]
-    # Optionally, add a system_prompt to configure behavior
+  # # Web agent example
+  # web_agent:
+  #   type: "tool_calling_agent"
+  #   model: "o4_mini"
+  #   tools: ["websearch", "webvisit"]
+  #   # Optionally, add a system_prompt to configure behavior
 
   # MCP-enabled agent example
-  mcp_agent:
+  filesystem_agent:
     type: "tool_calling_agent"
     model: "gpt_4o"
-    tools: ["github_mcp", "filesystem_mcp"]
-    system_prompt: |
-      You are an AI assistant with access to GitHub and filesystem tools via MCP.
-      You can help with repository management, file operations, and development tasks.
-      Always be careful with file operations and ask for confirmation before making changes.
+    mcp_servers: ["filesystem_mcp"]
 
   # # ServiceNow integration agent
   # servicenow_agent:
