@@ -1,0 +1,9 @@
++ srun -l bash -c '
+    export RANK=$SLURM_PROCID
+    export LOCAL_RANK=$SLURM_LOCALID
+    export WORLD_SIZE=$SLURM_NTASKS
+    python nlp_example.py
+'
+0: slurmstepd: error: *** STEP 1045796.0 ON nid001049 CANCELLED AT 2025-05-30T16:37:24 DUE TO TIME LIMIT ***
+slurmstepd: error: *** JOB 1045796 ON nid001049 CANCELLED AT 2025-05-30T16:37:24 DUE TO TIME LIMIT ***
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.

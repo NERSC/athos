@@ -1,0 +1,605 @@
++ srun -l -u torchrun --nnodes=2 --nproc-per-node=4 --rdzv-backend=c10d --rdzv-endpoint=nid001049:29507 nlp_example.py
+2: Initialized accelerator: rank 0 size 8 node nid001049
+3: Initialized accelerator: rank 4 size 8 node nid001049
+3: Initialized accelerator: rank 6 size 8 node nid001049
+3: Initialized accelerator: rank 7 size 8 node nid001049
+2: Initialized accelerator: rank 1 size 8 node nid001049
+3: Initialized accelerator: rank 5 size 8 node nid001049
+2: Initialized accelerator: rank 2 size 8 node nid001049
+2: Initialized accelerator: rank 3 size 8 node nid001049
+2: [rank3]:[W530 16:07:21.384815193 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 3]  using GPU 3 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+3: [rank5]:[W530 16:07:21.518701446 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 5]  using GPU 1 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+2: [rank1]:[W530 16:07:22.865371515 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 1]  using GPU 1 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+2: [rank2]:[W530 16:07:22.126741103 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 2]  using GPU 2 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+3: [rank6]:[W530 16:07:22.266036722 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 6]  using GPU 2 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+3: [rank4]:[W530 16:07:22.358109131 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 4]  using GPU 0 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+2: [rank0]:[W530 16:07:23.695433335 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 0]  using GPU 0 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+3: [rank7]:[W530 16:07:23.245183874 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 7]  using GPU 3 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
+2: [rank0]: Traceback (most recent call last):
+2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank0]:     main()
+2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+2: [rank0]:     training_function(config, args)
+2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank0]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+2: [rank0]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: [rank0]:     with accelerator.main_process_first():
+2: [rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib
+2: /python3.12/contextlib.py", line 144, in __exit__
+2: [rank0]:     next(self.gen)
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/accelerator.py", line 968, in main_process_first
+2: [rank0]:     with self.state.main_process_first():
+2: [rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 144, in __exit__
+2: [rank0]:     next(self.gen)
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+2: [rank0]:     with PartialState().main_process_first():
+2: [rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 144, in __exit__
+2: [rank0]:     next(self.gen)
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+2: [rank0]:
+2:      yield from self._goes_first(self.is_main_process)
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 387, in _goes_first
+2: [rank0]:     self.wait_for_everyone()
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+2: [rank0]:     torch.distributed.barrier()
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+2: [rank0]:     return func(*args, **kwargs)
+2: [rank0]:            ^^^^^^^^^^^^^^^^^^^^^
+2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+2: [rank0]:     work = group.barrier(opts=opts)
+2: [rank0]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank0]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distr
+2: ibuted/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN for details), NCCL version 2.24.3
+2: [rank0]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+2: [rank0]: Last error:
+2: [rank0]: Duplicate GPU detected : rank 0 and rank 4 both on CUDA device 3000
+2: [rank3]: Traceback (most recent call last):
+2: [rank3]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank3]:     main()
+2: [rank3]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+2: [rank3]:     training_function(config, args)
+2: [rank3]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank3]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+2: [rank3]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/u2/s/
+3: [rank4]: Traceback (most recent call last):
+3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank4]:     main()
+3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank4]:     training_function(config, args)
+3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank4]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+3: [rank4]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+3: [rank4]:     with accelerator.main_process_first():
+3: [rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib
+3: /python3.12/contextlib.py", line 137, in __enter__
+3: [rank4]:     return next(self.gen)
+3: [rank4]:            ^^^^^^^^^^^^^^
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/accelerator.py", line 968, in main_process_first
+3: [rank4]:     with self.state.main_process_first():
+3: [rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank4]:     return next(self.gen)
+3: [rank4]:            ^^^^^^^^^^^^^^
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+3: [rank4]:     with PartialState().main_process_first():
+3: [rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank4]:     return next(self.gen)
+3: [rank4]:            ^^^^^^^^^^^^^^
+3: [rank4]:   File "/global
+3: /common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+3: [rank4]:     yield from self._goes_first(self.is_main_process)
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 382, in _goes_first
+3: [rank4]:     self.wait_for_everyone()
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+3: [rank4]:     torch.distributed.barrier()
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+3: [rank4]:     return func(*args, **kwargs)
+3: [rank4]:            ^^^^^^^^^^^^^^^^^^^^^
+3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+3: [rank4]:     work = group.barrier(opts=opts)
+3: [rank4]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank4
+3: ]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN for details), NCCL version 2.24.3
+3: [rank4]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+3: [rank4]: Last error:
+3: [rank4]: Duplicate GPU detected : rank 4 and rank 0 both on CUDA device 3000
+3: [rank5]: Traceback (most recent call last):
+3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank5]:     main()
+3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank5]:     training_function(config, args)
+3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank5]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, bat
+2: sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: [rank3]:     with accelerator.main_process_first():
+2: [rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank3]:     return next(self.gen)
+2: [rank3]:            ^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/accelerator.py", line 968, in main_process_first
+2: [rank3]:     with self.state.main_process_first():
+2: [rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank3]:     return next(self.gen)
+2: [rank3]:            ^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+2: [rank3]:     with PartialState().mai
+2: n_process_first():
+2: [rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank3]:     return next(self.gen)
+2: [rank3]:            ^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+2: [rank3]:     yield from self._goes_first(self.is_main_process)
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 382, in _goes_first
+2: [rank3]:     self.wait_for_everyone()
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+2: [rank3]:     torch.distributed.barrier()
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+2: [rank3]:     return func(*args, **kwargs)
+2: [rank3]:
+2:             ^^^^^^^^^^^^^^^^^^^^^
+2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+2: [rank3]:     work = group.barrier(opts=opts)
+2: [rank3]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank3]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN for details), NCCL version 2.24.3
+2: [rank3]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+2: [rank3]: Last error:
+2: [rank3]: Duplicate GPU detected : rank 3 and rank 7 both on CUDA device c1000
+2: [rank2]: Traceback (most recent call last):
+2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank2]:     main()
+2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216
+2: , in main
+2: [rank2]:     training_function(config, args)
+2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank2]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+2: [rank2]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: [rank2]:     with accelerator.main_process_first():
+2: [rank2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank2]:     return next(self.gen)
+2: [rank2]:            ^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/accelerator.py", line 968, in main_process_first
+2: [rank2]:     with self.state.main_process_first():
+2: [rank
+3: ch_size)
+3: [rank5]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+3: [rank5]:     with accelerator.main_process_first():
+3: [rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank5]:     return next(self.gen)
+3: [rank5]:            ^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/accelerator.py", line 968, in main_process_first
+3: [rank5]:     with self.state.main_process_first():
+3: [rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank5]:     return next(self.gen)
+3: [rank5]:            ^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/common/software/nersc9/pytor
+3: ch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+3: [rank5]:     with PartialState().main_process_first():
+3: [rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank5]:     return next(self.gen)
+3: [rank5]:            ^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+3: [rank5]:     yield from self._goes_first(self.is_main_process)
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 382, in _goes_first
+3: [rank5]:     self.wait_for_everyone()
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+3: [rank5]:     torch.distributed.barrier()
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/p
+3: ython3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+3: [rank5]:     return func(*args, **kwargs)
+3: [rank5]:            ^^^^^^^^^^^^^^^^^^^^^
+3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+3: [rank5]:     work = group.barrier(opts=opts)
+3: [rank5]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank5]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN for details), NCCL version 2.24.3
+3: [rank5]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+3: [rank5]: Last error:
+3: [rank5]: Duplicate GPU detected : rank 5 and rank 1 both on CUDA device 41000
+3: [rank6]: Traceback (most recent call last):
+3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank6]:     mai
+3: n()
+3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank6]:     training_function(config, args)
+3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank6]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+3: [rank6]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+3: [rank6]:     with accelerator.main_process_first():
+3: [rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank6]:     return next(self.gen)
+3: [rank6]:            ^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/s
+2: 2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank2]:     return next(self.gen)
+2: [rank2]:            ^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+2: [rank2]:     with PartialState().main_process_first():
+2: [rank2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank2]:     return next(self.gen)
+2: [rank2]:            ^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+2: [rank2]:     yield from self._goes_first(self.is_main_process)
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 382, in _goes_first
+2: [rank2
+2: ]:     self.wait_for_everyone()
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+2: [rank2]:     torch.distributed.barrier()
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+2: [rank2]:     return func(*args, **kwargs)
+2: [rank2]:            ^^^^^^^^^^^^^^^^^^^^^
+2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+2: [rank2]:     work = group.barrier(opts=opts)
+2: [rank2]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank2]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN for details), NCCL version 2.24.3
+2: [rank2]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+2: [rank2]: Last 
+2: error:
+2: [rank2]: Duplicate GPU detected : rank 2 and rank 6 both on CUDA device 82000
+2: [rank1]: Traceback (most recent call last):
+2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank1]:     main()
+2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+2: [rank1]:     training_function(config, args)
+2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank1]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+2: [rank1]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: [rank1]:     with accelerator.main_process_first():
+2: [rank1]:          ^^^^^^^^^^^^^
+2: ^^^^^^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank1]:     return next(self.gen)
+2: [rank1]:            ^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/accelerator.py", line 968, in main_process_first
+2: [rank1]:     with self.state.main_process_first():
+2: [rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank1]:     return next(self.gen)
+2: [rank1]:            ^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+2: [rank1]:     with PartialState().main_process_first():
+2: [rank1]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+2: [rank1]: 
+3: ite-packages/accelerate/accelerator.py", line 968, in main_process_first
+3: [rank6]:     with self.state.main_process_first():
+3: [rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank6]:     return next(self.gen)
+3: [rank6]:            ^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+3: [rank6]:     with PartialState().main_process_first():
+3: [rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank6]:     return next(self.gen)
+3: [rank6]:            ^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+3: [rank6]:     yield from self._goes_first(self.is_main_process)
+3: [rank6]:   File
+3:  "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 382, in _goes_first
+3: [rank6]:     self.wait_for_everyone()
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+3: [rank6]:     torch.distributed.barrier()
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+3: [rank6]:     return func(*args, **kwargs)
+3: [rank6]:            ^^^^^^^^^^^^^^^^^^^^^
+3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+3: [rank6]:     work = group.barrier(opts=opts)
+3: [rank6]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank6]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN
+3:  for details), NCCL version 2.24.3
+3: [rank6]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+3: [rank6]: Last error:
+3: [rank6]: Duplicate GPU detected : rank 6 and rank 2 both on CUDA device 82000
+3: [rank7]: Traceback (most recent call last):
+3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank7]:     main()
+3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank7]:     training_function(config, args)
+3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank7]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
+3: [rank7]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2
+3: /nlp_example.py", line 72, in get_dataloaders
+3: [rank7]:     with accelerator.main_process_first():
+3: [rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank7]:     return next(self.gen)
+3: [rank7]:            ^^^^^^^^^^^^^^
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/accelerator.py", line 968, in main_process_first
+3: [rank7]:     with self.state.main_process_first():
+3: [rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank7]:     return next(self.gen)
+3: [rank7]:            ^^^^^^^^^^^^^^
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 1079, in main_process_first
+3: [rank7]:     with PartialState().main_process_first():
+3: [rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2:     return next(self.gen)
+2: [rank1]:            ^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+2: [rank1]:     yield from self._goes_first(self.is_main_process)
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 382, in _goes_first
+2: [rank1]:     self.wait_for_everyone()
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+2: [rank1]:     torch.distributed.barrier()
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+2: [rank1]:     return func(*args, **kwargs)
+2: [rank1]:            ^^^^^^^^^^^^^^^^^^^^^
+2: [rank1]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+2: [rank1]:   
+2:   work = group.barrier(opts=opts)
+2: [rank1]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+2: [rank1]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN for details), NCCL version 2.24.3
+2: [rank1]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+2: [rank1]: Last error:
+2: [rank1]: Duplicate GPU detected : rank 1 and rank 5 both on CUDA device 41000
+3: ^^^
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
+3: [rank7]:     return next(self.gen)
+3: [rank7]:            ^^^^^^^^^^^^^^
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 497, in main_process_first
+3: [rank7]:     yield from self._goes_first(self.is_main_process)
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 382, in _goes_first
+3: [rank7]:     self.wait_for_everyone()
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/accelerate/state.py", line 376, in wait_for_everyone
+3: [rank7]:     torch.distributed.barrier()
+3: [rank7]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 81, in wrapper
+3: [rank7]:     return func(*args, **kwargs)
+3: [rank7]:            ^^^^^^^^^^^^^^^^^^^^^
+3: [rank7]:   File "/global/common/sof
+3: tware/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 4551, in barrier
+3: [rank7]:     work = group.barrier(opts=opts)
+3: [rank7]:            ^^^^^^^^^^^^^^^^^^^^^^^^
+3: [rank7]: torch.distributed.DistBackendError: NCCL error in: /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/NCCLUtils.hpp:268, invalid usage (run with NCCL_DEBUG=WARN for details), NCCL version 2.24.3
+3: [rank7]: ncclInvalidUsage: This usually reflects invalid usage of NCCL library.
+3: [rank7]: Last error:
+3: [rank7]: Duplicate GPU detected : rank 7 and rank 3 both on CUDA device c1000
+2: [rank0]:[W530 16:07:24.820006626 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+3: [rank4]:[W530 16:07:24.825882874 ProcessGroupNCCL.cpp:1496] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+2: W0530 16:07:25.245000 964976 site-packages/torch/distributed/elastic/multiprocessing/api.py:897] Sending process 965095 closing signal SIGTERM
+2: W0530 16:07:25.246000 964976 site-packages/torch/distributed/elastic/multiprocessing/api.py:897] Sending process 965099 closing signal SIGTERM
+2: W0530 16:07:25.247000 964976 site-packages/torch/distributed/elastic/multiprocessing/api.py:897] Sending process 965101 closing signal SIGTERM
+3: E0530 16:07:26.347000 964977 site-packages/torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 0 (pid: 965094) of binary: /global/common/software/nersc9/pytorch/2.6.0/bin/python
+3: Traceback (most recent call last):
+3:   File "/global/common/software/nersc9/pytorch/2.6.0/bin/torchrun", line 33, in <module>
+3:     sys.exit(load_entry_point('torch==2.6.0', 'console_scripts', 'torchrun')())
+3:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+3:     return f(*args, **kwargs)
+3:            ^^^^^^^^^^^^^^^^^^
+3:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/run.py", line 918, in main
+3:     run(args)
+3:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/run.py", line 909, in run
+3:     elastic_launch(
+3:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+3:     return launch_agent(self._config, self._entrypoint, list(args))
+3:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+3:     raise ChildFailedError(
+3: torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+3: ============================================================
+3: nlp_example.py FAILED
+3: ------------------------------------------------------------
+3: Failures:
+3: [1]:
+3:   time      : 2025-05-30_16:07:26
+3:   host      : nid001049-hsn0
+3:   rank      : 5 (local_rank: 1)
+3:   exitcode  : 1 (pid: 965096)
+3:   error_file: <N/A>
+3:   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+3: [2]:
+3:   time      : 2025-05-30_16:07:26
+3:   host      : nid001049-hsn0
+3:   rank      : 6 (local_rank: 2)
+3:   exitcode  : 1 (pid: 965098)
+3:   error_file: <N/A>
+3:   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+3: [3]:
+3:   time      : 2025-05-30_16:07:26
+3:   host      : nid001049-hsn0
+3:   rank      : 7 (local_rank: 3)
+3:   exitcode  : 1 (pid: 965100)
+3:   error_file: <N/A>
+3:   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+3: ------------------------------------------------------------
+3: Root Cause (first 
+3: observed failure):
+3: [0]:
+3:   time      : 2025-05-30_16:07:26
+3:   host      : nid001049-hsn0
+3:   rank      : 4 (local_rank: 0)
+3:   exitcode  : 1 (pid: 965094)
+3:   error_file: <N/A>
+3:   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+3: ============================================================
+2: E0530 16:07:26.465000 964976 site-packages/torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 1 (pid: 965097) of binary: /global/common/software/nersc9/pytorch/2.6.0/bin/python
+2: Traceback (most recent call last):
+2:   File "/global/common/software/nersc9/pytorch/2.6.0/bin/torchrun", line 33, in <module>
+2:     sys.exit(load_entry_point('torch==2.6.0', 'console_scripts', 'torchrun')())
+2:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+2:     return f(*args, **kwargs)
+2:            ^^^^^^^^^^^^^^^^^^
+2:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/run.py", line 918, in main
+2:     run(args)
+2:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/run.py", line 909, in run
+2:     elastic_launch(
+2:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+2:     return launch_agent(self._config, self._entrypoint, list(args))
+2:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+2:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+2:     raise ChildFailedError(
+2: torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+2: ============================================================
+2: nlp_example.py FAILED
+2: ------------------------------------------------------------
+2: Failures:
+2:   <NO_OTHER_FAILURES>
+2: ------------------------------------------------------------
+2: Root Cause (first observed failure):
+2: [0]:
+2:   time      : 2025-05-30_16:07:25
+2:   host      : nid001049-hsn0
+2:   rank      : 1 (local_rank: 1)
+2:   exitcode  : 1 (pid: 965097)
+2:   error_file: <N/A>
+2:   traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+2: ============================================================
+0: [W530 16:07:26.305556146 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=3, addr=[nid001049-hsn0]:36124, remote=[nid001049-hsn0]:29507): Broken pipe
+0: Exception raised from sendBytes at /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/Utils.hpp:646 (most recent call first):
+0: frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x80 (0x7f8ee9b95560 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libc10.so)
+0: frame #1: <unknown function> + 0x578cd55 (0x7f8ee0e70d55 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #2: <unknown function> + 0x578f01c (0x7f8ee0e7301c in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #3: c10d::TCPStore::doWait(c10::ArrayRef<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >,
+0:  std::chrono::duration<long, std::ratio<1l, 1000l> >) + 0x1be (0x7f8ee0e6d22e in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #4: c10d::TCPStore::doGet(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) + 0x33 (0x7f8ee0e6d813 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #5: c10d::TCPStore::get(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) + 0x114 (0x7f8ee0e6ea24 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #6: <unknown function> + 0xcbb195 (0x7f8ee8a2d195 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+0: frame #7: <unknown function> + 0x43f34d (0x7f8ee81b134d in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+0: frame #8: <unknown func
+0: tion> + 0x224988 (0x56490d01a988 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #9: _PyObject_MakeTpCall + 0x2c3 (0x56490cffac53 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #10: <unknown function> + 0x251c37 (0x56490d047c37 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #11: <unknown function> + 0x113464 (0x56490cf09464 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #12: _PyObject_FastCallDictTstate + 0x1ee (0x56490cffd7de in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #13: _PyObject_Call_Prepend + 0x69 (0x56490d028ac9 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #14: <unknown function> + 0x30412b (0x56490d0fa12b in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #15: _PyObject_Call + 0xb5 (0x56490d02b535 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #16: <unknown function> + 0x113464 (0x56490cf09464 in /global/common/software/nersc9/pytorch/2.6.0/bin/python
+0: )
+0: frame #17: PyEval_EvalCode + 0xa1 (0x56490d0b1281 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #18: <unknown function> + 0x2df90a (0x56490d0d590a in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #19: <unknown function> + 0x2da915 (0x56490d0d0915 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #20: <unknown function> + 0x2f3220 (0x56490d0e9220 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #21: _PyRun_SimpleFileObject + 0x1ce (0x56490d0e889e in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #22: _PyRun_AnyFileObject + 0x44 (0x56490d0e8564 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #23: Py_RunMain + 0x2fe (0x56490d0e17ee in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #24: Py_BytesMain + 0x37 (0x56490d09b3c7 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #25: __libc_start_main + 0xef (0x7f8ef68e81fd in /lib64/libc.so.6)
+0: frame #26: <unknown function> + 0x2a5271 
+0: (0x56490d09b271 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: 
+0: W0530 16:07:26.639000 964972 site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py:1284] The node 'nid001049-hsn0_964972_0' has failed to shutdown the rendezvous 'none' due to an error of type RendezvousConnectionError.
+0: [W530 16:07:26.313336996 TCPStore.cpp:106] [c10d] sendBytes failed on SocketImpl(fd=3, addr=[nid001049-hsn0]:36124, remote=[nid001049-hsn0]:29507): Broken pipe
+0: Exception raised from sendBytes at /mscratch/sd/s/swowner/pytorch-build/pytorch/2.6.0/pytorch/torch/csrc/distributed/c10d/Utils.hpp:646 (most recent call first):
+0: frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0x80 (0x7f8ee9b95560 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libc10.so)
+0: frame #1: <unknown function> + 0x578cd55 (0x7f8ee0e70d55 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #2: <unknown function> + 0x578f01c (0x7f8ee0e7301c in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #3: c10d::TCPStore::doWait(c10::ArrayRef<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > >,
+0:  std::chrono::duration<long, std::ratio<1l, 1000l> >) + 0x1be (0x7f8ee0e6d22e in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #4: c10d::TCPStore::doGet(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) + 0x33 (0x7f8ee0e6d813 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #5: c10d::TCPStore::get(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) + 0x114 (0x7f8ee0e6ea24 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_cpu.so)
+0: frame #6: <unknown function> + 0xcbb195 (0x7f8ee8a2d195 in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+0: frame #7: <unknown function> + 0x43f34d (0x7f8ee81b134d in /global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/lib/libtorch_python.so)
+0: frame #8: <unknown func
+0: tion> + 0x224988 (0x56490d01a988 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #9: _PyObject_MakeTpCall + 0x2c3 (0x56490cffac53 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #10: <unknown function> + 0x251c37 (0x56490d047c37 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #11: <unknown function> + 0x113464 (0x56490cf09464 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #12: _PyObject_FastCallDictTstate + 0x1ee (0x56490cffd7de in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #13: _PyObject_Call_Prepend + 0x69 (0x56490d028ac9 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #14: <unknown function> + 0x30412b (0x56490d0fa12b in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #15: _PyObject_Call + 0xb5 (0x56490d02b535 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #16: <unknown function> + 0x113464 (0x56490cf09464 in /global/common/software/nersc9/pytorch/2.6.0/bin/python
+0: )
+0: frame #17: PyEval_EvalCode + 0xa1 (0x56490d0b1281 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #18: <unknown function> + 0x2df90a (0x56490d0d590a in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #19: <unknown function> + 0x2da915 (0x56490d0d0915 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #20: <unknown function> + 0x2f3220 (0x56490d0e9220 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #21: _PyRun_SimpleFileObject + 0x1ce (0x56490d0e889e in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #22: _PyRun_AnyFileObject + 0x44 (0x56490d0e8564 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #23: Py_RunMain + 0x2fe (0x56490d0e17ee in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #24: Py_BytesMain + 0x37 (0x56490d09b3c7 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: frame #25: __libc_start_main + 0xef (0x7f8ef68e81fd in /lib64/libc.so.6)
+0: frame #26: <unknown function> + 0x2a5271 
+0: (0x56490d09b271 in /global/common/software/nersc9/pytorch/2.6.0/bin/python)
+0: 
+0: W0530 16:07:26.646000 964972 site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py:1284] The node 'nid001049-hsn0_964972_0' has failed to shutdown the rendezvous 'none' due to an error of type RendezvousConnectionError.
+0: Traceback (most recent call last):
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/rendezvous/c10d_rendezvous_backend.py", line 117, in _call_store
+0:     return getattr(self._store, store_op)(*args, **kwargs)
+0:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+0: torch.distributed.DistNetworkError: failed to recv, got 0 bytes
+0: 
+0: The above exception was the direct cause of the following exception:
+0: 
+0: Traceback (most recent call last):
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/bin/torchrun", line 33, in <module>
+0:     sys.exit(load_entry_point('torch==2.6.0', 'console_scripts', 'torchrun')())
+0:              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+0:     return f(*args, **kwargs)
+0:            ^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/run.py", line 918, in main
+0:     run(args)
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/run.py", line 909, in run
+0:     elastic_launch(
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+0:     return launch_agent(self._config, self._entrypoint, list(args))
+0:            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/launcher/api.py", line 260, in launch_agent
+0:     result = agent.run()
+0:              ^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/metrics/api.py", line 137, in wrapper
+0:     result = f(*args, **kwargs)
+0:              ^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 711, in run
+0:     result = self._invoke_run(role)
+0:              ^^^^^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 864, in _invoke_run
+0:     self._initialize_workers(self._worker_group)
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/metrics/api.py", line 137, in wrapper
+0:     result = f(*args, **kwargs)
+0:              ^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 683, in _initialize_workers
+0:     self._rendezvous(worker_group)
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/metrics/api.py", line 137, in wrapper
+0:     result = f(*args, **kwargs)
+0:              ^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/agent/server/api.py", line 500, in _rendezvous
+0:     rdzv_info = spec.rdzv_handler.next_rendezvous()
+0:                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py", line 1162, in next_rendezvous
+0:     self._op_executor.run(join_op, deadline, self._get_deadline)
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py", line 648, in run
+0:     has_set = self._state_holder.sync()
+0:               ^^^^^^^^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/rendezvous/dynamic_rendezvous.py", line 437, in sync
+0:     get_response = self._backend.get_state()
+0:                    ^^^^^^^^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/rendezvous/c10d_rendezvous_backend.py", line 75, in get_state
+0:     base64_state: bytes = self._call_store("get", self._key)
+0:                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+0:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/site-packages/torch/distributed/elastic/rendezvous/c10d_rendezvous_backend.py", line 119, in _call_store
+0:     raise RendezvousConnectionError(
+0: torch.distributed.elastic.rendezvous.api.RendezvousConnectionError: The connection to the C10d store has failed. See inner exception for details.
+srun: error: nid001049: task 3: Exited with exit code 1
+srun: Terminating StepId=1045810.0
+0: slurmstepd: error: *** STEP 1045810.0 ON nid001049 CANCELLED AT 2025-05-30T23:07:26 ***
+srun: error: nid001049: tasks 0-1: Terminated
+srun: error: nid001049: task 2: Exited with exit code 1
+srun: error: nid001052: tasks 4-7: Terminated
+srun: Force Terminated StepId=1045810.0
++ echo SUCCESS
+SUCCESS

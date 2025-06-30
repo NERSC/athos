@@ -1,0 +1,6 @@
+I am trying to run VASP in a job but, despite loading the vasp-tpc module, I get a "vasp_std: No such file or directory" error. 
+
+My log file is attached as slurm-1045804.out
+My job script is attached as job.sh
+
+Can you help me?
