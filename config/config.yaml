@@ -79,15 +79,14 @@ mcp_servers:
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
   
-  # Disabling servicenow mcp for now because code currently requires the SN env vars.
-  # servicenow_mcp:
-  #   mcp_type: "mcp_stdio"
-  #   command: "python"
-  #   args: ["-m", "servicenow_mcp"]
-  #   env:
-  #     SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
-  #     SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
-  #     SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
+  servicenow_mcp:
+    mcp_type: "mcp_stdio"
+    command: "python"
+    args: ["-m", "servicenow_mcp"]
+    env:
+      SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
+      SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
+      SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
 
   # Additional MCP servers can be added here as comments for reference:
   #

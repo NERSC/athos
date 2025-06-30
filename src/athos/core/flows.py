@@ -50,20 +50,37 @@ class ChatbotFlow(BaseFlow):
         user_message = ChatMessage(role="user", content=message)
         self.conversation_history.append(user_message)
         
-        # Add system prompt if provided
-        messages = []
-        if self.system_prompt:
-            messages.append(ChatMessage(role="system",
-                                        content=self.system_prompt))
-        
-        # Build input from full conversation history
-        messages.extend(self.conversation_history)
-        
-        response = self.model(messages, stop_sequences=["END"])
-        assistant_message = ChatMessage(role="assistant", content=response.content)
-        self.conversation_history.append(assistant_message)
-        
-        return assistant_message.content
+        try:
+            # Add system prompt if provided
+            messages = []
+            if self.system_prompt:
+                messages.append(ChatMessage(role="system",
+                                            content=self.system_prompt))
+            
+            # Build input from full conversation history
+            messages.extend(self.conversation_history)
+            
+            response = self.model(messages, stop_sequences=["END"])
+            assistant_message = ChatMessage(role="assistant", content=response.content)
+            self.conversation_history.append(assistant_message)
+            
+            return assistant_message.content
+            
+        except Exception as e:
+            logger.error(f"Chatbot execution failed: {e}")
+            model_config = dict(
+                model_id=self.model.model_id,
+                base_url=self.model.client_kwargs.get("base_url", "<not set>"),
+                api_key=self.model.client_kwargs.get("api_key", "nul")[:3] + "..."
+            )
+            logger.error(f"Please check your model/API settings: {model_config}")
+            error_response = f"Error: {str(e)}"
+            
+            # Add error response to conversation history to maintain context
+            error_message = ChatMessage(role="assistant", content=error_response)
+            self.conversation_history.append(error_message)
+            
+            return error_response
 
 class CodeAgentFlow(BaseFlow):
     """Code agent flow with tools"""
@@ -82,6 +99,12 @@ class CodeAgentFlow(BaseFlow):
             return result
         except Exception as e:
             logger.error(f"Code agent execution failed: {e}")
+            model_config = dict(
+                model_id=self.model.model_id,
+                base_url=self.model.client_kwargs.get("base_url", "<not set>"),
+                api_key=self.model.client_kwargs.get("api_key", "nul")[:3] + "..."
+            )
+            logger.error(f"Please check your model/API settings: {model_config}")
             return f"Error: {str(e)}"
 
 # Flow for smolagents ToolCallingAgent
@@ -100,6 +123,12 @@ class ToolCallingAgentFlow(BaseFlow):
             return result
         except Exception as e:
             logger.error(f"ToolCallingAgent execution failed: {e}")
+            model_config = dict(
+                model_id=self.model.model_id,
+                base_url=self.model.client_kwargs.get("base_url", "<not set>"),
+                api_key=self.model.client_kwargs.get("api_key", "nul")[:3] + "..."
+            )
+            logger.error(f"Please check your model/API settings: {model_config}")
             return f"Error: {str(e)}"
 
 
