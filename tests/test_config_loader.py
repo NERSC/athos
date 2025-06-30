@@ -15,9 +15,17 @@ def test_expand_env_var_success(monkeypatch):
 
 def test_expand_env_var_missing(monkeypatch):
     monkeypatch.delenv('NOT_SET', raising=False)
-    with pytest.raises(ValueError) as exc:
-        ConfigLoader._expand_env_var('${NOT_SET}')
-    assert "Configuration environment variable 'NOT_SET' is not set" in str(exc.value)
+    result = ConfigLoader._expand_env_var('${NOT_SET}')
+    # Should return the original string unchanged when env var is not set
+    assert result == '${NOT_SET}'
+
+
+def test_expand_env_var_mixed_missing_and_present(monkeypatch):
+    monkeypatch.setenv('PRESENT', 'value')
+    monkeypatch.delenv('MISSING', raising=False)
+    result = ConfigLoader._expand_env_var('${PRESENT}_${MISSING}_end')
+    # Should expand present vars but leave missing ones unchanged
+    assert result == 'value_${MISSING}_end'
 
 
 def test_parse_config_minimal(monkeypatch):

@@ -100,9 +100,9 @@ class CodeAgentFlow(BaseFlow):
         except Exception as e:
             logger.error(f"Code agent execution failed: {e}")
             model_config = dict(
-                model_id=self.model.model_id,
-                base_url=self.model.client_kwargs.get("base_url", "<not set>"),
-                api_key=self.model.client_kwargs.get("api_key", "nul")[:3] + "..."
+                model_id=self.agent.model.model_id,
+                base_url=self.agent.model.client_kwargs.get("base_url", "<not set>"),
+                api_key=self.agent.model.client_kwargs.get("api_key", "nul")[:3] + "..."
             )
             logger.error(f"Please check your model/API settings: {model_config}")
             return f"Error: {str(e)}"
@@ -124,9 +124,9 @@ class ToolCallingAgentFlow(BaseFlow):
         except Exception as e:
             logger.error(f"ToolCallingAgent execution failed: {e}")
             model_config = dict(
-                model_id=self.model.model_id,
-                base_url=self.model.client_kwargs.get("base_url", "<not set>"),
-                api_key=self.model.client_kwargs.get("api_key", "nul")[:3] + "..."
+                model_id=self.agent.model.model_id,
+                base_url=self.agent.model.client_kwargs.get("base_url", "<not set>"),
+                api_key=self.agent.model.client_kwargs.get("api_key", "nul")[:3] + "..."
             )
             logger.error(f"Please check your model/API settings: {model_config}")
             return f"Error: {str(e)}"
