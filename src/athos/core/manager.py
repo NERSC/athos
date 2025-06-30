@@ -1,9 +1,8 @@
 import logging
 from typing import Dict, List, Any
 
-from smolagents import OpenAIServerModel, Tool
+from smolagents import OpenAIServerModel, Tool, MCPClient
 from mcp import StdioServerParameters
-from smolagents.mcp_client import MCPClient
 
 from athos.config import (
     AthosConfig,
