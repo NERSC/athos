@@ -49,15 +49,16 @@ class ConfigLoader:
         # Parse models
         models = {}
         for name, model_data in config_data.get('models', {}).items():
-            models[name] = ModelConfig(
-                name=name,
-                model_id=model_data['model_id'],
-                api_key=ConfigLoader._expand_env_var(model_data.get('api_key')),
-                api_base=ConfigLoader._expand_env_var(model_data.get('api_base')),
-                temperature=model_data.get('temperature', 0.7),
-                max_tokens=model_data.get('max_tokens', 1024),
-                system_prompt=model_data.get('system_prompt')
-            )
+            model_dict = {
+                'name': name,
+                'model_id': model_data['model_id'],
+                'api_key': ConfigLoader._expand_env_var(model_data.get('api_key')),
+                'api_base': ConfigLoader._expand_env_var(model_data.get('api_base')),
+                'temperature': model_data.get('temperature', 0.7),
+                'max_tokens': model_data.get('max_tokens', 1024),
+                'system_prompt': model_data.get('system_prompt')
+            }
+            models[name] = ModelConfig.model_validate(model_dict)
 
         # Parse MCP servers
         mcp_servers = {}
@@ -72,49 +73,52 @@ class ConfigLoader:
             for key, value in mcp_data.get('headers', {}).items():
                 headers[key] = ConfigLoader._expand_env_var(value) if isinstance(value, str) else value
 
-            mcp_servers[name] = MCPServerConfig(
-                name=name,
-                mcp_type=mcp_type,
-                command=mcp_data.get('command'),
-                args=mcp_data.get('args', []),
-                env=env_vars,
-                url=ConfigLoader._expand_env_var(mcp_data.get('url')) if mcp_data.get('url') else None,
-                headers=headers
-            )
+            mcp_dict = {
+                'name': name,
+                'mcp_type': mcp_type,
+                'command': mcp_data.get('command'),
+                'args': mcp_data.get('args', []),
+                'env': env_vars,
+                'url': ConfigLoader._expand_env_var(mcp_data.get('url')) if mcp_data.get('url') else None,
+                'headers': headers
+            }
+            mcp_servers[name] = MCPServerConfig.model_validate(mcp_dict)
 
         # Parse tools
         tools = {}
         for name, tool_data in config_data.get('tools', {}).items():
-            tools[name] = ToolConfig(
-                name=name,
-                class_name=tool_data.get('class_name'),
-                module_path=tool_data.get('module_path'),
-                parameters=tool_data.get('parameters', {})
-            )
+            tool_dict = {
+                'name': name,
+                'class_name': tool_data.get('class_name'),
+                'module_path': tool_data.get('module_path'),
+                'parameters': tool_data.get('parameters', {})
+            }
+            tools[name] = ToolConfig.model_validate(tool_dict)
         
         # Parse execution flows
         execution_flows = {}
         for name, flow_data in config_data.get('execution_flows', {}).items():
-            flow_type = ExecutionFlowType(flow_data['type'])
-            execution_flows[name] = ExecutionFlowConfig(
-                name=name,
-                type=flow_type,
-                model=flow_data['model'],
-                mcp_servers=flow_data.get('mcp_servers', []),
-                tools=flow_data.get('tools', []),
-                prompt_chain=flow_data.get('prompt_chain'),
-                system_prompt=flow_data.get('system_prompt'),
-                max_iterations=flow_data.get('max_iterations', 10)
-            )
+            flow_dict = {
+                'name': name,
+                'type': flow_data['type'],  # Let Pydantic handle enum validation
+                'model': flow_data['model'],
+                'mcp_servers': flow_data.get('mcp_servers', []),
+                'tools': flow_data.get('tools', []),
+                'prompt_chain': flow_data.get('prompt_chain'),
+                'system_prompt': flow_data.get('system_prompt'),
+                'max_iterations': flow_data.get('max_iterations', 10)
+            }
+            execution_flows[name] = ExecutionFlowConfig.model_validate(flow_dict)
         
-        return AthosConfig(
-            models=models,
-            tools=tools,
-            mcp_servers=mcp_servers,
-            execution_flows=execution_flows,
-            hpc_cluster_config=config_data.get('hpc_cluster_config'),
-            logging_config=config_data.get('logging_config')
-        )
+        config_dict = {
+            'models': models,
+            'tools': tools,
+            'mcp_servers': mcp_servers,
+            'execution_flows': execution_flows,
+            'hpc_cluster_config': config_data.get('hpc_cluster_config'),
+            'logging_config': config_data.get('logging_config')
+        }
+        return AthosConfig.model_validate(config_dict)
     
     @staticmethod
     def _validate_config(config: AthosConfig) -> None:
