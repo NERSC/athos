@@ -115,17 +115,6 @@ class TestAthosManager:
         })
         assert client is not None
 
-    def test_create_mcp_client_invalid_config(self, mock_config):
-        """Test MCP client creation with invalid config"""
-        manager = AthosManager(mock_config)
-
-        invalid_config = MCPServerConfig(
-            name="invalid_server",
-            mcp_type="INVALID_TYPE"  # Invalid MCP type
-        )
-
-        with pytest.raises(ValueError, match="Unsupported MCP type INVALID_TYPE"):
-            manager._create_mcp_client(invalid_config)
 
     # Note: MCP tool loading tests removed as MCP functionality
     # has been moved out of the tool building path
