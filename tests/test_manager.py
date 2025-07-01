@@ -263,6 +263,7 @@ class TestAthosManager:
             "type": "chatbot",
             "model": "test_model",
             "tools": [],
+            "mcp_servers": [],
             "has_prompt_chain": False
         }
 
@@ -281,12 +282,12 @@ class TestAthosManager:
 
         # Add mock MCP client
         mock_client = Mock()
-        mock_client.close = Mock()
+        mock_client.disconnect = Mock()
         manager.mcp_clients["test_client"] = mock_client
 
         manager.close()
 
-        mock_client.close.assert_called_once()
+        mock_client.disconnect.assert_called_once()
         assert len(manager.mcp_clients) == 0
 
     def test_close_cleanup_no_close_method(self, mock_config):
@@ -385,6 +386,7 @@ class TestAthosManagerIntegration:
 
         # Mock MCP client for MCP servers
         mock_client_instance = Mock()
+        mock_client_instance.get_tools.return_value = []  # Return empty list instead of Mock
         mock_mcp_client.return_value = mock_client_instance
 
         with patch('athos.core.manager.StdioServerParameters'), \
