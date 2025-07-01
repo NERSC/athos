@@ -1,5 +1,6 @@
 import os
 import pytest
+from pydantic import ValidationError
 
 from athos.config import ConfigLoader
 from athos.config.models import AthosConfig, ExecutionFlowType
@@ -73,7 +74,7 @@ def test_parse_config_minimal(monkeypatch):
 
 
 def test_parse_config_invalid_flow_type():
-    # Flow type unknown should raise ValueError
+    # Flow type unknown should raise ValidationError (from Pydantic)
     config_data = {
         'models': {},
         'tools': {},
@@ -81,7 +82,7 @@ def test_parse_config_invalid_flow_type():
             'f2': {'type': 'invalid_type', 'model': 'm'}
         }
     }
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         ConfigLoader._parse_config(config_data)
     
 def test_load_config_file_not_found():
