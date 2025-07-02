@@ -40,10 +40,10 @@ class AthosManager:
         self._initialize_models()
         self._initialize_flows()
 
-    def _create_mcp_client(self, mcp_config: MCPServerConfig) -> MCPClient:
+    def _create_mcp_client(self, name: str, mcp_config: MCPServerConfig) -> MCPClient:
         """Create and cache MCP client based on configuration"""
-        if mcp_config.name in self.mcp_clients:
-            return self.mcp_clients[mcp_config.name]
+        if name in self.mcp_clients:
+            return self.mcp_clients[name]
         
         if mcp_config.mcp_type == MCPType.MCP_STDIO:
             params = StdioServerParameters(
@@ -61,14 +61,14 @@ class AthosManager:
         
         mcp_client = MCPClient(params)
         logger.info(f"Create MCP client: {params}")
-        self.mcp_clients[mcp_config.name] = mcp_client
+        self.mcp_clients[name] = mcp_client
         return mcp_client
     
 
-    def _load_tool(self, tool_config: ToolConfig) -> Tool:
+    def _load_tool(self, name: str, tool_config: ToolConfig) -> Tool:
         """Load a regular tool from configuration"""
-        if tool_config.name in self.loaded_tools:
-            return self.loaded_tools[tool_config.name]
+        if name in self.loaded_tools:
+            return self.loaded_tools[name]
 
         try:
             # Load regular tool
@@ -77,13 +77,13 @@ class AthosManager:
 
             # Instantiate tool with parameters
             tool_instance = tool_class(**tool_config.parameters)
-            self.loaded_tools[tool_config.name] = tool_instance
+            self.loaded_tools[name] = tool_instance
 
-            logger.info(f"Loaded regular tool: {tool_config.name}")
+            logger.info(f"Loaded regular tool: {name}")
             return tool_instance
 
         except Exception as e:
-            logger.error(f"Failed to load tool {tool_config.name}: {e}")
+            logger.error(f"Failed to load tool {name}: {e}")
             raise
 
     def _initialize_models(self):
@@ -114,7 +114,7 @@ class AthosManager:
                 for tool_name in flow_config.tools:
                     logger.info(f"loading tool {tool_name}")
                     tool_config = self.config.tools[tool_name]
-                    loaded_tool = self._load_tool(tool_config)
+                    loaded_tool = self._load_tool(tool_name, tool_config)
                     tools.append(loaded_tool)
 
                 # Load MCP servers
@@ -122,7 +122,7 @@ class AthosManager:
                 for mcp_name in flow_config.mcp_servers:
                     logger.info(f"loading MCP server {mcp_name}")
                     mcp_config = self.config.mcp_servers[mcp_name]
-                    mcp_client = self._create_mcp_client(mcp_config)
+                    mcp_client = self._create_mcp_client(mcp_name, mcp_config)
                     tools.extend(mcp_client.get_tools())
                     mcp_clients.append(mcp_client)
                 
@@ -135,7 +135,7 @@ class AthosManager:
                 for tool_name in flow_config.tools:
                     logger.info(f"loading tool {tool_name}")
                     tool_config = self.config.tools[tool_name]
-                    loaded_tool = self._load_tool(tool_config)
+                    loaded_tool = self._load_tool(tool_name, tool_config)
                     tools.append(loaded_tool)
 
                 # Load MCP servers
@@ -143,7 +143,7 @@ class AthosManager:
                 for mcp_name in flow_config.mcp_servers:
                     logger.info(f"loading MCP server {mcp_name}")
                     mcp_config = self.config.mcp_servers[mcp_name]
-                    mcp_client = self._create_mcp_client(mcp_config)
+                    mcp_client = self._create_mcp_client(mcp_name, mcp_config)
                     tools.extend(mcp_client.get_tools())
                     mcp_clients.append(mcp_client)
                 
@@ -181,7 +181,7 @@ class AthosManager:
 
         flow_config = self.config.execution_flows[flow_name]
         return {
-            "name": flow_config.name,
+            "name": flow_name,
             "type": flow_config.type.value,
             "model": flow_config.model,
             "tools": flow_config.tools,
