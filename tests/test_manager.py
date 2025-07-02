@@ -16,7 +16,6 @@ class TestAthosManager:
     @pytest.fixture
     def mock_model_config(self):
         return ModelConfig(
-            name="test-model",
             model_id="test-model",
             api_base="http://test-api",
             api_key="test-key"
@@ -25,7 +24,6 @@ class TestAthosManager:
     @pytest.fixture
     def mock_tool_config(self):
         return ToolConfig(
-            name="test_tool",
             module_path="test.module",
             class_name="TestTool",
             parameters={"param1": "value1"}
@@ -34,7 +32,6 @@ class TestAthosManager:
     @pytest.fixture
     def mock_mcp_server_config(self):
         return MCPServerConfig(
-            name="test_mcp_server",
             mcp_type=MCPType.MCP_STDIO,
             command="test-mcp-command",
             args=["--arg1", "value1"]
@@ -43,7 +40,6 @@ class TestAthosManager:
     @pytest.fixture
     def mock_flow_config(self):
         return ExecutionFlowConfig(
-            name="test_flow",
             type=ExecutionFlowType.CHATBOT,
             model="test_model",
             tools=[],
@@ -78,14 +74,13 @@ class TestAthosManager:
         manager = AthosManager(mock_config)
 
         mcp_config = MCPServerConfig(
-            name="test_stdio_server",
             mcp_type=MCPType.MCP_STDIO,
             command="test-command",
             args=["arg1", "arg2"],
             env={"ENV_VAR": "value"}
         )
 
-        client = manager._create_mcp_client(mcp_config)
+        client = manager._create_mcp_client("test_mcp", mcp_config)
 
         mock_stdio_params.assert_called_once_with(
             command="test-command",
@@ -101,13 +96,12 @@ class TestAthosManager:
         manager = AthosManager(mock_config)
 
         mcp_config = MCPServerConfig(
-            name="test_sse_server",
             mcp_type=MCPType.MCP_SSE,
             url="http://test-url",
             headers={"Authorization": "Bearer token"}
         )
 
-        client = manager._create_mcp_client(mcp_config)
+        client = manager._create_mcp_client("test_mcp", mcp_config)
 
         mock_mcp_client.assert_called_once_with({
             "url": "http://test-url",
@@ -115,17 +109,6 @@ class TestAthosManager:
         })
         assert client is not None
 
-    def test_create_mcp_client_invalid_config(self, mock_config):
-        """Test MCP client creation with invalid config"""
-        manager = AthosManager(mock_config)
-
-        invalid_config = MCPServerConfig(
-            name="invalid_server",
-            mcp_type="INVALID_TYPE"  # Invalid MCP type
-        )
-
-        with pytest.raises(ValueError, match="Unsupported MCP type INVALID_TYPE"):
-            manager._create_mcp_client(invalid_config)
 
     # Note: MCP tool loading tests removed as MCP functionality
     # has been moved out of the tool building path
@@ -143,13 +126,12 @@ class TestAthosManager:
         mock_import.return_value = mock_module
 
         tool_config = ToolConfig(
-            name="test_tool",
             module_path="test.module",
             class_name="TestTool",
             parameters={"param1": "value1"}
         )
 
-        result = manager._load_tool(tool_config)
+        result = manager._load_tool("test_tool", tool_config)
 
         mock_import.assert_any_call("test.module", fromlist=["TestTool"])
         mock_tool_class.assert_called_once_with(param1="value1")
@@ -164,12 +146,11 @@ class TestAthosManager:
         manager.loaded_tools["test_tool"] = cached_tool
 
         tool_config = ToolConfig(
-            name="test_tool",
             class_name="TestTool",
             module_path="test.module"
         )
 
-        result = manager._load_tool(tool_config)
+        result = manager._load_tool("test_tool", tool_config)
 
         assert result == cached_tool
 
@@ -193,16 +174,14 @@ class TestAthosManager:
         """Test code agent flow initialization"""
         # Setup config with code agent flow
         flow_config = ExecutionFlowConfig(
-            name="code_flow",
             type=ExecutionFlowType.CODE_AGENT,
             model="test_model",
             tools=["test_tool"]
         )
 
         config = AthosConfig(
-            models={"test_model": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            models={"test_model": ModelConfig(model_id="test", api_base="http://test-api", api_key="test")},
             tools={"test_tool": ToolConfig(
-                name="test_tool",
                 class_name="TestTool",
                 module_path="test.module"
             )},
@@ -332,7 +311,6 @@ class TestAthosManagerIntegration:
         return AthosConfig(
             models={
                 "gpt4": ModelConfig(
-                    name="gpt-4",
                     model_id="gpt-4",
                     api_base="https://api.openai.com/v1",
                     api_key="test-key"
@@ -340,7 +318,6 @@ class TestAthosManagerIntegration:
             },
             tools={
                 "calculator": ToolConfig(
-                    name="calculator",
                     module_path="test.tools",
                     class_name="Calculator",
                     parameters={}
@@ -348,7 +325,6 @@ class TestAthosManagerIntegration:
             },
             mcp_servers={
                 "file_manager_server": MCPServerConfig(
-                    name="file_manager_server",
                     mcp_type=MCPType.MCP_STDIO,
                     command="file-server",
                     args=["--root", "/tmp"]
@@ -356,14 +332,12 @@ class TestAthosManagerIntegration:
             },
             execution_flows={
                 "chat": ExecutionFlowConfig(
-                    name="chat",
                     type=ExecutionFlowType.CHATBOT,
                     model="gpt4",
                     tools=[],
                     system_prompt="You are a helpful assistant"
                 ),
                 "coding": ExecutionFlowConfig(
-                    name="coding",
                     type=ExecutionFlowType.CODE_AGENT,
                     model="gpt4",
                     tools=["calculator"],
@@ -416,15 +390,13 @@ class TestAthosManagerIntegration:
         """Test error handling during manager initialization"""
         # Config with invalid tool
         config = AthosConfig(
-            models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            models={"test": ModelConfig(model_id="test", api_base="http://test-api", api_key="test")},
             tools={"bad_tool": ToolConfig(
-                name="bad_tool",
                 module_path="nonexistent.module",
                 class_name="NonexistentClass"
             )},
             mcp_servers={},
             execution_flows={"test_flow": ExecutionFlowConfig(
-                name="test_flow",
                 type=ExecutionFlowType.CODE_AGENT,
                 model="test",
                 tools=["bad_tool"]
@@ -439,11 +411,10 @@ class TestAthosManagerIntegration:
     async def test_end_to_end_flow_execution(self, mock_openai_model):
         """Test end-to-end flow execution"""
         config = AthosConfig(
-            models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            models={"test": ModelConfig(model_id="test", api_base="http://test-api", api_key="test")},
             tools={},
             mcp_servers={},
             execution_flows={"chat": ExecutionFlowConfig(
-                name="chat",
                 type=ExecutionFlowType.CHATBOT,
                 model="test",
                 tools=[],
@@ -483,7 +454,6 @@ class TestAthosManagerEdgeCases:
         manager = AthosManager(config)
 
         mcp_config = MCPServerConfig(
-            name="test_server",
             mcp_type=MCPType.MCP_STDIO,
             command="test-command"
         )
@@ -492,10 +462,10 @@ class TestAthosManagerEdgeCases:
              patch('athos.core.manager.StdioServerParameters'):
 
             # First call should create client
-            client1 = manager._create_mcp_client(mcp_config)
+            client1 = manager._create_mcp_client("test_mcp", mcp_config)
 
             # Second call should return cached client
-            client2 = manager._create_mcp_client(mcp_config)
+            client2 = manager._create_mcp_client("test_mcp", mcp_config)
 
             assert client1 is client2
             assert mock_mcp_client.call_count == 1
@@ -506,7 +476,6 @@ class TestAthosManagerEdgeCases:
         manager = AthosManager(config)
 
         tool_config = ToolConfig(
-            name="test_tool",
             module_path="test.module",
             class_name="TestTool"
         )
@@ -520,9 +489,9 @@ class TestAthosManagerEdgeCases:
             mock_import.return_value = mock_module
 
             # First load
-            result1 = manager._load_tool(tool_config)
+            result1 = manager._load_tool("test_tool", tool_config)
             # Second load should use cache
-            result2 = manager._load_tool(tool_config)
+            result2 = manager._load_tool("test_tool", tool_config)
 
             assert result1 == mock_tool
             assert result2 == mock_tool
@@ -532,16 +501,16 @@ class TestAthosManagerEdgeCases:
     async def test_concurrent_flow_execution(self):
         """Test concurrent execution of multiple flows"""
         config = AthosConfig(
-            models={"test": ModelConfig(name="test", model_id="test", api_base="test", api_key="test")},
+            models={"test": ModelConfig(model_id="test", api_base="http://test-api", api_key="test")},
             tools={},
             mcp_servers={},
             execution_flows={
                 "flow1": ExecutionFlowConfig(
-                    name="flow1", type=ExecutionFlowType.CHATBOT,
+                    type=ExecutionFlowType.CHATBOT,
                     model="test", tools=[], system_prompt="Test 1"
                 ),
                 "flow2": ExecutionFlowConfig(
-                    name="flow2", type=ExecutionFlowType.CHATBOT,
+                    type=ExecutionFlowType.CHATBOT,
                     model="test", tools=[], system_prompt="Test 2"
                 )
             }
