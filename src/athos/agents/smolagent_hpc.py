@@ -59,7 +59,7 @@ class HPCSmolAgent(Agent):
         Args:
             model_id: CBORG model identifier
             api_key: CBORG API key (defaults to environment variable)
-            api_base: CBORG API base URL (defaults to environment variable)
+            api_base: CBORG API URL (defaults to environment variable ``CBORG_API_URL``)
             enable_slurm: Whether to enable SLURM MCP tools
             enable_servicenow: Whether to enable ServiceNow MCP tools
             enable_rag: Whether to enable RAG MCP tools
@@ -72,10 +72,10 @@ class HPCSmolAgent(Agent):
         # Initialize model
         self.model_id = model_id
         self.api_key = api_key or os.getenv("CBORG_API_KEY")
-        self.api_base = api_base or os.getenv("CBORG_API_BASE")
+        self.api_base = api_base or os.getenv("CBORG_API_URL")
         
         if not self.api_key or not self.api_base:
-            raise ValueError("CBORG_API_KEY and CBORG_API_BASE must be set")
+            raise ValueError("CBORG_API_KEY and CBORG_API_URL must be set")
         
         self.model = OpenAIServerModel(
             model_id=model_id,
