@@ -5,6 +5,7 @@ import asyncio
 import json
 import re
 from pathlib import Path
+import pprint
 
 from athos.core.manager import create_athos_manager
 from smolagents import ChatMessage
@@ -105,9 +106,7 @@ def main():
     args = parser.parse_args()
 
     manager = create_athos_manager(args.config)
-    if args.flow not in manager.flows:
-        print(f"Error: flow '{args.flow}' not found in configuration")
-        return
+    pprint.pprint(manager.get_flow_info(args.flow))
 
     flow_config = manager.config.execution_flows[args.flow]
     eval_model_name = args.eval_model or flow_config.model
