@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import re
 from pathlib import Path
 
 from athos.core.manager import create_athos_manager
@@ -58,11 +59,36 @@ def evaluate_response(eval_model, solution: str, response: str):
     ]
     eval_resp = eval_model(messages)
     text = eval_resp.content
-    try:
-        result = json.loads(text)
+
+    def _parse_json(txt: str):
+        """Attempt to parse JSON even if wrapped in markdown."""
+        try:
+            return json.loads(txt)
+        except json.JSONDecodeError:
+            pass
+        # look for ```json ... ``` block
+        md_match = re.search(r"```(?:json)?\n([\s\S]*?)```", txt)
+        if md_match:
+            inner = md_match.group(1)
+            try:
+                return json.loads(inner)
+            except json.JSONDecodeError:
+                pass
+        # fallback: first {...} block
+        obj_match = re.search(r"\{[\s\S]*\}", txt)
+        if obj_match:
+            inner = obj_match.group(0)
+            try:
+                return json.loads(inner)
+            except json.JSONDecodeError:
+                pass
+        return None
+
+    result = _parse_json(text)
+    if result and isinstance(result, dict):
         score = result.get("score")
         feedback = result.get("feedback")
-    except json.JSONDecodeError:
+    else:
         score = None
         feedback = text
     return score, feedback
