@@ -1,0 +1,6 @@
+I tried running `salloc -A desi` on Perlmutter to get an interactive node but it failed with the following lines:
+
+salloc: error: Job request does not match any supported policy.
+salloc: error: Job submit/allocate failed: Unspecified error
+
+I'm not sure why the request failed.

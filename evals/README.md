@@ -21,3 +21,13 @@ Arguments:
 - `--eval-model`: Optional override model name for evaluation (defaults to the model used by the flow).
 - `--cases-dir`: Directory containing test case subdirectories (default: `test_cases`).
 - `--output`: File path to write a JSON report of results.
+
+## Available test cases
+
+Current examples included in this repo:
+- `hf-home-hang`
+- `pytorch-launch-error`
+- `pytorch-launch-error-2`
+- `sbatch-qos-error`
+- `vasp-license-error`
+- `salloc-account-error`
