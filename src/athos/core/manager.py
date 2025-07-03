@@ -13,7 +13,9 @@ from athos.config import (
     ConfigLoader
 )
 
-from athos.core.flows import BaseFlow, ChatbotFlow, CodeAgentFlow, ToolCallingAgentFlow
+from athos.core.flows import BaseFlow
+from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
+import athos.core.builtin_flows  # noqa: F401 - register built-in flows
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -99,64 +101,15 @@ class AthosManager:
 
     def _initialize_flows(self):
         """Initialize all configured execution flows"""
+        load_plugins()
         for name, flow_config in self.config.execution_flows.items():
-            model = self.models[flow_config.model]
-
-            # TODO: improve this to have less duplication,
-            # make more scalable / extensible
-
-            if flow_config.type == ExecutionFlowType.CHATBOT:
-                flow = ChatbotFlow(model, flow_config.system_prompt)
-
-            elif flow_config.type == ExecutionFlowType.CODE_AGENT:
-                # Load regular tools
-                tools = []
-                for tool_name in flow_config.tools:
-                    logger.info(f"loading tool {tool_name}")
-                    tool_config = self.config.tools[tool_name]
-                    loaded_tool = self._load_tool(tool_name, tool_config)
-                    tools.append(loaded_tool)
-
-                # Load MCP servers
-                mcp_clients = []
-                for mcp_name in flow_config.mcp_servers:
-                    logger.info(f"loading MCP server {mcp_name}")
-                    mcp_config = self.config.mcp_servers[mcp_name]
-                    mcp_client = self._create_mcp_client(mcp_name, mcp_config)
-                    tools.extend(mcp_client.get_tools())
-                    mcp_clients.append(mcp_client)
-                
-                flow = CodeAgentFlow(model, tools)
-                logger.info(f"Initialized CodeAgentFlow: {name}")
-                
-            elif flow_config.type == ExecutionFlowType.TOOL_CALLING_AGENT:
-                # Load regular tools
-                tools = []
-                for tool_name in flow_config.tools:
-                    logger.info(f"loading tool {tool_name}")
-                    tool_config = self.config.tools[tool_name]
-                    loaded_tool = self._load_tool(tool_name, tool_config)
-                    tools.append(loaded_tool)
-
-                # Load MCP servers
-                mcp_clients = []
-                for mcp_name in flow_config.mcp_servers:
-                    logger.info(f"loading MCP server {mcp_name}")
-                    mcp_config = self.config.mcp_servers[mcp_name]
-                    mcp_client = self._create_mcp_client(mcp_name, mcp_config)
-                    tools.extend(mcp_client.get_tools())
-                    mcp_clients.append(mcp_client)
-                
-                flow = ToolCallingAgentFlow(model, tools)
-                logger.info(f"Initialized ToolCallingAgentFlow: {name}")
-
-            elif flow_config.type == ExecutionFlowType.PROMPT_CHAIN:
-                raise NotImplementedError
-                # flow = PromptChainFlow(model, flow_config.prompt_chain)
-
-            else:
+            entry = FLOW_REGISTRY.get(flow_config.type.value)
+            if not entry:
                 raise ValueError(f"Unknown execution flow type: {flow_config.type}")
 
+            config_cls, factory = entry
+            assert isinstance(flow_config, config_cls)
+            flow = factory(flow_config, self)
             self.flows[name] = flow
             logger.info(f"Initialized execution flow: {name}")
 
@@ -184,9 +137,9 @@ class AthosManager:
             "name": flow_name,
             "type": flow_config.type.value,
             "model": flow_config.model,
-            "tools": flow_config.tools,
-            "mcp_servers": flow_config.mcp_servers,
-            "has_prompt_chain": flow_config.prompt_chain is not None
+            "tools": getattr(flow_config, "tools", []),
+            "mcp_servers": getattr(flow_config, "mcp_servers", []),
+            "has_prompt_chain": getattr(flow_config, "prompt_chain", None) is not None
         }
 
     def close(self):

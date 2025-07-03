@@ -193,11 +193,6 @@ execution_flows:
     model: "gpt4"
     tools: ["calculator"]
     mcp_servers: ["file_server", "web_server"]
-    prompt_chain:
-      - role: "system"
-        content: "You are a research assistant"
-      - role: "user"
-        content: "Help me research this topic"
 
 hpc_cluster_config:
   cluster_name: "perlmutter"
@@ -304,9 +299,10 @@ mcp_servers:
 
 execution_flows:
   test_flow:
-    type: "chatbot"
+    type: "code_agent"
     model: "test_model"
     mcp_servers: ["test_server"]
+    tools: []
 ''')
         
         cfg = ConfigLoader.load_config(str(cfg_file))
@@ -357,9 +353,10 @@ mcp_servers:
 
 execution_flows:
   test_flow:
-    type: "chatbot"
+    type: "code_agent"
     model: "test_model"
     mcp_servers: ["test_server"]
+    tools: []
 ''')
         
         cfg = ConfigLoader.load_config(str(cfg_file))
@@ -549,9 +546,8 @@ tools:
 
 execution_flows:
   complex_flow:
-    type: "tool_calling_agent"
+    type: "prompt_chain"
     model: "complex_model"
-    tools: ["complex_tool"]
     prompt_chain:
       - role: "system"
         content: "Initialize complex processing"
@@ -559,7 +555,6 @@ execution_flows:
         content: "Begin analysis"
       - role: "assistant"
         content: "Starting comprehensive analysis"
-    max_iterations: 50
 ''')
         
         cfg = ConfigLoader.load_config(str(cfg_file))
@@ -674,12 +669,10 @@ tools:
 
 execution_flows:
   test_flow:
-    type: "chatbot"
+    type: "code_agent"
     model: "test_model"
     tools: []
     mcp_servers: []
-    prompt_chain: null
-    system_prompt: null
 ''')
         
         cfg = ConfigLoader.load_config(str(cfg_file))
@@ -689,4 +682,3 @@ execution_flows:
         assert cfg.tools["empty_tool"].parameters == {}
         assert cfg.execution_flows["test_flow"].tools == []
         assert cfg.execution_flows["test_flow"].mcp_servers == []
-        assert cfg.execution_flows["test_flow"].prompt_chain is None

@@ -1,0 +1,62 @@
+from typing import TYPE_CHECKING, List
+import logging
+
+from athos.core.flow_registry import register_flow
+from athos.core.flows import ChatbotFlow, CodeAgentFlow, ToolCallingAgentFlow
+from athos.config.models import (
+    ChatbotFlowConfig,
+    CodeAgentFlowConfig,
+    ToolCallingAgentFlowConfig,
+    PromptChainFlowConfig,
+)
+
+if TYPE_CHECKING:  # pragma: no cover - for type hints
+    from athos.core.manager import AthosManager
+
+logger = logging.getLogger(__name__)
+
+
+def _load_tools(manager: "AthosManager", tool_names: List[str]):
+    tools = []
+    for name in tool_names:
+        logger.info("loading tool %s", name)
+        tool_cfg = manager.config.tools[name]
+        tools.append(manager._load_tool(name, tool_cfg))
+    return tools
+
+
+def _load_mcp_tools(manager: "AthosManager", mcp_names: List[str], tools: List):
+    for mcp_name in mcp_names:
+        logger.info("loading MCP server %s", mcp_name)
+        mcp_cfg = manager.config.mcp_servers[mcp_name]
+        mcp_client = manager._create_mcp_client(mcp_name, mcp_cfg)
+        tools.extend(mcp_client.get_tools())
+
+
+def create_chatbot_flow(cfg: ChatbotFlowConfig, manager: "AthosManager"):
+    model = manager.models[cfg.model]
+    return ChatbotFlow(model, cfg.system_prompt)
+
+
+def create_code_agent_flow(cfg: CodeAgentFlowConfig, manager: "AthosManager"):
+    tools = _load_tools(manager, cfg.tools)
+    _load_mcp_tools(manager, cfg.mcp_servers, tools)
+    model = manager.models[cfg.model]
+    return CodeAgentFlow(model, tools)
+
+
+def create_tool_calling_agent_flow(cfg: ToolCallingAgentFlowConfig, manager: "AthosManager"):
+    tools = _load_tools(manager, cfg.tools)
+    _load_mcp_tools(manager, cfg.mcp_servers, tools)
+    model = manager.models[cfg.model]
+    return ToolCallingAgentFlow(model, tools)
+
+
+def create_prompt_chain_flow(cfg: PromptChainFlowConfig, manager: "AthosManager"):
+    raise NotImplementedError
+
+
+register_flow("chatbot", ChatbotFlowConfig, create_chatbot_flow)
+register_flow("code_agent", CodeAgentFlowConfig, create_code_agent_flow)
+register_flow("tool_calling_agent", ToolCallingAgentFlowConfig, create_tool_calling_agent_flow)
+register_flow("prompt_chain", PromptChainFlowConfig, create_prompt_chain_flow)

@@ -4,8 +4,14 @@ import asyncio
 
 from athos.core.manager import AthosManager, create_athos_manager
 from athos.config import (
-    AthosConfig, ToolConfig, MCPServerConfig, MCPType,
-    ExecutionFlowType, ModelConfig, ExecutionFlowConfig
+    AthosConfig,
+    ToolConfig,
+    MCPServerConfig,
+    MCPType,
+    ExecutionFlowType,
+    ModelConfig,
+    ChatbotFlowConfig,
+    CodeAgentFlowConfig,
 )
 from smolagents import Tool
 from smolagents.mcp_client import MCPClient
@@ -39,11 +45,10 @@ class TestAthosManager:
 
     @pytest.fixture
     def mock_flow_config(self):
-        return ExecutionFlowConfig(
+        return ChatbotFlowConfig(
             type=ExecutionFlowType.CHATBOT,
             model="test_model",
-            tools=[],
-            system_prompt="Test prompt"
+            system_prompt="Test prompt",
         )
 
     @pytest.fixture
@@ -154,7 +159,7 @@ class TestAthosManager:
 
         assert result == cached_tool
 
-    @patch('athos.core.manager.ChatbotFlow')
+    @patch('athos.core.builtin_flows.ChatbotFlow')
     @patch('athos.core.manager.OpenAIServerModel')
     def test_initialize_chatbot_flow(self, mock_model, mock_chatbot_flow, mock_config):
         """Test chatbot flow initialization"""
@@ -167,16 +172,16 @@ class TestAthosManager:
         assert "test_flow" in manager.flows
         assert manager.flows["test_flow"] == mock_flow_instance
 
-    @patch('athos.core.manager.CodeAgentFlow')
+    @patch('athos.core.builtin_flows.CodeAgentFlow')
     @patch('athos.core.manager.AthosManager._load_tool')
     @patch('athos.core.manager.OpenAIServerModel')
     def test_initialize_code_agent_flow(self, mock_model, mock_load_tool, mock_code_flow):
         """Test code agent flow initialization"""
         # Setup config with code agent flow
-        flow_config = ExecutionFlowConfig(
+        flow_config = CodeAgentFlowConfig(
             type=ExecutionFlowType.CODE_AGENT,
             model="test_model",
-            tools=["test_tool"]
+            tools=["test_tool"],
         )
 
         config = AthosConfig(
@@ -331,18 +336,17 @@ class TestAthosManagerIntegration:
                 )
             },
             execution_flows={
-                "chat": ExecutionFlowConfig(
+                "chat": ChatbotFlowConfig(
                     type=ExecutionFlowType.CHATBOT,
                     model="gpt4",
-                    tools=[],
-                    system_prompt="You are a helpful assistant"
+                    system_prompt="You are a helpful assistant",
                 ),
-                "coding": ExecutionFlowConfig(
+                "coding": CodeAgentFlowConfig(
                     type=ExecutionFlowType.CODE_AGENT,
                     model="gpt4",
                     tools=["calculator"],
-                    mcp_servers=["file_manager_server"]
-                )
+                    mcp_servers=["file_manager_server"],
+                ),
             }
         )
 
@@ -364,8 +368,8 @@ class TestAthosManagerIntegration:
         mock_mcp_client.return_value = mock_client_instance
 
         with patch('athos.core.manager.StdioServerParameters'), \
-             patch('athos.core.manager.ChatbotFlow') as mock_chatbot_flow, \
-             patch('athos.core.manager.CodeAgentFlow') as mock_code_flow:
+             patch('athos.core.builtin_flows.ChatbotFlow') as mock_chatbot_flow, \
+             patch('athos.core.builtin_flows.CodeAgentFlow') as mock_code_flow:
 
             manager = AthosManager(full_config)
 
@@ -396,10 +400,10 @@ class TestAthosManagerIntegration:
                 class_name="NonexistentClass"
             )},
             mcp_servers={},
-            execution_flows={"test_flow": ExecutionFlowConfig(
+            execution_flows={"test_flow": CodeAgentFlowConfig(
                 type=ExecutionFlowType.CODE_AGENT,
                 model="test",
-                tools=["bad_tool"]
+                tools=["bad_tool"],
             )}
         )
 
@@ -414,15 +418,14 @@ class TestAthosManagerIntegration:
             models={"test": ModelConfig(model_id="test", api_base="http://test-api", api_key="test")},
             tools={},
             mcp_servers={},
-            execution_flows={"chat": ExecutionFlowConfig(
+            execution_flows={"chat": ChatbotFlowConfig(
                 type=ExecutionFlowType.CHATBOT,
                 model="test",
-                tools=[],
-                system_prompt="Test prompt"
+                system_prompt="Test prompt",
             )}
         )
 
-        with patch('athos.core.manager.ChatbotFlow') as mock_chatbot_flow:
+        with patch('athos.core.builtin_flows.ChatbotFlow') as mock_chatbot_flow:
             mock_flow_instance = AsyncMock()
             mock_flow_instance.execute.return_value = "Hello, world!"
             mock_chatbot_flow.return_value = mock_flow_instance
@@ -505,19 +508,21 @@ class TestAthosManagerEdgeCases:
             tools={},
             mcp_servers={},
             execution_flows={
-                "flow1": ExecutionFlowConfig(
+                "flow1": ChatbotFlowConfig(
                     type=ExecutionFlowType.CHATBOT,
-                    model="test", tools=[], system_prompt="Test 1"
+                    model="test",
+                    system_prompt="Test 1",
                 ),
-                "flow2": ExecutionFlowConfig(
+                "flow2": ChatbotFlowConfig(
                     type=ExecutionFlowType.CHATBOT,
-                    model="test", tools=[], system_prompt="Test 2"
-                )
+                    model="test",
+                    system_prompt="Test 2",
+                ),
             }
         )
 
         with patch('athos.core.manager.OpenAIServerModel'), \
-             patch('athos.core.manager.ChatbotFlow') as mock_chatbot_flow:
+             patch('athos.core.builtin_flows.ChatbotFlow') as mock_chatbot_flow:
 
             mock_flow1 = AsyncMock()
             mock_flow1.execute.return_value = "Result 1"
