@@ -1,8 +1,9 @@
 import os
 import re
 from enum import Enum
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union, Annotated, Type
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from typing_extensions import Literal
 
 class ExecutionFlowType(str, Enum):
     """Supported execution flow types"""
@@ -110,17 +111,53 @@ class ToolConfig(BaseModel):
                 raise ValueError('module_path must be a valid Python module path')
         return v
 
-class ExecutionFlowConfig(BaseModel):
-    """Configuration for execution flows"""
+class BaseFlowConfig(BaseModel):
+    """Base configuration for execution flows"""
     model_config = ConfigDict(extra='forbid')
 
     type: ExecutionFlowType
     model: str = Field(description="Reference to model configuration")
-    mcp_servers: List[str] = Field(default_factory=list, description="List of MCP server names")
-    tools: List[str] = Field(default_factory=list, description="List of tool names")
-    prompt_chain: Optional[List[Dict[str, str]]] = Field(default=None, description="Prompt chain configuration")
+
+
+class ChatbotFlowConfig(BaseFlowConfig):
+    """Configuration for ChatbotFlow"""
+
+    type: Literal[ExecutionFlowType.CHATBOT]
     system_prompt: Optional[str] = Field(default=None, description="System prompt override")
     max_iterations: int = Field(default=10, gt=0, description="Maximum execution iterations")
+
+
+class CodeAgentFlowConfig(BaseFlowConfig):
+    """Configuration for CodeAgentFlow"""
+
+    type: Literal[ExecutionFlowType.CODE_AGENT]
+    mcp_servers: List[str] = Field(default_factory=list, description="List of MCP server names")
+    tools: List[str] = Field(default_factory=list, description="List of tool names")
+    max_iterations: int = Field(default=10, gt=0, description="Maximum execution iterations")
+
+
+class ToolCallingAgentFlowConfig(CodeAgentFlowConfig):
+    """Configuration for ToolCallingAgentFlow"""
+
+    type: Literal[ExecutionFlowType.TOOL_CALLING_AGENT]
+
+
+class PromptChainFlowConfig(BaseFlowConfig):
+    """Configuration for PromptChainFlow"""
+
+    type: Literal[ExecutionFlowType.PROMPT_CHAIN]
+    prompt_chain: Optional[List[Dict[str, str]]] = Field(default=None, description="Prompt chain configuration")
+
+
+FlowConfig = Annotated[
+    Union[
+        ChatbotFlowConfig,
+        CodeAgentFlowConfig,
+        ToolCallingAgentFlowConfig,
+        PromptChainFlowConfig,
+    ],
+    Field(discriminator='type')
+]
 
 class AthosConfig(BaseModel):
     """Main ATHOS configuration"""
@@ -129,7 +166,7 @@ class AthosConfig(BaseModel):
     models: Dict[str, ModelConfig] = Field(default_factory=dict, description="Model configurations")
     tools: Dict[str, ToolConfig] = Field(default_factory=dict, description="Tool configurations")
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict, description="MCP server configurations")
-    execution_flows: Dict[str, ExecutionFlowConfig] = Field(default_factory=dict, description="Execution flow configurations")
+    execution_flows: Dict[str, FlowConfig] = Field(default_factory=dict, description="Execution flow configurations")
     hpc_cluster_config: Optional[Dict[str, Any]] = Field(default=None, description="HPC cluster configuration")
     logging_config: Optional[Dict[str, Any]] = Field(default=None, description="Logging configuration")
 
@@ -139,16 +176,24 @@ class AthosConfig(BaseModel):
        for flow_name, flow_config in self.execution_flows.items():
            # Validate model reference
            if flow_config.model not in self.models:
-               raise ValueError(f"Flow '{flow_name}' references unknown model '{flow_config.model}'")
+               raise ValueError(
+                   f"Flow '{flow_name}' references unknown model '{flow_config.model}'"
+               )
 
-           # Validate MCP server references
-           for mcp_name in flow_config.mcp_servers:
+           # Validate MCP server references if present
+           mcp_servers = getattr(flow_config, "mcp_servers", [])
+           for mcp_name in mcp_servers:
                if mcp_name not in self.mcp_servers:
-                   raise ValueError(f"Flow '{flow_name}' references unknown MCP server '{mcp_name}'")
+                   raise ValueError(
+                       f"Flow '{flow_name}' references unknown MCP server '{mcp_name}'"
+                   )
 
-           # Validate tool references
-           for tool_name in flow_config.tools:
+           # Validate tool references if present
+           tools = getattr(flow_config, "tools", [])
+           for tool_name in tools:
                if tool_name not in self.tools:
-                   raise ValueError(f"Flow '{flow_name}' references unknown tool '{tool_name}'")
+                   raise ValueError(
+                       f"Flow '{flow_name}' references unknown tool '{tool_name}'"
+                   )
 
        return self
