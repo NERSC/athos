@@ -39,8 +39,12 @@ class AthosManager:
         self.mcp_clients: Dict[str, MCPClient] = {}
         self.flows: Dict[str, BaseFlow] = {}
 
+        self._plugins_loaded = False
+
         self._initialize_models()
-        self._initialize_flows()
+        # Preload built-in flow types and any installed plugins
+        load_plugins()
+        self._plugins_loaded = True
 
     def _create_mcp_client(self, name: str, mcp_config: MCPServerConfig) -> MCPClient:
         """Create and cache MCP client based on configuration"""
@@ -99,33 +103,51 @@ class AthosManager:
             self.models[name] = model
             logger.info(f"Initialized model: {name}")
 
-    def _initialize_flows(self):
-        """Initialize all configured execution flows"""
-        load_plugins()
-        for name, flow_config in self.config.execution_flows.items():
-            entry = FLOW_REGISTRY.get(flow_config.type.value)
-            if not entry:
-                raise ValueError(f"Unknown execution flow type: {flow_config.type}")
+    def _ensure_plugins_loaded(self) -> None:
+        """Load flow plugins once."""
+        if not self._plugins_loaded:
+            load_plugins()
+            self._plugins_loaded = True
 
-            config_cls, factory = entry
-            assert isinstance(flow_config, config_cls)
-            flow = factory(flow_config, self)
-            self.flows[name] = flow
-            logger.info(f"Initialized execution flow: {name}")
+    def _get_or_create_flow(self, name: str) -> BaseFlow:
+        """Retrieve existing flow or create it from configuration."""
+        if name in self.flows:
+            return self.flows[name]
+
+        self._ensure_plugins_loaded()
+
+        if name not in self.config.execution_flows:
+            raise ValueError(f"Unknown execution flow: {name}")
+
+        flow_config = self.config.execution_flows[name]
+        entry = FLOW_REGISTRY.get(flow_config.type.value)
+        if not entry:
+            raise ValueError(f"Unknown execution flow type: {flow_config.type}")
+
+        config_cls, factory = entry
+        assert isinstance(flow_config, config_cls)
+        flow = factory(flow_config, self)
+        self.flows[name] = flow
+        logger.info(f"Initialized execution flow: {name}")
+        return flow
+
+    def _initialize_flows(self):
+        """Deprecated initialization method kept for backward compatibility."""
+        self.preload_flows()
 
     async def execute_flow(self, flow_name: str, input_data: str) -> Any:
         """Execute a specific flow with input data"""
         try:
-            flow = self.flows[flow_name]
-        except KeyError:
-            raise ValueError(f"Unknown execution flow: {flow_name}")
+            flow = self._get_or_create_flow(flow_name)
+        except ValueError:
+            raise
 
         logger.info(f"Executing flow: {flow_name} with type: {type(flow)}")
         return await flow.execute(input_data)
 
     def list_flows(self) -> List[str]:
         """List all available execution flows"""
-        return list(self.flows.keys())
+        return list(self.config.execution_flows.keys())
 
     def get_flow_info(self, flow_name: str) -> Dict[str, Any]:
         """Get information about a specific flow"""
@@ -141,6 +163,11 @@ class AthosManager:
             "mcp_servers": getattr(flow_config, "mcp_servers", []),
             "has_prompt_chain": getattr(flow_config, "prompt_chain", None) is not None
         }
+
+    def preload_flows(self) -> None:
+        """Eagerly create all configured flows."""
+        for name in self.config.execution_flows.keys():
+            self._get_or_create_flow(name)
 
     def close(self):
         """Clean up resources, particularly MCP clients"""

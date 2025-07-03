@@ -159,24 +159,29 @@ class TestAthosManager:
 
         assert result == cached_tool
 
+    @pytest.mark.asyncio
     @patch('athos.core.builtin_flows.ChatbotFlow')
     @patch('athos.core.manager.OpenAIServerModel')
-    def test_initialize_chatbot_flow(self, mock_model, mock_chatbot_flow, mock_config):
-        """Test chatbot flow initialization"""
-        mock_flow_instance = Mock()
+    async def test_lazy_chatbot_flow_creation(self, mock_model, mock_chatbot_flow, mock_config):
+        """Flow should be created only when executed"""
+        mock_flow_instance = AsyncMock()
         mock_chatbot_flow.return_value = mock_flow_instance
 
         manager = AthosManager(mock_config)
 
-        mock_chatbot_flow.assert_called_once()
-        assert "test_flow" in manager.flows
-        assert manager.flows["test_flow"] == mock_flow_instance
+        # Flow constructor should not be called during initialization
+        mock_chatbot_flow.assert_not_called()
 
+        await manager.execute_flow("test_flow", "hi")
+
+        mock_chatbot_flow.assert_called_once()
+
+    @pytest.mark.asyncio
     @patch('athos.core.builtin_flows.CodeAgentFlow')
     @patch('athos.core.manager.AthosManager._load_tool')
     @patch('athos.core.manager.OpenAIServerModel')
-    def test_initialize_code_agent_flow(self, mock_model, mock_load_tool, mock_code_flow):
-        """Test code agent flow initialization"""
+    async def test_lazy_code_agent_flow_creation(self, mock_model, mock_load_tool, mock_code_flow):
+        """Code agent flow should be created lazily"""
         # Setup config with code agent flow
         flow_config = CodeAgentFlowConfig(
             type=ExecutionFlowType.CODE_AGENT,
@@ -196,14 +201,34 @@ class TestAthosManager:
 
         mock_tool = Mock(spec=Tool)
         mock_load_tool.return_value = mock_tool
-        mock_flow_instance = Mock()
+        mock_flow_instance = AsyncMock()
         mock_code_flow.return_value = mock_flow_instance
 
         manager = AthosManager(config)
 
+        mock_code_flow.assert_not_called()
+
+        await manager.execute_flow("code_flow", "do it")
+
         mock_load_tool.assert_called_once()
         mock_code_flow.assert_called_once()
         assert "code_flow" in manager.flows
+
+    @pytest.mark.asyncio
+    @patch('athos.core.builtin_flows.ChatbotFlow')
+    @patch('athos.core.manager.OpenAIServerModel')
+    async def test_flow_instantiated_only_once(self, mock_model, mock_chatbot_flow, mock_config):
+        """Ensure flow objects are created a single time"""
+        mock_flow_instance = AsyncMock()
+        mock_chatbot_flow.return_value = mock_flow_instance
+
+        manager = AthosManager(mock_config)
+
+        await manager.execute_flow("test_flow", "one")
+        await manager.execute_flow("test_flow", "two")
+
+        mock_chatbot_flow.assert_called_once()
+        assert mock_flow_instance.execute.call_count == 2
 
     @pytest.mark.asyncio
     async def test_execute_flow_success(self, mock_config):
@@ -377,15 +402,19 @@ class TestAthosManagerIntegration:
             assert len(manager.models) == 1
             assert "gpt4" in manager.models
 
-            # Verify tools loaded
+            # No flows should be created yet
+            assert manager.flows == {}
+
+            # Preload all flows
+            manager.preload_flows()
+
+            # Verify tools loaded after preload
             assert len(manager.loaded_tools) >= 1  # calculator tool
 
-            # Verify flows initialized
             assert len(manager.flows) == 2
             assert "chat" in manager.flows
             assert "coding" in manager.flows
 
-            # Verify flow constructors called
             mock_chatbot_flow.assert_called_once()
             mock_code_flow.assert_called_once()
 
@@ -407,8 +436,9 @@ class TestAthosManagerIntegration:
             )}
         )
 
+        manager = AthosManager(config)
         with pytest.raises(Exception):  # Should fail during tool loading
-            AthosManager(config)
+            manager.preload_flows()
 
     @pytest.mark.asyncio
     @patch('athos.core.manager.OpenAIServerModel')
