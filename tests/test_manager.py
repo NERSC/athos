@@ -61,16 +61,22 @@ class TestAthosManager:
         )
 
     @patch('athos.core.manager.OpenAIServerModel')
-    def test_initialize_models(self, mock_openai_model, mock_config):
-        """Test model initialization"""
+    def test_lazy_model_loading(self, mock_openai_model, mock_config):
+        """Models should be instantiated only when accessed"""
         manager = AthosManager(mock_config)
 
+        # No model loaded at initialization
+        mock_openai_model.assert_not_called()
+        assert manager.models == {}
+
+        # Fetching a model should create it
+        model = manager._get_or_create_model("test_model")
         mock_openai_model.assert_called_once_with(
             model_id="test-model",
             api_base="http://test-api",
             api_key="test-key"
         )
-        assert "test_model" in manager.models
+        assert manager.models["test_model"] is model
 
     @patch('athos.core.manager.MCPClient')
     @patch('athos.core.manager.StdioServerParameters')
@@ -400,15 +406,18 @@ class TestAthosManagerIntegration:
 
             manager = AthosManager(full_config)
 
-            # Verify models initialized
-            assert len(manager.models) == 1
-            assert "gpt4" in manager.models
+            # Models should not be loaded yet
+            assert manager.models == {}
 
             # No flows should be created yet
             assert manager.flows == {}
 
             # Preload all flows
             manager.preload_flows()
+
+            # Model should be loaded during flow creation
+            assert len(manager.models) == 1
+            assert "gpt4" in manager.models
 
             # Verify tools loaded after preload
             assert len(manager.loaded_tools) >= 1  # calculator tool

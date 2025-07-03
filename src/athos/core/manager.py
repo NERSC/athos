@@ -41,7 +41,6 @@ class AthosManager:
 
         self._plugins_loaded = False
 
-        self._initialize_models()
         # Preload built-in flow types and any installed plugins
         load_plugins()
         self._plugins_loaded = True
@@ -92,16 +91,28 @@ class AthosManager:
             logger.error(f"Failed to load tool {name}: {e}")
             raise
 
+    def _get_or_create_model(self, name: str) -> OpenAIServerModel:
+        """Retrieve existing model or create it from configuration."""
+        if name in self.models:
+            return self.models[name]
+
+        model_config = self.config.models.get(name)
+        if not model_config:
+            raise ValueError(f"Unknown model: {name}")
+
+        model = OpenAIServerModel(
+            model_id=model_config.model_id,
+            api_base=model_config.api_base,
+            api_key=model_config.api_key,
+        )
+        self.models[name] = model
+        logger.info(f"Initialized model: {name}")
+        return model
+
     def _initialize_models(self):
-        """Initialize all configured models"""
-        for name, model_config in self.config.models.items():
-            model = OpenAIServerModel(
-                model_id=model_config.model_id,
-                api_base=model_config.api_base,
-                api_key=model_config.api_key
-            )
-            self.models[name] = model
-            logger.info(f"Initialized model: {name}")
+        """Eagerly create all configured models."""
+        for name in self.config.models.keys():
+            self._get_or_create_model(name)
 
     def _ensure_plugins_loaded(self) -> None:
         """Load flow plugins once."""
