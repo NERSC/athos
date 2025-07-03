@@ -30,7 +30,6 @@ from mcp.types import (
 import mcp.types as types
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("slurm-mcp-server")
 
 # Create the server instance

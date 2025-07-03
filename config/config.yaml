@@ -360,7 +360,6 @@ execution_flows:
 #       disk_usage: 90
 
 # Logging configuration
-# FIXME: not currently used in the code
 logging_config:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

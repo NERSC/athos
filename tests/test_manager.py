@@ -327,6 +327,7 @@ class TestCreateAthosManager:
     def test_create_athos_manager(self, mock_manager_class, mock_load_config):
         """Test factory function for creating ATHOS manager"""
         mock_config = Mock(spec=AthosConfig)
+        mock_config.logging_config = None
         mock_load_config.return_value = mock_config
         mock_manager_instance = Mock()
         mock_manager_class.return_value = mock_manager_instance
@@ -334,6 +335,42 @@ class TestCreateAthosManager:
         result = create_athos_manager("test_config.yaml")
 
         mock_load_config.assert_called_once_with("test_config.yaml")
+        mock_manager_class.assert_called_once_with(mock_config)
+        assert result == mock_manager_instance
+
+    @patch('athos.core.manager.configure_logging')
+    @patch('athos.core.manager.ConfigLoader.load_config')
+    @patch('athos.core.manager.AthosManager')
+    def test_create_athos_manager_applies_logging(self, mock_manager_class, mock_load_config, mock_configure):
+        """Logging configuration should be applied when provided."""
+        mock_config = Mock(spec=AthosConfig)
+        mock_config.logging_config = {"level": "DEBUG"}
+        mock_load_config.return_value = mock_config
+        mock_manager_instance = Mock()
+        mock_manager_class.return_value = mock_manager_instance
+
+        result = create_athos_manager("cfg.yaml")
+
+        mock_load_config.assert_called_once_with("cfg.yaml")
+        mock_configure.assert_called_once_with(mock_config.logging_config)
+        mock_manager_class.assert_called_once_with(mock_config)
+        assert result == mock_manager_instance
+
+    @patch('athos.core.manager.configure_logging')
+    @patch('athos.core.manager.ConfigLoader.load_config')
+    @patch('athos.core.manager.AthosManager')
+    def test_create_athos_manager_no_logging(self, mock_manager_class, mock_load_config, mock_configure):
+        """No logging configuration should skip configuration."""
+        mock_config = Mock(spec=AthosConfig)
+        mock_config.logging_config = None
+        mock_load_config.return_value = mock_config
+        mock_manager_instance = Mock()
+        mock_manager_class.return_value = mock_manager_instance
+
+        result = create_athos_manager("cfg.yaml")
+
+        mock_load_config.assert_called_once_with("cfg.yaml")
+        mock_configure.assert_not_called()
         mock_manager_class.assert_called_once_with(mock_config)
         assert result == mock_manager_instance
 
