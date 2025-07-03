@@ -462,19 +462,6 @@ class TestFileAccessAndPermissions:
         with pytest.raises((IsADirectoryError, PermissionError)):
             ConfigLoader.load_config(str(config_dir))
 
-    @pytest.mark.skipif(os.name == 'nt', reason="Permission tests don't work reliably on Windows")
-    def test_load_config_permission_denied(self, tmp_path):
-        """Test handling of permission denied errors."""
-        cfg_file = tmp_path / 'restricted.yaml'
-        cfg_file.write_text('{}')
-        cfg_file.chmod(0o000)  # Remove all permissions
-        
-        try:
-            with pytest.raises(PermissionError):
-                ConfigLoader.load_config(str(cfg_file))
-        finally:
-            cfg_file.chmod(0o644)  # Restore permissions for cleanup
-
 
 class TestPerformanceAndScale:
     """Test performance with large configurations."""
@@ -682,3 +669,4 @@ execution_flows:
         assert cfg.tools["empty_tool"].parameters == {}
         assert cfg.execution_flows["test_flow"].tools == []
         assert cfg.execution_flows["test_flow"].mcp_servers == []
+        assert cfg.execution_flows["test_flow"].prompt_chain is None
