@@ -183,13 +183,15 @@ execution_flows:
     system_prompt: "You are a friendly chatbot"
     max_iterations: 15
   code_agent:
-    type: "code_agent"
+    type: "agent"
+    agent_type: "code"
     model: "gpt4"
     tools: ["calculator"]
     mcp_servers: ["file_server"]
     max_iterations: 20
   research:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "gpt4"
     tools: ["calculator"]
     mcp_servers: ["file_server", "web_server"]
@@ -251,7 +253,8 @@ execution_flows:
     type: "chatbot"
     model: "test_model"
   code_agent_flow:
-    type: "code_agent"
+    type: "agent"
+    agent_type: "code"
     model: "test_model"
     tools: ["test_tool"]
   prompt_chain_flow:
@@ -261,16 +264,17 @@ execution_flows:
       - role: "user"
         content: "Hello"
   tool_calling_flow:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "test_model"
     tools: ["test_tool"]
 ''')
         cfg = ConfigLoader.load_config(str(cfg_file))
         
         assert cfg.execution_flows["chatbot_flow"].type == ExecutionFlowType.CHATBOT
-        assert cfg.execution_flows["code_agent_flow"].type == ExecutionFlowType.CODE_AGENT
+        assert cfg.execution_flows["code_agent_flow"].type == ExecutionFlowType.AGENT
         assert cfg.execution_flows["prompt_chain_flow"].type == ExecutionFlowType.PROMPT_CHAIN
-        assert cfg.execution_flows["tool_calling_flow"].type == ExecutionFlowType.TOOL_CALLING_AGENT
+        assert cfg.execution_flows["tool_calling_flow"].type == ExecutionFlowType.AGENT
 
 
 class TestEnvironmentVariableIntegration:
@@ -299,7 +303,8 @@ mcp_servers:
 
 execution_flows:
   test_flow:
-    type: "code_agent"
+    type: "agent"
+    agent_type: "code"
     model: "test_model"
     mcp_servers: ["test_server"]
     tools: []
@@ -353,7 +358,8 @@ mcp_servers:
 
 execution_flows:
   test_flow:
-    type: "code_agent"
+    type: "agent"
+    agent_type: "code"
     model: "test_model"
     mcp_servers: ["test_server"]
     tools: []
@@ -399,7 +405,8 @@ tools:
     module_path: "tools.tool"
 execution_flows:
   test_flow:
-    type: "code_agent"
+    type: "agent"
+    agent_type: "code"
     model: "test_model"
     tools: ["nonexistent_tool"]  # Invalid reference
 ''')
@@ -422,7 +429,8 @@ mcp_servers:
     command: "test"
 execution_flows:
   test_flow:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "test_model"
     mcp_servers: ["nonexistent_server"]  # Invalid reference
 ''')
@@ -441,7 +449,8 @@ models:
     model_id: "test"
 execution_flows:
   test_flow:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "invalid_model"  # Invalid model reference
     tools: ["invalid_tool"]  # Invalid tool reference
     mcp_servers: ["invalid_server"]  # Invalid MCP server reference
@@ -656,7 +665,8 @@ tools:
 
 execution_flows:
   test_flow:
-    type: "code_agent"
+    type: "agent"
+    agent_type: "code"
     model: "test_model"
     tools: []
     mcp_servers: []

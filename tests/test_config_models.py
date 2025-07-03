@@ -16,8 +16,7 @@ from athos.config.models import (
     MCPServerConfig,
     ToolConfig,
     ChatbotFlowConfig,
-    CodeAgentFlowConfig,
-    ToolCallingAgentFlowConfig,
+    AgentFlowConfig,
     PromptChainFlowConfig,
     AthosConfig,
 )
@@ -29,9 +28,8 @@ class TestExecutionFlowType:
     def test_valid_flow_types(self):
         """Test all valid enum values."""
         assert ExecutionFlowType.CHATBOT == "chatbot"
-        assert ExecutionFlowType.CODE_AGENT == "code_agent"
+        assert ExecutionFlowType.AGENT == "agent"
         assert ExecutionFlowType.PROMPT_CHAIN == "prompt_chain"
-        assert ExecutionFlowType.TOOL_CALLING_AGENT == "tool_calling_agent"
     
     def test_string_enum_behavior(self):
         """Test that enum values can be used as strings."""
@@ -456,8 +454,7 @@ class TestExecutionFlowConfig:
         for flow_type in ExecutionFlowType:
             cfg_cls = {
                 ExecutionFlowType.CHATBOT: ChatbotFlowConfig,
-                ExecutionFlowType.CODE_AGENT: CodeAgentFlowConfig,
-                ExecutionFlowType.TOOL_CALLING_AGENT: ToolCallingAgentFlowConfig,
+                ExecutionFlowType.AGENT: AgentFlowConfig,
                 ExecutionFlowType.PROMPT_CHAIN: PromptChainFlowConfig,
             }[flow_type]
             config = cfg_cls(type=flow_type, model="test_model")
@@ -487,9 +484,10 @@ class TestExecutionFlowConfig:
     
     def test_optional_fields(self):
         """Test optional field handling."""
-        config = CodeAgentFlowConfig(
-            type=ExecutionFlowType.CODE_AGENT,
+        config = AgentFlowConfig(
+            type=ExecutionFlowType.AGENT,
             model="test_model",
+            agent_type="code",
             mcp_servers=["server1", "server2"],
             tools=["tool1", "tool2"],
         )
@@ -498,8 +496,8 @@ class TestExecutionFlowConfig:
     
     def test_empty_lists_default(self):
         """Test that empty lists are properly initialized."""
-        config1 = CodeAgentFlowConfig(type=ExecutionFlowType.CODE_AGENT, model="model1")
-        config2 = CodeAgentFlowConfig(type=ExecutionFlowType.CODE_AGENT, model="model2")
+        config1 = AgentFlowConfig(type=ExecutionFlowType.AGENT, model="model1")
+        config2 = AgentFlowConfig(type=ExecutionFlowType.AGENT, model="model2")
         
         # Modify one instance
         config1.mcp_servers.append("server1")
@@ -597,9 +595,10 @@ class TestAthosConfig:
             models={"gpt4": ModelConfig(model_id="gpt-4")},
             tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
             execution_flows={
-                "code": CodeAgentFlowConfig(
-                    type=ExecutionFlowType.CODE_AGENT,
+                "code": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="gpt4",
+                    agent_type="code",
                     tools=["calculator"]
                 )
             }
@@ -614,9 +613,10 @@ class TestAthosConfig:
                 models={"gpt4": ModelConfig(model_id="gpt-4")},
                 tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
                 execution_flows={
-                    "code": CodeAgentFlowConfig(
-                        type=ExecutionFlowType.CODE_AGENT,
+                    "code": AgentFlowConfig(
+                        type=ExecutionFlowType.AGENT,
                         model="gpt4",
+                        agent_type="code",
                         tools=["unknown_tool"]
                     )
                 }
@@ -628,9 +628,10 @@ class TestAthosConfig:
             models={"gpt4": ModelConfig(model_id="gpt-4")},
             mcp_servers={"file_server": MCPServerConfig(mcp_type=MCPType.MCP_STDIO, command="file-server")},
             execution_flows={
-                "agent": ToolCallingAgentFlowConfig(
-                    type=ExecutionFlowType.TOOL_CALLING_AGENT,
+                "agent": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="gpt4",
+                    agent_type="tool_calling",
                     mcp_servers=["file_server"]
                 )
             }
@@ -645,9 +646,10 @@ class TestAthosConfig:
                 models={"gpt4": ModelConfig(model_id="gpt-4")},
                 mcp_servers={"file_server": MCPServerConfig(mcp_type=MCPType.MCP_STDIO, command="file-server")},
                 execution_flows={
-                    "agent": ToolCallingAgentFlowConfig(
-                        type=ExecutionFlowType.TOOL_CALLING_AGENT,
+                    "agent": AgentFlowConfig(
+                        type=ExecutionFlowType.AGENT,
                         model="gpt4",
+                        agent_type="tool_calling",
                         mcp_servers=["unknown_server"]
                     )
                 }
@@ -659,14 +661,16 @@ class TestAthosConfig:
             models={"gpt4": ModelConfig(model_id="gpt-4")},
             tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
             execution_flows={
-                "flow1": CodeAgentFlowConfig(
-                    type=ExecutionFlowType.CODE_AGENT,
+                "flow1": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="gpt4",
+                    agent_type="code",
                     tools=["calculator"],
                 ),
-                "flow2": ToolCallingAgentFlowConfig(
-                    type=ExecutionFlowType.TOOL_CALLING_AGENT,
+                "flow2": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="gpt4",
+                    agent_type="tool_calling",
                     tools=["calculator"],
                 )
             }
@@ -697,9 +701,10 @@ class TestAthosConfig:
                     type=ExecutionFlowType.CHATBOT,
                     model="gpt4",
                 ),
-                "research": ToolCallingAgentFlowConfig(
-                    type=ExecutionFlowType.TOOL_CALLING_AGENT,
+                "research": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="claude",
+                    agent_type="tool_calling",
                     tools=["calculator", "web_search"],
                     mcp_servers=["file_server", "db_server"],
                 ),
@@ -718,9 +723,10 @@ class TestAthosConfig:
                 models={"gpt4": ModelConfig(model_id="gpt-4")},
                 tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
                 execution_flows={
-                    "flow": ToolCallingAgentFlowConfig(
-                        type=ExecutionFlowType.TOOL_CALLING_AGENT,
+                    "flow": AgentFlowConfig(
+                        type=ExecutionFlowType.AGENT,
                         model="unknown_model",  # Invalid model
+                        agent_type="tool_calling",
                         tools=["unknown_tool"],  # Invalid tool
                         mcp_servers=["unknown_server"],  # Invalid MCP server
                     )
@@ -871,16 +877,18 @@ class TestIntegrationScenarios:
                     model="gpt4",
                     system_prompt="You are a friendly chatbot.",
                 ),
-                "code_assistant": CodeAgentFlowConfig(
-                    type=ExecutionFlowType.CODE_AGENT,
+                "code_assistant": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="local_llm",
+                    agent_type="code",
                     tools=["calculator"],
                     mcp_servers=["filesystem"],
                     max_iterations=20,
                 ),
-                "research_agent": ToolCallingAgentFlowConfig(
-                    type=ExecutionFlowType.TOOL_CALLING_AGENT,
+                "research_agent": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="gpt4",
+                    agent_type="tool_calling",
                     tools=["calculator", "web_search"],
                     mcp_servers=["filesystem", "database"],
                     max_iterations=15,

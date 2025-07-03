@@ -8,9 +8,14 @@ from typing_extensions import Literal
 class ExecutionFlowType(str, Enum):
     """Supported execution flow types"""
     CHATBOT = "chatbot"
-    CODE_AGENT = "code_agent"
+    AGENT = "agent"
     PROMPT_CHAIN = "prompt_chain"
-    TOOL_CALLING_AGENT = "tool_calling_agent"
+
+
+class AgentType(str, Enum):
+    """Supported agent implementations"""
+    CODE = "code"
+    TOOL_CALLING = "tool_calling"
 
 class MCPType(str, Enum):
     """Supported MCP server types"""
@@ -127,19 +132,14 @@ class ChatbotFlowConfig(BaseFlowConfig):
     max_iterations: int = Field(default=10, gt=0, description="Maximum execution iterations")
 
 
-class CodeAgentFlowConfig(BaseFlowConfig):
-    """Configuration for CodeAgentFlow"""
+class AgentFlowConfig(BaseFlowConfig):
+    """Configuration for AgentFlow"""
 
-    type: Literal[ExecutionFlowType.CODE_AGENT]
+    type: Literal[ExecutionFlowType.AGENT]
+    agent_type: AgentType = Field(default=AgentType.CODE, description="Underlying agent implementation")
     mcp_servers: List[str] = Field(default_factory=list, description="List of MCP server names")
     tools: List[str] = Field(default_factory=list, description="List of tool names")
     max_iterations: int = Field(default=10, gt=0, description="Maximum execution iterations")
-
-
-class ToolCallingAgentFlowConfig(CodeAgentFlowConfig):
-    """Configuration for ToolCallingAgentFlow"""
-
-    type: Literal[ExecutionFlowType.TOOL_CALLING_AGENT]
 
 
 class PromptChainFlowConfig(BaseFlowConfig):
@@ -152,8 +152,7 @@ class PromptChainFlowConfig(BaseFlowConfig):
 FlowConfig = Annotated[
     Union[
         ChatbotFlowConfig,
-        CodeAgentFlowConfig,
-        ToolCallingAgentFlowConfig,
+        AgentFlowConfig,
         PromptChainFlowConfig,
     ],
     Field(discriminator='type')

@@ -177,19 +177,22 @@ execution_flows:
 
   # Web agent example
   web_agent:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "o4_mini"
     tools: ["websearch", "webvisit"]
 
   # MCP-enabled agent example
   filesystem_agent:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "gpt_4o"
     mcp_servers: ["filesystem_mcp"]
 
   # # ServiceNow integration agent
   # servicenow_agent:
-  #   type: "tool_calling_agent"
+  #   type: "agent"
+  #   agent_type: "tool_calling"
   #   model: "claude_sonnet"
   #   tools: ["servicenow_mcp"]
   #   system_prompt: |
@@ -199,7 +202,8 @@ execution_flows:
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
-  #   type: "tool_calling_agent"
+  #   type: "agent"
+  #   agent_type: "tool_calling"
   #   model: "gpt_4o"
   #   tools: ["websearch", "github_mcp", "sqlite_mcp"]
   #   system_prompt: |
@@ -209,7 +213,8 @@ execution_flows:
 
   # # Code agent for automated HPC tasks
   # hpc_automation:
-  #   type: "code_agent"
+  #   type: "agent"
+  #   agent_type: "code"
   #   model: "code_llama"
   #   tools: ["slurm_manager", "system_monitor", "module_manager", "filesystem_tool"]
   #   system_prompt: |
@@ -219,7 +224,8 @@ execution_flows:
 
   # # Quick support agent with minimal tools
   # quick_support:
-  #   type: "code_agent"
+  #   type: "agent"
+  #   agent_type: "code"
   #   model: "phi_3_mini"
   #   tools: ["system_monitor", "filesystem_tool"]
   #   system_prompt: |

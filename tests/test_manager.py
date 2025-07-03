@@ -11,7 +11,7 @@ from athos.config import (
     ExecutionFlowType,
     ModelConfig,
     ChatbotFlowConfig,
-    CodeAgentFlowConfig,
+    AgentFlowConfig,
 )
 from smolagents import Tool
 from smolagents.mcp_client import MCPClient
@@ -177,15 +177,16 @@ class TestAthosManager:
         mock_chatbot_flow.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch('athos.core.builtin_flows.CodeAgentFlow')
+    @patch('athos.core.builtin_flows.AgentFlow')
     @patch('athos.core.manager.AthosManager._load_tool')
     @patch('athos.core.manager.OpenAIServerModel')
     async def test_lazy_code_agent_flow_creation(self, mock_model, mock_load_tool, mock_code_flow):
         """Code agent flow should be created lazily"""
         # Setup config with code agent flow
-        flow_config = CodeAgentFlowConfig(
-            type=ExecutionFlowType.CODE_AGENT,
+        flow_config = AgentFlowConfig(
+            type=ExecutionFlowType.AGENT,
             model="test_model",
+            agent_type="code",
             tools=["test_tool"],
         )
 
@@ -366,9 +367,10 @@ class TestAthosManagerIntegration:
                     model="gpt4",
                     system_prompt="You are a helpful assistant",
                 ),
-                "coding": CodeAgentFlowConfig(
-                    type=ExecutionFlowType.CODE_AGENT,
+                "coding": AgentFlowConfig(
+                    type=ExecutionFlowType.AGENT,
                     model="gpt4",
+                    agent_type="code",
                     tools=["calculator"],
                     mcp_servers=["file_manager_server"],
                 ),
@@ -394,7 +396,7 @@ class TestAthosManagerIntegration:
 
         with patch('athos.core.manager.StdioServerParameters'), \
              patch('athos.core.builtin_flows.ChatbotFlow') as mock_chatbot_flow, \
-             patch('athos.core.builtin_flows.CodeAgentFlow') as mock_code_flow:
+             patch('athos.core.builtin_flows.AgentFlow') as mock_code_flow:
 
             manager = AthosManager(full_config)
 
@@ -429,9 +431,10 @@ class TestAthosManagerIntegration:
                 class_name="NonexistentClass"
             )},
             mcp_servers={},
-            execution_flows={"test_flow": CodeAgentFlowConfig(
-                type=ExecutionFlowType.CODE_AGENT,
+            execution_flows={"test_flow": AgentFlowConfig(
+                type=ExecutionFlowType.AGENT,
                 model="test",
+                agent_type="code",
                 tools=["bad_tool"],
             )}
         )
