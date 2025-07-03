@@ -14,9 +14,9 @@ import yaml
 from mcp.server.lowlevel import Server
 from pydantic import ValidationError
 
-from servicenow_mcp.auth.auth_manager import AuthManager
-from servicenow_mcp.utils.config import ServerConfig
-from servicenow_mcp.utils.tool_utils import get_tool_definitions
+from .auth.auth_manager import AuthManager
+from .utils.config import ServerConfig
+from .utils.tool_utils import get_tool_definitions
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)

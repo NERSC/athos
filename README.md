@@ -58,7 +58,7 @@ Custom tools designed for HPC operations:
 
 - **`slurm_query.py`**: Utility for querying SLURM jobs
 - **`slurm_mcp/`**: MCP server providing secure SLURM command execution
-- **`servicenow-mcp/`**: Tools for interacting with ServiceNow from HPC workflows
+- **`servicenow_mcp/`**: Tools for interacting with ServiceNow from HPC workflows
 
 ### `src/athos/examples/`
 **Usage examples and demonstrations**

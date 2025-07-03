@@ -9,7 +9,7 @@ from typing import Dict, Optional
 import requests
 from requests.auth import HTTPBasicAuth
 
-from servicenow_mcp.utils.config import AuthConfig, AuthType
+from ..utils.config import AuthConfig, AuthType
 
 
 logger = logging.getLogger(__name__)

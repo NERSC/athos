@@ -10,8 +10,8 @@ from typing import Any, Dict, Optional
 import requests
 from pydantic import BaseModel, Field
 
-from servicenow_mcp.auth.auth_manager import AuthManager
-from servicenow_mcp.utils.config import ServerConfig
+from ..auth.auth_manager import AuthManager
+from ..utils.config import ServerConfig
 
 logger = logging.getLogger(__name__)
 

@@ -140,13 +140,14 @@ class HPCSmolAgent(Agent):
         # ServiceNow tools
         if self.enable_servicenow:
             try:
-                servicenow_path = athos_tools_path / "servicenow-mcp"
+                import athos.tools.servicenow_mcp as servicenow_pkg
+                servicenow_path = Path(servicenow_pkg.__path__[0])
                 logger.info(f"ServiceNow MCP path: {servicenow_path}")
                 logger.info(f"ServiceNow MCP path exists: {servicenow_path.exists()}")
-                
+
                 servicenow_parameters = StdioServerParameters(
                     command="uv",
-                    args=["run", "python", "-m", "servicenow_mcp.cli"],
+                    args=["run", "python", "-m", "athos.tools.servicenow_mcp.cli"],
                     env={
                         "SERVICENOW_INSTANCE_URL": os.getenv("SERVICENOW_INSTANCE_URL"),
                         "SERVICENOW_USERNAME": os.getenv("SERVICENOW_USERNAME"),
