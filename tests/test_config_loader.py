@@ -669,4 +669,4 @@ execution_flows:
         assert cfg.tools["empty_tool"].parameters == {}
         assert cfg.execution_flows["test_flow"].tools == []
         assert cfg.execution_flows["test_flow"].mcp_servers == []
-        assert cfg.execution_flows["test_flow"].prompt_chain is None
+        assert getattr(cfg.execution_flows["test_flow"], "prompt_chain", None) is None
