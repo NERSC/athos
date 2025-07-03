@@ -110,10 +110,12 @@ def main():
 
     flow_config = manager.config.execution_flows[args.flow]
     eval_model_name = args.eval_model or flow_config.model
-    if eval_model_name not in manager.models:
+    try:
+        # Lazily load the evaluation model if needed
+        eval_model = manager._get_or_create_model(eval_model_name)
+    except ValueError:
         print(f"Error: evaluation model '{eval_model_name}' not found in configuration")
         return
-    eval_model = manager.models[eval_model_name]
 
     cases = load_test_cases(Path(args.cases_dir))
     results = []

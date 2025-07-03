@@ -33,14 +33,14 @@ def _load_mcp_tools(manager: "AthosManager", mcp_names: List[str], tools: List):
 
 
 def create_chatbot_flow(cfg: ChatbotFlowConfig, manager: "AthosManager"):
-    model = manager.models[cfg.model]
+    model = manager._get_or_create_model(cfg.model)
     return ChatbotFlow(model, cfg.system_prompt)
 
 
 def create_agent_flow(cfg: AgentFlowConfig, manager: "AthosManager"):
     tools = _load_tools(manager, cfg.tools)
     _load_mcp_tools(manager, cfg.mcp_servers, tools)
-    model = manager.models[cfg.model]
+    model = manager._get_or_create_model(cfg.model)
     return AgentFlow(model, tools, cfg.agent_type.value)
 
 
