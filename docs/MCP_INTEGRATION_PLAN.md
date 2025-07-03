@@ -205,7 +205,7 @@ def _initialize_flows(self):
         if flow_config.type == ExecutionFlowType.CHATBOT:
             flow = ChatbotFlow(model, flow_config.system_prompt)
         
-        elif flow_config.type in [ExecutionFlowType.CODE_AGENT, ExecutionFlowType.TOOL_CALLING_AGENT]:
+        elif flow_config.type == ExecutionFlowType.AGENT:
             tools = []
             for tool_name in flow_config.tools:
                 logger.info(f"Loading tool {tool_name}")
@@ -218,10 +218,7 @@ def _initialize_flows(self):
                 else:
                     tools.append(loaded_tool)
             
-            if flow_config.type == ExecutionFlowType.CODE_AGENT:
-                flow = CodeAgentFlow(model, tools)
-            else:
-                flow = ToolCallingAgentFlow(model, tools)
+            flow = AgentFlow(model, tools, flow_config.agent_type.value)
                 
             logger.info(f"Initialized {flow_config.type.value}: {name} with {len(tools)} tools")
         
@@ -301,13 +298,15 @@ tools:
 execution_flows:
   # Flow using both regular and MCP tools
   mixed_agent:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "gpt_4o"
     tools: ["websearch", "webvisit", "servicenow_mcp"]
   
   # Flow using only MCP tools
   servicenow_agent:
-    type: "code_agent"
+    type: "agent"
+    agent_type: "code"
     model: "cborg_coder"
     tools: ["servicenow_incidents"]
 ```

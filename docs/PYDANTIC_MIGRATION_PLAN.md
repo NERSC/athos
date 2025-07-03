@@ -88,9 +88,8 @@ from pydantic_settings import BaseSettings
 class ExecutionFlowType(str, Enum):
     """Supported execution flow types"""
     CHATBOT = "chatbot"
-    CODE_AGENT = "code_agent"
+    AGENT = "agent"
     PROMPT_CHAIN = "prompt_chain"
-    TOOL_CALLING_AGENT = "tool_calling_agent"
 
 class MCPType(str, Enum):
     """Supported MCP server types"""
@@ -594,7 +593,8 @@ def test_athos_config_cross_validation():
         },
         'execution_flows': {
             'f1': {
-                'type': 'tool_calling_agent',
+                'type': 'agent',
+                'agent_type': 'tool_calling',
                 'model': 'm1',
                 'tools': ['t1'],
                 'mcp_servers': ['mcp1']
@@ -730,20 +730,23 @@ execution_flows:
     # max_iterations: 10  # Optional: Must be > 0, defaults to 10
 
   web_agent:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "gpt_4o"  # Validated: Must exist in models section
     tools: ["websearch", "webvisit"]  # Validated: All tools must exist
     # mcp_servers: []  # Optional: List of MCP server names
 
   filesystem_agent:
-    
-    type: "tool_calling_agent"
+
+    type: "agent"
+    agent_type: "tool_calling"
     model: "gpt_4o"  # Validated: Must exist in models section
     mcp_servers: ["filesystem_mcp"]  # Validated: All MCP servers must exist
     system_prompt: "You are a filesystem assistant. Help users navigate and manage files."
 
   servicenow_agent:
-    type: "tool_calling_agent"
+    type: "agent"
+    agent_type: "tool_calling"
     model: "cborg_chat"
     mcp_servers: ["servicenow_mcp"]  # Cross-validated against mcp_servers section
     tools: ["websearch"]  # Can combine tools and MCP servers

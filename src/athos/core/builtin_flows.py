@@ -2,11 +2,10 @@ from typing import TYPE_CHECKING, List
 import logging
 
 from athos.core.flow_registry import register_flow
-from athos.core.flows import ChatbotFlow, CodeAgentFlow, ToolCallingAgentFlow
+from athos.core.flows import ChatbotFlow, AgentFlow
 from athos.config.models import (
     ChatbotFlowConfig,
-    CodeAgentFlowConfig,
-    ToolCallingAgentFlowConfig,
+    AgentFlowConfig,
     PromptChainFlowConfig,
 )
 
@@ -38,18 +37,11 @@ def create_chatbot_flow(cfg: ChatbotFlowConfig, manager: "AthosManager"):
     return ChatbotFlow(model, cfg.system_prompt)
 
 
-def create_code_agent_flow(cfg: CodeAgentFlowConfig, manager: "AthosManager"):
+def create_agent_flow(cfg: AgentFlowConfig, manager: "AthosManager"):
     tools = _load_tools(manager, cfg.tools)
     _load_mcp_tools(manager, cfg.mcp_servers, tools)
     model = manager.models[cfg.model]
-    return CodeAgentFlow(model, tools)
-
-
-def create_tool_calling_agent_flow(cfg: ToolCallingAgentFlowConfig, manager: "AthosManager"):
-    tools = _load_tools(manager, cfg.tools)
-    _load_mcp_tools(manager, cfg.mcp_servers, tools)
-    model = manager.models[cfg.model]
-    return ToolCallingAgentFlow(model, tools)
+    return AgentFlow(model, tools, cfg.agent_type.value)
 
 
 def create_prompt_chain_flow(cfg: PromptChainFlowConfig, manager: "AthosManager"):
@@ -57,6 +49,5 @@ def create_prompt_chain_flow(cfg: PromptChainFlowConfig, manager: "AthosManager"
 
 
 register_flow("chatbot", ChatbotFlowConfig, create_chatbot_flow)
-register_flow("code_agent", CodeAgentFlowConfig, create_code_agent_flow)
-register_flow("tool_calling_agent", ToolCallingAgentFlowConfig, create_tool_calling_agent_flow)
+register_flow("agent", AgentFlowConfig, create_agent_flow)
 register_flow("prompt_chain", PromptChainFlowConfig, create_prompt_chain_flow)

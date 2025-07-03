@@ -41,7 +41,7 @@ The project is structured as a single Python package `athos` with the following 
 Contains the foundational components for managing and orchestrating ATHOS agents and tools:
 
 - **`manager.py`**: Defines the `AthosManager` class that handles configuration, and initialization of models, flows, tools.
-- **`flows.py`**: Execution flow implementations including `CodeAgentFlow` and `ChatbotFlow` 
+- **`flows.py`**: Execution flow implementations including `AgentFlow` and `ChatbotFlow`
 - **`agent.py`** and **`tool.py`**: Deprecated base classes (being phased out)
 
 ### `src/athos/agents/`

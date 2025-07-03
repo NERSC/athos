@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from smolagents import OpenAIServerModel, ChatMessage, Tool
-from athos.core.flows import BaseFlow, ChatbotFlow, CodeAgentFlow, ToolCallingAgentFlow
+from athos.core.flows import BaseFlow, ChatbotFlow, AgentFlow
 
 
 class TestBaseFlow:
@@ -111,8 +111,8 @@ class TestChatbotFlow:
         assert chatbot_flow.conversation_history[2].content == "Second message"
 
 
-class TestCodeAgentFlow:
-    """Test the CodeAgentFlow class"""
+class TestAgentFlowCode:
+    """Test the AgentFlow class with CodeAgent"""
     
     @pytest.fixture
     def mock_model(self):
@@ -125,16 +125,16 @@ class TestCodeAgentFlow:
         return [Mock(spec=Tool), Mock(spec=Tool)]
     
     @pytest.fixture
-    def code_agent_flow(self, mock_model, mock_tools):
-        """Create a CodeAgentFlow instance"""
+    def agent_flow(self, mock_model, mock_tools):
+        """Create an AgentFlow (code) instance"""
         with patch('athos.core.flows.CodeAgent') as mock_code_agent:
-            flow = CodeAgentFlow(model=mock_model, tools=mock_tools)
+            flow = AgentFlow(model=mock_model, tools=mock_tools, agent_type="code")
             return flow
     
-    def test_code_agent_flow_initialization(self, mock_model, mock_tools):
-        """Test CodeAgentFlow initialization"""
+    def test_agent_flow_initialization(self, mock_model, mock_tools):
+        """Test AgentFlow initialization for code agent"""
         with patch('athos.core.flows.CodeAgent') as mock_code_agent:
-            flow = CodeAgentFlow(model=mock_model, tools=mock_tools)
+            flow = AgentFlow(model=mock_model, tools=mock_tools, agent_type="code")
             
             mock_code_agent.assert_called_once_with(
                 tools=mock_tools,
@@ -142,41 +142,41 @@ class TestCodeAgentFlow:
             )
     
     @pytest.mark.asyncio
-    async def test_execute_success(self, code_agent_flow):
-        """Test successful execution of CodeAgentFlow"""
-        code_agent_flow.agent.run.return_value = "Code execution result"
+    async def test_execute_success(self, agent_flow):
+        """Test successful execution of AgentFlow with CodeAgent"""
+        agent_flow.agent.run.return_value = "Code execution result"
         
         with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
             mock_to_thread.return_value = "Code execution result"
             
-            result = await code_agent_flow.execute("Write a function")
+            result = await agent_flow.execute("Write a function")
             
-            mock_to_thread.assert_called_once_with(code_agent_flow.agent.run, "Write a function")
+            mock_to_thread.assert_called_once_with(agent_flow.agent.run, "Write a function")
             assert result == "Code execution result"
     
     @pytest.mark.asyncio
-    async def test_execute_failure(self, code_agent_flow):
-        """Test CodeAgentFlow execution with error"""
+    async def test_execute_failure(self, agent_flow):
+        """Test AgentFlow execution with error using CodeAgent"""
         with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
             mock_to_thread.side_effect = Exception("Test error")
             
-            result = await code_agent_flow.execute("Write a function")
+            result = await agent_flow.execute("Write a function")
             
             assert result == "Error: Test error"
     
     @pytest.mark.asyncio
-    async def test_execute_logs_error(self, code_agent_flow, caplog):
-        """Test that errors are logged"""
+    async def test_execute_logs_error(self, agent_flow, caplog):
+        """Test that errors are logged for CodeAgent"""
         with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
             mock_to_thread.side_effect = Exception("Test error")
             
-            await code_agent_flow.execute("Write a function")
-            
-            assert "Code agent execution failed: Test error" in caplog.text
+            await agent_flow.execute("Write a function")
+
+            assert "execution failed: Test error" in caplog.text
 
 
-class TestToolCallingAgentFlow:
-    """Test the ToolCallingAgentFlow class"""
+class TestAgentFlowTool:
+    """Test the AgentFlow class with ToolCallingAgent"""
     
     @pytest.fixture
     def mock_model(self):
@@ -189,17 +189,17 @@ class TestToolCallingAgentFlow:
         return [Mock(spec=Tool), Mock(spec=Tool)]
     
     @pytest.fixture
-    def tool_calling_agent_flow(self, mock_model, mock_tools):
-        """Create a ToolCallingAgentFlow instance"""
+    def agent_flow(self, mock_model, mock_tools):
+        """Create an AgentFlow (tool_calling) instance"""
         with patch('athos.core.flows.ToolCallingAgent') as mock_tool_calling_agent:
-            flow = ToolCallingAgentFlow(model=mock_model, tools=mock_tools)
+            flow = AgentFlow(model=mock_model, tools=mock_tools, agent_type="tool_calling")
             flow.agent = mock_tool_calling_agent.return_value
             return flow
     
-    def test_tool_calling_agent_flow_initialization(self, mock_model, mock_tools):
-        """Test ToolCallingAgentFlow initialization"""
+    def test_agent_flow_initialization(self, mock_model, mock_tools):
+        """Test AgentFlow initialization for ToolCallingAgent"""
         with patch('athos.core.flows.ToolCallingAgent') as mock_tool_calling_agent:
-            flow = ToolCallingAgentFlow(model=mock_model, tools=mock_tools)
+            flow = AgentFlow(model=mock_model, tools=mock_tools, agent_type="tool_calling")
             
             mock_tool_calling_agent.assert_called_once_with(
                 tools=mock_tools,
@@ -207,37 +207,37 @@ class TestToolCallingAgentFlow:
             )
     
     @pytest.mark.asyncio
-    async def test_execute_success(self, tool_calling_agent_flow):
-        """Test successful execution of ToolCallingAgentFlow"""
-        tool_calling_agent_flow.agent.run.return_value = "Tool calling result"
+    async def test_execute_success(self, agent_flow):
+        """Test successful execution of AgentFlow with ToolCallingAgent"""
+        agent_flow.agent.run.return_value = "Tool calling result"
         
         with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
             mock_to_thread.return_value = "Tool calling result"
             
-            result = await tool_calling_agent_flow.execute("Use tools to solve this")
+            result = await agent_flow.execute("Use tools to solve this")
             
-            mock_to_thread.assert_called_once_with(tool_calling_agent_flow.agent.run, "Use tools to solve this")
+            mock_to_thread.assert_called_once_with(agent_flow.agent.run, "Use tools to solve this")
             assert result == "Tool calling result"
     
     @pytest.mark.asyncio
-    async def test_execute_failure(self, tool_calling_agent_flow):
-        """Test ToolCallingAgentFlow execution with error"""
+    async def test_execute_failure(self, agent_flow):
+        """Test AgentFlow execution with error using ToolCallingAgent"""
         with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
             mock_to_thread.side_effect = Exception("Tool error")
             
-            result = await tool_calling_agent_flow.execute("Use tools")
+            result = await agent_flow.execute("Use tools")
             
             assert result == "Error: Tool error"
     
     @pytest.mark.asyncio
-    async def test_execute_logs_error(self, tool_calling_agent_flow, caplog):
-        """Test that errors are logged"""
+    async def test_execute_logs_error(self, agent_flow, caplog):
+        """Test that errors are logged for ToolCallingAgent"""
         with patch('asyncio.to_thread', new_callable=AsyncMock) as mock_to_thread:
             mock_to_thread.side_effect = Exception("Tool error")
             
-            await tool_calling_agent_flow.execute("Use tools")
-            
-            assert "ToolCallingAgent execution failed: Tool error" in caplog.text
+            await agent_flow.execute("Use tools")
+
+            assert "execution failed: Tool error" in caplog.text
 
 
 class TestFlowIntegration:
@@ -256,8 +256,8 @@ class TestFlowIntegration:
             # Test that all flows can be instantiated and have execute method
             flows = [
                 ChatbotFlow(model=mock_model),
-                CodeAgentFlow(model=mock_model, tools=mock_tools),
-                ToolCallingAgentFlow(model=mock_model, tools=mock_tools)
+                AgentFlow(model=mock_model, tools=mock_tools, agent_type="code"),
+                AgentFlow(model=mock_model, tools=mock_tools, agent_type="tool_calling")
             ]
             
             for flow in flows:

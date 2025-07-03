@@ -9,12 +9,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 import logging
 from smolagents import (
-    CodeAgent, 
+    CodeAgent,
     ToolCallingAgent,
-    OpenAIServerModel, 
+    OpenAIServerModel,
     ChatMessage,
     Tool,
-    # ToolCollection,
 )
 
 # Configure logging
@@ -82,60 +81,38 @@ class ChatbotFlow(BaseFlow):
             
             return error_response
 
-class CodeAgentFlow(BaseFlow):
-    """Code agent flow with tools"""
-    
-    def __init__(self, model: OpenAIServerModel, tools: List[Tool]):
-        # Initialize CodeAgent for code generation and tool usage
-        self.agent = CodeAgent(
-            tools=tools,
-            model=model,
-        )
-    
-    async def execute(self, input_data: str) -> str:
-        """Execute the flow with input data using CodeAgent"""
-        try:
-            result = await asyncio.to_thread(self.agent.run, input_data)
-            return result
-        except Exception as e:
-            logger.error(f"Code agent execution failed: {e}")
-            model_config = dict(
-                model_id=self.agent.model.model_id,
-                base_url=self.agent.model.client_kwargs.get("base_url", "<not set>"),
-                api_key=self.agent.model.client_kwargs.get("api_key", "nul")[:3] + "..."
-            )
-            logger.error(f"Please check your model/API settings: {model_config}")
-            return f"Error: {str(e)}"
-
-# Flow for smolagents ToolCallingAgent
-class ToolCallingAgentFlow(BaseFlow):
-    """Flow for agents that call tools using smolagents.ToolCallingAgent"""
-    def __init__(self, model: OpenAIServerModel, tools: List[Tool]):
-        self.agent = ToolCallingAgent(
-            tools=tools,
-            model=model,
-        )
-
-    async def execute(self, input_data: str) -> Any:
-        """Execute the flow with input data using ToolCallingAgent"""
-        try:
-            result = await asyncio.to_thread(self.agent.run, input_data)
-            return result
-        except Exception as e:
-            logger.error(f"ToolCallingAgent execution failed: {e}")
-            model_config = dict(
-                model_id=self.agent.model.model_id,
-                base_url=self.agent.model.client_kwargs.get("base_url", "<not set>"),
-                api_key=self.agent.model.client_kwargs.get("api_key", "nul")[:3] + "..."
-            )
-            logger.error(f"Please check your model/API settings: {model_config}")
-            return f"Error: {str(e)}"
 
 
 # class PromptChainFlow(BaseFlow):
 #     """Prompt chain flow for complex multi-step operations"""
     
 #     def __init__(self, model: HfApiModel, prompt_chain: List[Dict[str, str]]):
+class AgentFlow(BaseFlow):
+    """General agent flow supporting multiple agent types."""
+
+    def __init__(self, model: OpenAIServerModel, tools: List[Tool], agent_type: str = "code"):
+        if agent_type == "tool_calling":
+            self.agent = ToolCallingAgent(tools=tools, model=model)
+            self.agent_type = agent_type
+        else:
+            self.agent = CodeAgent(tools=tools, model=model)
+            self.agent_type = "code"
+
+    async def execute(self, input_data: str) -> Any:
+        """Execute the flow with input data using the configured agent."""
+        try:
+            result = await asyncio.to_thread(self.agent.run, input_data)
+            return result
+        except Exception as e:
+            logger.error(f"{self.agent.__class__.__name__} execution failed: {e}")
+            model_config = dict(
+                model_id=self.agent.model.model_id,
+                base_url=self.agent.model.client_kwargs.get("base_url", "<not set>"),
+                api_key=self.agent.model.client_kwargs.get("api_key", "nul")[:3] + "...",
+            )
+            logger.error(f"Please check your model/API settings: {model_config}")
+            return f"Error: {str(e)}"
+
 #         self.model = model
 #         self.prompt_chain = prompt_chain
     

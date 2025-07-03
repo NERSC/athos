@@ -13,8 +13,7 @@ from athos.config.models import (
     MCPServerConfig,
     ExecutionFlowType,
     ChatbotFlowConfig,
-    CodeAgentFlowConfig,
-    ToolCallingAgentFlowConfig,
+    AgentFlowConfig,
     PromptChainFlowConfig,
     FlowConfig,
 )
