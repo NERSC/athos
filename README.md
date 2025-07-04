@@ -92,7 +92,9 @@ Custom tools designed for HPC operations:
 ### `src/athos/examples/`
 **Usage examples and demonstrations**
 
-- **`basic_usage.py`**: *Untested* example implementations showing how to use ATHOS agents and flows
+Example scripts demonstrating agent and tool integrations can be found in this
+directory. For instance `filesystem_agent.py` showcases the MCP filesystem
+tools.
 
 ### `src/athos/main.py`
 **CLI interface and entry point**

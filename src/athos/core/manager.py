@@ -24,14 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 class AthosManager:
-    """Main ATHOS agent flow manager.
-    
-    TODOs:
-    - remove execution functionality from this class
-    - make flow initialization more generic, no if/else
-    - consider lazy initialization of flows, tools, etc.
-    - make model types flexible and/or fully optional
-    """
+    """Main ATHOS agent flow manager."""
 
     def __init__(self, config: AthosConfig):
         self.config = config
