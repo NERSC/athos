@@ -170,20 +170,35 @@ class AthosManager:
         """List all available execution flows"""
         return list(self.config.execution_flows.keys())
 
-    def get_flow_info(self, flow_name: str) -> Dict[str, Any]:
-        """Get information about a specific flow"""
+
+    def describe_flow(self, flow_name: str) -> Dict[str, Any]:
+        """Return full configuration details for a flow."""
         if flow_name not in self.config.execution_flows:
             raise ValueError(f"Unknown execution flow: {flow_name}")
 
-        flow_config = self.config.execution_flows[flow_name]
-        return {
+        flow_cfg = self.config.execution_flows[flow_name]
+
+        details = {
             "name": flow_name,
-            "type": flow_config.type.value,
-            "model": flow_config.model,
-            "tools": getattr(flow_config, "tools", []),
-            "mcp_servers": getattr(flow_config, "mcp_servers", []),
-            "has_prompt_chain": getattr(flow_config, "prompt_chain", None) is not None
+            "config": flow_cfg.model_dump(exclude_none=True),
+            "model_config": self.config.models[flow_cfg.model].model_dump(exclude_none=True),
         }
+
+        tools = getattr(flow_cfg, "tools", [])
+        if tools:
+            details["tool_configs"] = {
+                name: self.config.tools[name].model_dump(exclude_none=True)
+                for name in tools
+            }
+
+        mcp_servers = getattr(flow_cfg, "mcp_servers", [])
+        if mcp_servers:
+            details["mcp_server_configs"] = {
+                name: self.config.mcp_servers[name].model_dump(exclude_none=True)
+                for name in mcp_servers
+            }
+
+        return details
 
     def preload_flows(self) -> None:
         """Eagerly create all configured flows."""
