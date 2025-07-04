@@ -124,8 +124,8 @@ class TestAthosManager:
     # Note: MCP tool loading tests removed as MCP functionality
     # has been moved out of the tool building path
 
-    @patch('builtins.__import__')
-    def test_load_tool_success(self, mock_import, mock_config):
+    @patch('athos.core.manager.import_module')
+    def test_load_tool_success(self, mock_import_module, mock_config):
         """Test successful tool loading"""
         manager = AthosManager(mock_config)
 
@@ -134,7 +134,7 @@ class TestAthosManager:
         mock_tool_class = Mock(return_value=mock_tool_instance)
         mock_module = Mock()
         mock_module.TestTool = mock_tool_class
-        mock_import.return_value = mock_module
+        mock_import_module.return_value = mock_module
 
         tool_config = ToolConfig(
             module_path="test.module",
@@ -144,10 +144,27 @@ class TestAthosManager:
 
         result = manager._load_tool("test_tool", tool_config)
 
-        mock_import.assert_any_call("test.module", fromlist=["TestTool"])
+        mock_import_module.assert_called_once_with("test.module")
         mock_tool_class.assert_called_once_with(param1="value1")
         assert result == mock_tool_instance
         assert manager.loaded_tools["test_tool"] == mock_tool_instance
+
+    @patch('athos.core.manager.import_module')
+    def test_load_tool_from_registry(self, mock_import_module, mock_config):
+        """Tools registered via plugin registry should be used."""
+        plugin_instance = Mock(spec=Tool)
+
+        def factory(cfg):
+            assert isinstance(cfg, ToolConfig)
+            return plugin_instance
+
+        with patch.dict('athos.core.tool_registry.TOOL_REGISTRY', {'test_tool': factory}):
+            manager = AthosManager(mock_config)
+            tool_config = ToolConfig(module_path='unused.module', class_name='Unused')
+            result = manager._load_tool('test_tool', tool_config)
+
+        mock_import_module.assert_not_called()
+        assert result is plugin_instance
 
     def test_load_tool_cached(self, mock_config):
         """Test tool loading from cache"""
@@ -421,16 +438,16 @@ class TestAthosManagerIntegration:
         )
 
     @patch('athos.core.manager.OpenAIServerModel')
-    @patch('builtins.__import__')
+    @patch('athos.core.manager.import_module')
     @patch('athos.core.manager.MCPClient')
-    def test_full_initialization(self, mock_mcp_client, mock_import, mock_openai_model, full_config):
+    def test_full_initialization(self, mock_mcp_client, mock_import_module, mock_openai_model, full_config):
         """Test complete manager initialization with multiple components"""
         # Mock regular tool
         mock_calculator = Mock(spec=Tool)
         mock_calculator_class = Mock(return_value=mock_calculator)
         mock_module = Mock()
         mock_module.Calculator = mock_calculator_class
-        mock_import.return_value = mock_module
+        mock_import_module.return_value = mock_module
 
         # Mock MCP client for MCP servers
         mock_client_instance = Mock()
@@ -564,11 +581,11 @@ class TestAthosManagerEdgeCases:
 
         mock_tool = Mock(spec=Tool)
         
-        with patch('builtins.__import__') as mock_import:
+        with patch('athos.core.manager.import_module') as mock_import_module:
             mock_tool_class = Mock(return_value=mock_tool)
             mock_module = Mock()
             mock_module.TestTool = mock_tool_class
-            mock_import.return_value = mock_module
+            mock_import_module.return_value = mock_module
 
             # First load
             result1 = manager._load_tool("test_tool", tool_config)
@@ -577,7 +594,7 @@ class TestAthosManagerEdgeCases:
 
             assert result1 == mock_tool
             assert result2 == mock_tool
-            assert mock_import.call_count == 1  # Only called once due to caching
+            assert mock_import_module.call_count == 1  # Only called once due to caching
 
     @pytest.mark.asyncio
     async def test_concurrent_flow_execution(self):
