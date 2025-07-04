@@ -17,8 +17,7 @@ from athos.core.flows import BaseFlow
 from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
 import athos.core.builtin_flows  # noqa: F401 - register built-in flows
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+# Module logger
 logger = logging.getLogger(__name__)
 
 
@@ -193,7 +192,12 @@ class AthosManager:
         logger.info("AthosManager cleanup completed")
 
 # Example usage and factory function
+from athos.logging_utils import configure_logging
+
+
 def create_athos_manager(config_path: str) -> AthosManager:
     """Factory function to create ATHOS agent from configuration file"""
     config = ConfigLoader.load_config(config_path)
+    if config.logging_config is not None:
+        configure_logging(config.logging_config)
     return AthosManager(config)

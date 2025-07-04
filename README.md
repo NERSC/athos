@@ -31,6 +31,35 @@ From the top level folder, you can then run the CLI:
 python -m athos.main --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?"
 ```
 
+You can override the configured logging verbosity for a single run using
+`--log-level`:
+
+```bash
+python -m athos.main --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?" --log-level DEBUG
+```
+
+### Logging
+
+Logging behavior is controlled through the optional `logging_config` section in
+your YAML configuration. Simple dictionaries with `level` and `format` keys are
+passed through to `logging.basicConfig`. If you provide a `version` key, the
+dictionary is treated as a full `logging.config.dictConfig` specification.
+For convenience a lightweight schema is also supported:
+
+```yaml
+logging_config:
+  level: INFO
+  format: "%(asctime)s %(levelname)s %(message)s"
+  handlers:
+    - type: console
+    - type: file
+      filename: /tmp/athos.log
+```
+
+When `handlers` are present the helper converts the dictionary into a `dictConfig`
+and configures the root logger accordingly. If a file handler specifies a path
+whose parent directory doesn't exist, it will be created automatically.
+
 ## Package Structure
 
 The project is structured as a single Python package `athos` with the following modules:

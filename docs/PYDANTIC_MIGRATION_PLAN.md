@@ -762,6 +762,8 @@ execution_flows:
 # logging_config:
 #   level: "INFO"
 #   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+#   # If a ``version`` key is provided the dictionary is passed to
+#   # ``logging.config.dictConfig`` for advanced setup
 ```
 
 ### 6.2 Environment Variables Template
