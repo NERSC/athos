@@ -1,11 +1,5 @@
 # ATHOS - Agentic AI Toolkit for HPC Operations
 # Built on top of Hugging Face SmolAgents
-#
-# TODO:
-# - move configuration dataclasses to pydantic objects, automate env var handling
-# - only load specified config(s), maybe with lazy initialization?
-# - split configuration across multiple yaml files
-# - enable gradio UI integration for smolagents
 
 import asyncio
 import logging
