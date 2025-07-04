@@ -111,3 +111,16 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 - **Dynamic tool loading** allows tools to be loaded at runtime based on configuration
 - **Multiple execution flow types** are supported (chatbot, code agent, prompt chains)
 - The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
+
+### Tool Plugins
+
+Third-party packages can provide additional tools via the `athos_tools` entry point.
+Each plugin should expose a callable that registers tools using
+`athos.core.tool_registry.register_tool`. Example `pyproject.toml` snippet:
+
+```toml
+[project.entry-points.athos_tools]
+my_plugin = "my_package.tools:register"
+```
+
+Where `my_package.tools.register` invokes `register_tool` with a tool factory.

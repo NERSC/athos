@@ -1,5 +1,6 @@
 import logging
 from typing import Dict, List, Any
+from importlib import import_module
 
 from smolagents import OpenAIServerModel, Tool, MCPClient
 from mcp import StdioServerParameters
@@ -14,7 +15,8 @@ from athos.config import (
 )
 
 from athos.core.flows import BaseFlow
-from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
+from athos.core.flow_registry import FLOW_REGISTRY, load_plugins as load_flow_plugins
+from athos.core.tool_registry import TOOL_REGISTRY, load_plugins as load_tool_plugins
 import athos.core.builtin_flows  # noqa: F401 - register built-in flows
 
 # Module logger
@@ -38,11 +40,14 @@ class AthosManager:
         self.mcp_clients: Dict[str, MCPClient] = {}
         self.flows: Dict[str, BaseFlow] = {}
 
-        self._plugins_loaded = False
+        self._flow_plugins_loaded = False
+        self._tool_plugins_loaded = False
 
         # Preload built-in flow types and any installed plugins
-        load_plugins()
-        self._plugins_loaded = True
+        load_flow_plugins()
+        load_tool_plugins()
+        self._flow_plugins_loaded = True
+        self._tool_plugins_loaded = True
 
     def _create_mcp_client(self, name: str, mcp_config: MCPServerConfig) -> MCPClient:
         """Create and cache MCP client based on configuration"""
@@ -70,17 +75,20 @@ class AthosManager:
     
 
     def _load_tool(self, name: str, tool_config: ToolConfig) -> Tool:
-        """Load a regular tool from configuration"""
+        """Load a regular tool from configuration or plugin registry."""
         if name in self.loaded_tools:
             return self.loaded_tools[name]
 
         try:
-            # Load regular tool
-            module = __import__(tool_config.module_path, fromlist=[tool_config.class_name])
-            tool_class = getattr(module, tool_config.class_name)
+            # Check plugin registry first
+            factory = TOOL_REGISTRY.get(name)
+            if factory:
+                tool_instance = factory(tool_config)
+            else:
+                module = import_module(tool_config.module_path)
+                tool_class = getattr(module, tool_config.class_name)
+                tool_instance = tool_class(**tool_config.parameters)
 
-            # Instantiate tool with parameters
-            tool_instance = tool_class(**tool_config.parameters)
             self.loaded_tools[name] = tool_instance
 
             logger.info(f"Loaded regular tool: {name}")
@@ -114,10 +122,13 @@ class AthosManager:
             self._get_or_create_model(name)
 
     def _ensure_plugins_loaded(self) -> None:
-        """Load flow plugins once."""
-        if not self._plugins_loaded:
-            load_plugins()
-            self._plugins_loaded = True
+        """Load flow and tool plugins once."""
+        if not self._flow_plugins_loaded:
+            load_flow_plugins()
+            self._flow_plugins_loaded = True
+        if not self._tool_plugins_loaded:
+            load_tool_plugins()
+            self._tool_plugins_loaded = True
 
     def _get_or_create_flow(self, name: str) -> BaseFlow:
         """Retrieve existing flow or create it from configuration."""
