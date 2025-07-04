@@ -31,3 +31,4 @@ Current examples included in this repo:
 - `sbatch-qos-error`
 - `vasp-license-error`
 - `salloc-account-error`
+- `gpu-misconfiguration`
