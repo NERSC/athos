@@ -106,7 +106,7 @@ def main():
     args = parser.parse_args()
 
     manager = create_athos_manager(args.config)
-    pprint.pprint(manager.get_flow_info(args.flow))
+    pprint.pprint(manager.describe_flow(args.flow))
 
     flow_config = manager.config.execution_flows[args.flow]
     eval_model_name = args.eval_model or flow_config.model

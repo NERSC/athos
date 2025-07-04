@@ -285,29 +285,42 @@ class TestAthosManager:
         assert "test_flow" in flows
         assert len(flows) == 1
 
-    def test_get_flow_info_success(self, mock_config):
-        """Test getting flow information"""
+
+    def test_describe_flow_basic(self, mock_config):
+        """describe_flow should return detailed configuration"""
         manager = AthosManager(mock_config)
 
-        info = manager.get_flow_info("test_flow")
+        details = manager.describe_flow("test_flow")
 
-        expected_info = {
-            "name": "test_flow",
-            "type": "chatbot",
-            "model": "test_model",
-            "tools": [],
-            "mcp_servers": [],
-            "has_prompt_chain": False
-        }
+        assert details["name"] == "test_flow"
+        assert details["config"]["type"] == "chatbot"
+        assert details["model_config"]["model_id"] == "test-model"
 
-        assert info == expected_info
-
-    def test_get_flow_info_unknown(self, mock_config):
-        """Test getting info for unknown flow"""
+    def test_describe_flow_unknown(self, mock_config):
         manager = AthosManager(mock_config)
 
-        with pytest.raises(ValueError, match="Unknown execution flow: unknown_flow"):
-            manager.get_flow_info("unknown_flow")
+        with pytest.raises(ValueError):
+            manager.describe_flow("missing")
+
+    def test_describe_flow_agent(self, mock_model_config):
+        flow_cfg = AgentFlowConfig(
+            type=ExecutionFlowType.AGENT,
+            model="test_model",
+            tools=["tool_a"],
+            mcp_servers=["mcp_a"],
+        )
+        config = AthosConfig(
+            models={"test_model": mock_model_config},
+            tools={"tool_a": ToolConfig(module_path="x.y", class_name="Z")},
+            mcp_servers={"mcp_a": MCPServerConfig(mcp_type=MCPType.MCP_STDIO, command="cmd")},
+            execution_flows={"agent": flow_cfg},
+        )
+
+        manager = AthosManager(config)
+        details = manager.describe_flow("agent")
+
+        assert "tool_configs" in details
+        assert "mcp_server_configs" in details
 
     def test_close_cleanup(self, mock_config):
         """Test cleanup of resources"""
