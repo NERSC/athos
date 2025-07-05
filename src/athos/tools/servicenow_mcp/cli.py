@@ -11,8 +11,8 @@ import anyio
 from dotenv import load_dotenv
 from mcp.server.stdio import stdio_server
 
-from servicenow_mcp.server import ServiceNowMCP
-from servicenow_mcp.utils.config import (
+from .server import ServiceNowMCP
+from .utils.config import (
     ApiKeyConfig,
     AuthConfig,
     AuthType,
@@ -279,3 +279,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

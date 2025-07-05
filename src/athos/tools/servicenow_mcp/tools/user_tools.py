@@ -10,8 +10,8 @@ from typing import Optional
 import requests
 from pydantic import BaseModel, Field
 
-from servicenow_mcp.auth.auth_manager import AuthManager
-from servicenow_mcp.utils.config import ServerConfig
+from ..auth.auth_manager import AuthManager
+from ..utils.config import ServerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -202,3 +202,4 @@ def list_users(
     except requests.exceptions.RequestException as e:
         logger.error(f"Error listing users: {str(e)}")
         return {"success": False, "message": f"Error listing users: {str(e)}", "users": []}
+

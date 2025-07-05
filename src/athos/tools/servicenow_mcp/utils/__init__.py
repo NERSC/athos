@@ -2,7 +2,7 @@
 Utilities module for the ServiceNow MCP server.
 """
 
-from servicenow_mcp.utils.config import (
+from .config import (
     ApiKeyConfig,
     AuthConfig,
     AuthType,

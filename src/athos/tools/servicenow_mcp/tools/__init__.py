@@ -3,7 +3,7 @@ Tools module for the ServiceNow MCP server.
 """
 
 # Import tools as they are implemented
-from servicenow_mcp.tools.incident_tools import (
+from .incident_tools import (
     add_comment,
     create_incident,
     list_incidents,
@@ -11,11 +11,11 @@ from servicenow_mcp.tools.incident_tools import (
     update_incident,
     view_incident_logs,
 )
-from servicenow_mcp.tools.knowledge_base import (
+from .knowledge_base import (
     get_article,
     list_articles,
 )
-from servicenow_mcp.tools.user_tools import (
+from .user_tools import (
     get_user,
     list_users,
 )
