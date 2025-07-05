@@ -17,8 +17,8 @@ from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.routing import Mount, Route
 
-from servicenow_mcp.server import ServiceNowMCP
-from servicenow_mcp.utils.config import AuthConfig, AuthType, BasicAuthConfig, ServerConfig
+from .server import ServiceNowMCP
+from .utils.config import AuthConfig, AuthType, BasicAuthConfig, ServerConfig
 
 
 def create_starlette_app(mcp_server: Server, *, debug: bool = False) -> Starlette:
@@ -95,7 +95,7 @@ def create_servicenow_mcp(instance_url: str, username: str, password: str):
 
     Example:
         ```python
-        from servicenow_mcp.server import create_servicenow_mcp
+        from .server import create_servicenow_mcp
 
         # Create an MCP server for ServiceNow
         mcp = create_servicenow_mcp(

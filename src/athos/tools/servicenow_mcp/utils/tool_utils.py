@@ -2,7 +2,7 @@ from typing import Any, Callable, Dict, Tuple, Type
 
 # Import all necessary tool implementation functions and params models
 # (This list needs to be kept complete and up-to-date)
-from servicenow_mcp.tools.incident_tools import (
+from ..tools.incident_tools import (
     AddCommentParams,
     CreateIncidentParams,
     ListIncidentsParams,
@@ -10,42 +10,42 @@ from servicenow_mcp.tools.incident_tools import (
     UpdateIncidentParams,
     ViewIncidentLogsParams,
 )
-from servicenow_mcp.tools.incident_tools import (
+from ..tools.incident_tools import (
     add_comment as add_comment_tool,
 )
-from servicenow_mcp.tools.incident_tools import (
+from ..tools.incident_tools import (
     create_incident as create_incident_tool,
 )
-from servicenow_mcp.tools.incident_tools import (
+from ..tools.incident_tools import (
     list_incidents as list_incidents_tool,
 )
-from servicenow_mcp.tools.incident_tools import (
+from ..tools.incident_tools import (
     resolve_incident as resolve_incident_tool,
 )
-from servicenow_mcp.tools.incident_tools import (
+from ..tools.incident_tools import (
     update_incident as update_incident_tool,
 )
-from servicenow_mcp.tools.incident_tools import (
+from ..tools.incident_tools import (
     view_incident_logs as view_incident_logs_tool,
 )
-from servicenow_mcp.tools.knowledge_base import (
+from ..tools.knowledge_base import (
     GetArticleParams,
     ListArticlesParams,
 )
-from servicenow_mcp.tools.knowledge_base import (
+from ..tools.knowledge_base import (
     get_article as get_article_tool,
 )
-from servicenow_mcp.tools.knowledge_base import (
+from ..tools.knowledge_base import (
     list_articles as list_articles_tool,
 )
-from servicenow_mcp.tools.user_tools import (
+from ..tools.user_tools import (
     GetUserParams,
     ListUsersParams,
 )
-from servicenow_mcp.tools.user_tools import (
+from ..tools.user_tools import (
     get_user as get_user_tool,
 )
-from servicenow_mcp.tools.user_tools import (
+from ..tools.user_tools import (
     list_users as list_users_tool,
 )
 
