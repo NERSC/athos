@@ -82,7 +82,7 @@ mcp_servers:
   servicenow_mcp:
     mcp_type: "mcp_stdio"
     command: "python"
-    args: ["-m", "servicenow_mcp"]
+    args: ["-m", "servicenow_mcp.cli"]
     env:
       SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
       SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
