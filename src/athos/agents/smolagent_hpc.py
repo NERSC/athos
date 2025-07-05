@@ -25,7 +25,6 @@ except ImportError:
     logging.warning("smolagents not available. Install with: pip install smolagents")
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Load environment variables

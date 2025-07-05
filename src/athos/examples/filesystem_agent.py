@@ -199,7 +199,7 @@ async def main():
         print("\n📋 Available flows:")
         for flow in mgr.list_flows():
             print(f"  - {flow}")
-            flow_info = mgr.get_flow_info(flow)
+            flow_info = mgr.describe_flow(flow)
             if flow == args.flow:
                 print("    ⭐ (selected for demo)")
                 pprint.pprint(flow_info, indent=6)

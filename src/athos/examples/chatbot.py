@@ -19,7 +19,7 @@ async def main():
     # Print some info about available flows
     for flow in mgr.list_flows():
         print(f"Flow: {flow}")
-        pprint.pprint(mgr.get_flow_info(flow))
+        pprint.pprint(mgr.describe_flow(flow))
         print()
 
     # Run some example questions in conversation

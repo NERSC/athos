@@ -1,6 +1,4 @@
-# TODOs:
-# - consider splitting flows into different modules, e.g. in new flows folder
-# - create a Flow base class and consolidate the method names
+
 
 import asyncio
 from abc import ABC, abstractmethod
@@ -16,11 +14,6 @@ from smolagents import (
     Tool,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
 logger = logging.getLogger(__name__)
 
 

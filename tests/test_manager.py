@@ -61,16 +61,22 @@ class TestAthosManager:
         )
 
     @patch('athos.core.manager.OpenAIServerModel')
-    def test_initialize_models(self, mock_openai_model, mock_config):
-        """Test model initialization"""
+    def test_lazy_model_loading(self, mock_openai_model, mock_config):
+        """Models should be instantiated only when accessed"""
         manager = AthosManager(mock_config)
 
+        # No model loaded at initialization
+        mock_openai_model.assert_not_called()
+        assert manager.models == {}
+
+        # Fetching a model should create it
+        model = manager._get_or_create_model("test_model")
         mock_openai_model.assert_called_once_with(
             model_id="test-model",
             api_base="http://test-api",
             api_key="test-key"
         )
-        assert "test_model" in manager.models
+        assert manager.models["test_model"] is model
 
     @patch('athos.core.manager.MCPClient')
     @patch('athos.core.manager.StdioServerParameters')
@@ -118,8 +124,8 @@ class TestAthosManager:
     # Note: MCP tool loading tests removed as MCP functionality
     # has been moved out of the tool building path
 
-    @patch('builtins.__import__')
-    def test_load_tool_success(self, mock_import, mock_config):
+    @patch('athos.core.manager.import_module')
+    def test_load_tool_success(self, mock_import_module, mock_config):
         """Test successful tool loading"""
         manager = AthosManager(mock_config)
 
@@ -128,7 +134,7 @@ class TestAthosManager:
         mock_tool_class = Mock(return_value=mock_tool_instance)
         mock_module = Mock()
         mock_module.TestTool = mock_tool_class
-        mock_import.return_value = mock_module
+        mock_import_module.return_value = mock_module
 
         tool_config = ToolConfig(
             module_path="test.module",
@@ -138,10 +144,27 @@ class TestAthosManager:
 
         result = manager._load_tool("test_tool", tool_config)
 
-        mock_import.assert_any_call("test.module", fromlist=["TestTool"])
+        mock_import_module.assert_called_once_with("test.module")
         mock_tool_class.assert_called_once_with(param1="value1")
         assert result == mock_tool_instance
         assert manager.loaded_tools["test_tool"] == mock_tool_instance
+
+    @patch('athos.core.manager.import_module')
+    def test_load_tool_from_registry(self, mock_import_module, mock_config):
+        """Tools registered via plugin registry should be used."""
+        plugin_instance = Mock(spec=Tool)
+
+        def factory(cfg):
+            assert isinstance(cfg, ToolConfig)
+            return plugin_instance
+
+        with patch.dict('athos.core.tool_registry.TOOL_REGISTRY', {'test_tool': factory}):
+            manager = AthosManager(mock_config)
+            tool_config = ToolConfig(module_path='unused.module', class_name='Unused')
+            result = manager._load_tool('test_tool', tool_config)
+
+        mock_import_module.assert_not_called()
+        assert result is plugin_instance
 
     def test_load_tool_cached(self, mock_config):
         """Test tool loading from cache"""
@@ -262,29 +285,42 @@ class TestAthosManager:
         assert "test_flow" in flows
         assert len(flows) == 1
 
-    def test_get_flow_info_success(self, mock_config):
-        """Test getting flow information"""
+
+    def test_describe_flow_basic(self, mock_config):
+        """describe_flow should return detailed configuration"""
         manager = AthosManager(mock_config)
 
-        info = manager.get_flow_info("test_flow")
+        details = manager.describe_flow("test_flow")
 
-        expected_info = {
-            "name": "test_flow",
-            "type": "chatbot",
-            "model": "test_model",
-            "tools": [],
-            "mcp_servers": [],
-            "has_prompt_chain": False
-        }
+        assert details["name"] == "test_flow"
+        assert details["config"]["type"] == "chatbot"
+        assert details["model_config"]["model_id"] == "test-model"
 
-        assert info == expected_info
-
-    def test_get_flow_info_unknown(self, mock_config):
-        """Test getting info for unknown flow"""
+    def test_describe_flow_unknown(self, mock_config):
         manager = AthosManager(mock_config)
 
-        with pytest.raises(ValueError, match="Unknown execution flow: unknown_flow"):
-            manager.get_flow_info("unknown_flow")
+        with pytest.raises(ValueError):
+            manager.describe_flow("missing")
+
+    def test_describe_flow_agent(self, mock_model_config):
+        flow_cfg = AgentFlowConfig(
+            type=ExecutionFlowType.AGENT,
+            model="test_model",
+            tools=["tool_a"],
+            mcp_servers=["mcp_a"],
+        )
+        config = AthosConfig(
+            models={"test_model": mock_model_config},
+            tools={"tool_a": ToolConfig(module_path="x.y", class_name="Z")},
+            mcp_servers={"mcp_a": MCPServerConfig(mcp_type=MCPType.MCP_STDIO, command="cmd")},
+            execution_flows={"agent": flow_cfg},
+        )
+
+        manager = AthosManager(config)
+        details = manager.describe_flow("agent")
+
+        assert "tool_configs" in details
+        assert "mcp_server_configs" in details
 
     def test_close_cleanup(self, mock_config):
         """Test cleanup of resources"""
@@ -321,6 +357,7 @@ class TestCreateAthosManager:
     def test_create_athos_manager(self, mock_manager_class, mock_load_config):
         """Test factory function for creating ATHOS manager"""
         mock_config = Mock(spec=AthosConfig)
+        mock_config.logging_config = None
         mock_load_config.return_value = mock_config
         mock_manager_instance = Mock()
         mock_manager_class.return_value = mock_manager_instance
@@ -328,6 +365,42 @@ class TestCreateAthosManager:
         result = create_athos_manager("test_config.yaml")
 
         mock_load_config.assert_called_once_with("test_config.yaml")
+        mock_manager_class.assert_called_once_with(mock_config)
+        assert result == mock_manager_instance
+
+    @patch('athos.core.manager.configure_logging')
+    @patch('athos.core.manager.ConfigLoader.load_config')
+    @patch('athos.core.manager.AthosManager')
+    def test_create_athos_manager_applies_logging(self, mock_manager_class, mock_load_config, mock_configure):
+        """Logging configuration should be applied when provided."""
+        mock_config = Mock(spec=AthosConfig)
+        mock_config.logging_config = {"level": "DEBUG"}
+        mock_load_config.return_value = mock_config
+        mock_manager_instance = Mock()
+        mock_manager_class.return_value = mock_manager_instance
+
+        result = create_athos_manager("cfg.yaml")
+
+        mock_load_config.assert_called_once_with("cfg.yaml")
+        mock_configure.assert_called_once_with(mock_config.logging_config)
+        mock_manager_class.assert_called_once_with(mock_config)
+        assert result == mock_manager_instance
+
+    @patch('athos.core.manager.configure_logging')
+    @patch('athos.core.manager.ConfigLoader.load_config')
+    @patch('athos.core.manager.AthosManager')
+    def test_create_athos_manager_no_logging(self, mock_manager_class, mock_load_config, mock_configure):
+        """No logging configuration should skip configuration."""
+        mock_config = Mock(spec=AthosConfig)
+        mock_config.logging_config = None
+        mock_load_config.return_value = mock_config
+        mock_manager_instance = Mock()
+        mock_manager_class.return_value = mock_manager_instance
+
+        result = create_athos_manager("cfg.yaml")
+
+        mock_load_config.assert_called_once_with("cfg.yaml")
+        mock_configure.assert_not_called()
         mock_manager_class.assert_called_once_with(mock_config)
         assert result == mock_manager_instance
 
@@ -378,16 +451,16 @@ class TestAthosManagerIntegration:
         )
 
     @patch('athos.core.manager.OpenAIServerModel')
-    @patch('builtins.__import__')
+    @patch('athos.core.manager.import_module')
     @patch('athos.core.manager.MCPClient')
-    def test_full_initialization(self, mock_mcp_client, mock_import, mock_openai_model, full_config):
+    def test_full_initialization(self, mock_mcp_client, mock_import_module, mock_openai_model, full_config):
         """Test complete manager initialization with multiple components"""
         # Mock regular tool
         mock_calculator = Mock(spec=Tool)
         mock_calculator_class = Mock(return_value=mock_calculator)
         mock_module = Mock()
         mock_module.Calculator = mock_calculator_class
-        mock_import.return_value = mock_module
+        mock_import_module.return_value = mock_module
 
         # Mock MCP client for MCP servers
         mock_client_instance = Mock()
@@ -400,15 +473,18 @@ class TestAthosManagerIntegration:
 
             manager = AthosManager(full_config)
 
-            # Verify models initialized
-            assert len(manager.models) == 1
-            assert "gpt4" in manager.models
+            # Models should not be loaded yet
+            assert manager.models == {}
 
             # No flows should be created yet
             assert manager.flows == {}
 
             # Preload all flows
             manager.preload_flows()
+
+            # Model should be loaded during flow creation
+            assert len(manager.models) == 1
+            assert "gpt4" in manager.models
 
             # Verify tools loaded after preload
             assert len(manager.loaded_tools) >= 1  # calculator tool
@@ -518,11 +594,11 @@ class TestAthosManagerEdgeCases:
 
         mock_tool = Mock(spec=Tool)
         
-        with patch('builtins.__import__') as mock_import:
+        with patch('athos.core.manager.import_module') as mock_import_module:
             mock_tool_class = Mock(return_value=mock_tool)
             mock_module = Mock()
             mock_module.TestTool = mock_tool_class
-            mock_import.return_value = mock_module
+            mock_import_module.return_value = mock_module
 
             # First load
             result1 = manager._load_tool("test_tool", tool_config)
@@ -531,7 +607,7 @@ class TestAthosManagerEdgeCases:
 
             assert result1 == mock_tool
             assert result2 == mock_tool
-            assert mock_import.call_count == 1  # Only called once due to caching
+            assert mock_import_module.call_count == 1  # Only called once due to caching
 
     @pytest.mark.asyncio
     async def test_concurrent_flow_execution(self):

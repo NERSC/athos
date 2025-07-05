@@ -97,7 +97,12 @@ def evaluate_response(eval_model, solution: str, response: str):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config/config.yaml")
-    parser.add_argument("--flow", required=True)
+    parser.add_argument(
+        "--flow",
+        nargs="+",
+        required=True,
+        help="One or more flow names to evaluate",
+    )
     parser.add_argument("--cases-dir", default="evals/test_cases")
     parser.add_argument("--eval-model", default=None,
                         help="Model name for evaluation (from config models)")
@@ -106,49 +111,62 @@ def main():
     args = parser.parse_args()
 
     manager = create_athos_manager(args.config)
-    pprint.pprint(manager.get_flow_info(args.flow))
-
-    flow_config = manager.config.execution_flows[args.flow]
-    eval_model_name = args.eval_model or flow_config.model
-    if eval_model_name not in manager.models:
-        print(f"Error: evaluation model '{eval_model_name}' not found in configuration")
-        return
-    eval_model = manager.models[eval_model_name]
-
     cases = load_test_cases(Path(args.cases_dir))
-    results = []
-    for case in cases:
-        name = case["name"]
-        desc = case["description"]
-        sol = case["solution"]
-        files_dir = case["files_dir"]
-        input_data = build_input(desc, files_dir)
-        try:
-            response = asyncio.run(manager.execute_flow(args.flow, input_data))
-        except Exception as e:
-            response = f"Error executing flow: {e}"
-        score, feedback = evaluate_response(eval_model, sol, response)
-        results.append({
-            "test_case": name,
-            "response": response,
-            "score": score,
-            "feedback": feedback,
-        })
 
-    total = 0
-    count = 0
-    print("\nEvaluation Results:")
-    for r in results:
-        s = r["score"]
-        print(f"- {r['test_case']}: score={s}")
-        if isinstance(s, (int, float)):
-            total += s
-            count += 1
-    if count > 0:
-        avg = total / count
-        print(f"\nAverage score: {avg:.2f}\n")
+    all_results = {}
+
+    for flow_name in args.flow:
+        pprint.pprint(manager.describe_flow(flow_name))
+
+        flow_config = manager.config.execution_flows[flow_name]
+        eval_model_name = args.eval_model or flow_config.model
+        try:
+            # Lazily load the evaluation model if needed
+            eval_model = manager._get_or_create_model(eval_model_name)
+        except ValueError:
+            print(
+                f"Error: evaluation model '{eval_model_name}' not found in configuration"
+            )
+            continue
+
+        results = []
+        for case in cases:
+            name = case["name"]
+            desc = case["description"]
+            sol = case["solution"]
+            files_dir = case["files_dir"]
+            input_data = build_input(desc, files_dir)
+            try:
+                response = asyncio.run(manager.execute_flow(flow_name, input_data))
+            except Exception as e:
+                response = f"Error executing flow: {e}"
+            score, feedback = evaluate_response(eval_model, sol, response)
+            results.append(
+                {
+                    "test_case": name,
+                    "response": response,
+                    "score": score,
+                    "feedback": feedback,
+                }
+            )
+
+        total = 0
+        count = 0
+        print(f"\nEvaluation Results for {flow_name}:")
+        for r in results:
+            s = r["score"]
+            print(f"- {r['test_case']}: score={s}")
+            if isinstance(s, (int, float)):
+                total += s
+                count += 1
+        if count > 0:
+            avg = total / count
+            print(f"Average score for {flow_name}: {avg:.2f}\n")
+
+        all_results[flow_name] = results
+
     if args.output:
-        Path(args.output).write_text(json.dumps(results, indent=2))
+        Path(args.output).write_text(json.dumps(all_results, indent=2))
 
 if __name__ == "__main__":
     main()

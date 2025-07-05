@@ -1,0 +1,3 @@
+$ salloc -A desi
+salloc: error: Job request does not match any supported policy.
+salloc: error: Job submit/allocate failed: Unspecified error

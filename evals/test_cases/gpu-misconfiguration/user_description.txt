@@ -1,0 +1,4 @@
+I'm trying to run a PyTorch job on Perlmutter, but it fails with a CUDA error saying no CUDA-capable device is detected. I didn't specify any GPU options in my sbatch script.
+
+attachment: job.sh
+attachment: slurm-1234.out
