@@ -189,16 +189,16 @@ execution_flows:
     model: "gpt_4o"
     mcp_servers: ["filesystem_mcp"]
 
-  # # ServiceNow integration agent
-  # servicenow_agent:
-  #   type: "agent"
-  #   agent_type: "tool_calling"
-  #   model: "claude_sonnet"
-  #   tools: ["servicenow_mcp"]
-  #   system_prompt: |
-  #     You are a ServiceNow integration assistant. You can help create incidents,
-  #     manage service requests, and interact with ServiceNow instances.
-  #     Always provide clear summaries of actions taken.
+  # ServiceNow integration agent
+  servicenow_agent:
+    type: "agent"
+    agent_type: "tool_calling"
+    model: "claude_sonnet"
+    tools: ["servicenow_mcp"]
+    system_prompt: |
+      You are a ServiceNow integration assistant. You can help create incidents,
+      manage service requests, and interact with ServiceNow instances.
+      Always provide clear summaries of actions taken.
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
