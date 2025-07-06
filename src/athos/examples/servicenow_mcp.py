@@ -15,8 +15,9 @@ load_dotenv()
 # For STDIO, smolagents will launch the process automatically.
 print("Constructing params")
 mcp_params = StdioServerParameters(
-    command="uv",
-    args=["run", "python", "-m", "athos.tools.servicenow_mcp.cli"],
+    command="servicenow-mcp",
+    #command="python",
+    #args=["-m", "athos.tools.servicenow_mcp.cli"],
     env={
         "SERVICENOW_INSTANCE_URL": os.getenv("SERVICENOW_INSTANCE_URL"),
         "SERVICENOW_USERNAME": os.getenv("SERVICENOW_USERNAME"),
