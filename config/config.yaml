@@ -82,7 +82,7 @@ mcp_servers:
   servicenow_mcp:
     mcp_type: "mcp_stdio"
     command: "python"
-    args: ["-m", "servicenow_mcp"]
+    args: ["-m", "servicenow_mcp.cli"]
     env:
       SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
       SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
@@ -189,16 +189,12 @@ execution_flows:
     model: "gpt_4o"
     mcp_servers: ["filesystem_mcp"]
 
-  # # ServiceNow integration agent
-  # servicenow_agent:
-  #   type: "agent"
-  #   agent_type: "tool_calling"
-  #   model: "claude_sonnet"
-  #   tools: ["servicenow_mcp"]
-  #   system_prompt: |
-  #     You are a ServiceNow integration assistant. You can help create incidents,
-  #     manage service requests, and interact with ServiceNow instances.
-  #     Always provide clear summaries of actions taken.
+  # ServiceNow integration agent
+  servicenow_agent:
+    type: "agent"
+    agent_type: "tool_calling"
+    model: "claude_sonnet"
+    mcp_servers: ["servicenow_mcp"]
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:

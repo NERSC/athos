@@ -19,7 +19,7 @@ async def main():
     # Print some info about available flows
     for flow in mgr.list_flows():
         print(f"Flow: {flow}")
-        pprint.pprint(mgr.describe_flow(flow))
+        #pprint.pprint(mgr.describe_flow(flow))
         print()
 
     flow = "web_agent"
