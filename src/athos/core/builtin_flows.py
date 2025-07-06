@@ -41,7 +41,14 @@ def create_agent_flow(cfg: AgentFlowConfig, manager: "AthosManager"):
     tools = _load_tools(manager, cfg.tools)
     _load_mcp_tools(manager, cfg.mcp_servers, tools)
     model = manager._get_or_create_model(cfg.model)
-    return AgentFlow(model, tools, cfg.agent_type.value)
+    return AgentFlow(
+        model,
+        tools,
+        cfg.agent_type.value,
+        max_steps=cfg.max_steps,
+        verbosity_level=cfg.verbosity_level,
+        additional_authorized_imports=cfg.additional_authorized_imports,
+    )
 
 
 def create_prompt_chain_flow(cfg: PromptChainFlowConfig, manager: "AthosManager"):

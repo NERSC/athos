@@ -883,7 +883,7 @@ class TestIntegrationScenarios:
                     agent_type="code",
                     tools=["calculator"],
                     mcp_servers=["filesystem"],
-                    max_iterations=20,
+                    max_steps=20,
                 ),
                 "research_agent": AgentFlowConfig(
                     type=ExecutionFlowType.AGENT,
@@ -891,7 +891,7 @@ class TestIntegrationScenarios:
                     agent_type="tool_calling",
                     tools=["calculator", "web_search"],
                     mcp_servers=["filesystem", "database"],
-                    max_iterations=15,
+                    max_steps=15,
                 ),
             },
             hpc_cluster_config={

@@ -83,12 +83,18 @@ class ChatbotFlow(BaseFlow):
 class AgentFlow(BaseFlow):
     """General agent flow supporting multiple agent types."""
 
-    def __init__(self, model: OpenAIServerModel, tools: List[Tool], agent_type: str = "code"):
+    def __init__(
+        self,
+        model: OpenAIServerModel,
+        tools: List[Tool],
+        agent_type: str = "code",
+        **agent_kwargs,
+    ):
         if agent_type == "tool_calling":
-            self.agent = ToolCallingAgent(tools=tools, model=model)
+            self.agent = ToolCallingAgent(tools=tools, model=model, **agent_kwargs)
             self.agent_type = agent_type
         else:
-            self.agent = CodeAgent(tools=tools, model=model)
+            self.agent = CodeAgent(tools=tools, model=model, **agent_kwargs)
             self.agent_type = "code"
 
     async def execute(self, input_data: str) -> Any:
