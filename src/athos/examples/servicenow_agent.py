@@ -267,7 +267,7 @@ async def main() -> None:
         print(f"  - {flow}")
         if flow == args.flow:
             print("    ⭐ (selected for demo)")
-            pprint.pprint(mgr.describe_flow(flow), indent=6)
+            #pprint.pprint(mgr.describe_flow(flow), indent=6)
 
     print(f"\n🎯 Using flow: {args.flow}")
 
