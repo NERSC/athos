@@ -116,7 +116,7 @@ class ServiceNowMCP:
         """Load tool package definitions from the YAML configuration file."""
         config_path = TOOL_PACKAGE_CONFIG_PATH
         if not os.path.isabs(config_path):
-            config_path = os.path.join(os.path.dirname(__file__), "..", "..", config_path)
+            config_path = os.path.join(os.path.dirname(__file__), config_path)
             config_path = os.path.abspath(config_path)
 
         try:
