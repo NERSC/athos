@@ -139,7 +139,9 @@ class AgentFlowConfig(BaseFlowConfig):
     agent_type: AgentType = Field(default=AgentType.CODE, description="Underlying agent implementation")
     mcp_servers: List[str] = Field(default_factory=list, description="List of MCP server names")
     tools: List[str] = Field(default_factory=list, description="List of tool names")
-    max_iterations: int = Field(default=10, gt=0, description="Maximum execution iterations")
+    max_steps: int = Field(default=10, gt=0, description="Maximum execution steps")
+    verbosity_level: Optional[int] = Field(default=None, description="Agent verbosity level")
+    additional_authorized_imports: List[str] = Field(default_factory=list, description="Additional modules the agent may import")
 
 
 class PromptChainFlowConfig(BaseFlowConfig):

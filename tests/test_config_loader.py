@@ -188,7 +188,7 @@ execution_flows:
     model: "gpt4"
     tools: ["calculator"]
     mcp_servers: ["file_server"]
-    max_iterations: 20
+    max_steps: 20
   research:
     type: "agent"
     agent_type: "tool_calling"
