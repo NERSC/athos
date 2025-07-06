@@ -194,6 +194,7 @@ execution_flows:
     agent_type: "code"
     model: "claude_sonnet"
     mcp_servers: ["servicenow_mcp"]
+    additional_authorized_imports: ["json"]
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
