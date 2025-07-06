@@ -75,11 +75,6 @@ class ChatbotFlow(BaseFlow):
             return error_response
 
 
-
-# class PromptChainFlow(BaseFlow):
-#     """Prompt chain flow for complex multi-step operations"""
-    
-#     def __init__(self, model: HfApiModel, prompt_chain: List[Dict[str, str]]):
 class AgentFlow(BaseFlow):
     """General agent flow supporting multiple agent types."""
 
@@ -112,6 +107,10 @@ class AgentFlow(BaseFlow):
             logger.error(f"Please check your model/API settings: {model_config}")
             return f"Error: {str(e)}"
 
+
+# class PromptChainFlow(BaseFlow):
+#     """Prompt chain flow for complex multi-step operations"""
+#     def __init__(self, model: HfApiModel, prompt_chain: List[Dict[str, str]]):
 #         self.model = model
 #         self.prompt_chain = prompt_chain
     
