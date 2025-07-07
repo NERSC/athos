@@ -10,7 +10,6 @@ from athos.config import (
     ToolConfig,
     MCPType,
     MCPServerConfig,
-    ExecutionFlowType,
     ConfigLoader
 )
 
@@ -46,7 +45,7 @@ class AthosManager:
         """Create and cache MCP client based on configuration"""
         if name in self.mcp_clients:
             return self.mcp_clients[name]
-        
+
         if mcp_config.mcp_type == MCPType.MCP_STDIO:
             params = StdioServerParameters(
                 command=mcp_config.command,
@@ -60,11 +59,11 @@ class AthosManager:
             )
         else:
             raise ValueError(f"Unsupported MCP type {mcp_config.mcp_type}")
-        
+
         mcp_client = MCPClient(params)
         self.mcp_clients[name] = mcp_client
         return mcp_client
-    
+
 
     def _load_tool(self, name: str, tool_config: ToolConfig) -> Tool:
         """Load a regular tool from configuration or plugin registry."""
@@ -133,7 +132,8 @@ class AthosManager:
             raise ValueError(f"Unknown execution flow: {name}")
 
         flow_config = self.config.execution_flows[name]
-        entry = FLOW_REGISTRY.get(flow_config.type.value)
+
+        entry = FLOW_REGISTRY.get(flow_config.type)
         if not entry:
             raise ValueError(f"Unknown execution flow type: {flow_config.type}")
 

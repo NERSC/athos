@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from athos.config import ConfigLoader
-from athos.config.models import AthosConfig, ExecutionFlowType
+from athos.config.models import AthosConfig
 
 
 class TestConfigLoaderBasics:
@@ -223,7 +223,7 @@ logging_config:
         
         assert "chat" in cfg.execution_flows
         assert cfg.execution_flows["chat"].model == "gpt4"
-        assert cfg.execution_flows["chat"].type == ExecutionFlowType.CHATBOT
+        assert cfg.execution_flows["chat"].type == "chatbot"
         
         assert "code_agent" in cfg.execution_flows
         assert "calculator" in cfg.execution_flows["code_agent"].tools
@@ -271,10 +271,10 @@ execution_flows:
 ''')
         cfg = ConfigLoader.load_config(str(cfg_file))
         
-        assert cfg.execution_flows["chatbot_flow"].type == ExecutionFlowType.CHATBOT
-        assert cfg.execution_flows["code_agent_flow"].type == ExecutionFlowType.AGENT
-        assert cfg.execution_flows["prompt_chain_flow"].type == ExecutionFlowType.PROMPT_CHAIN
-        assert cfg.execution_flows["tool_calling_flow"].type == ExecutionFlowType.AGENT
+        assert cfg.execution_flows["chatbot_flow"].type == "chatbot"
+        assert cfg.execution_flows["code_agent_flow"].type == "agent"
+        assert cfg.execution_flows["prompt_chain_flow"].type == "prompt_chain"
+        assert cfg.execution_flows["tool_calling_flow"].type == "agent"
 
 
 class TestEnvironmentVariableIntegration:

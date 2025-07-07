@@ -24,10 +24,23 @@ def load_plugins() -> None:
     except Exception:
         logger.warning("Failed to read entry points; skipping plugin load")
         return
+
     for ep in iterable:
         try:
             logger.info("Loading flow plugin %s", ep.name)
             plugin = ep.load()
+            # Call the plugin function to register the flow
             plugin()
+            logger.info("Successfully loaded flow plugin %s", ep.name)
         except Exception as exc:
             logger.warning("Failed to load flow plugin %s: %s", ep.name, exc)
+
+
+def get_available_flow_types() -> Dict[str, Type[BaseFlowConfig]]:
+    """Get all available flow types and their config classes."""
+    return {flow_type: config_cls for flow_type, (config_cls, _) in FLOW_REGISTRY.items()}
+
+
+def is_flow_type_registered(flow_type: str) -> bool:
+    """Check if a flow type is registered."""
+    return flow_type in FLOW_REGISTRY

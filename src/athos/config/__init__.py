@@ -11,11 +11,10 @@ from athos.config.models import (
     ModelConfig,
     MCPType,
     MCPServerConfig,
-    ExecutionFlowType,
     ChatbotFlowConfig,
     AgentFlowConfig,
     PromptChainFlowConfig,
-    FlowConfig,
+    BaseFlowConfig,
 )
 
 class ConfigLoader:
