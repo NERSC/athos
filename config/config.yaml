@@ -195,6 +195,7 @@ execution_flows:
     model: "claude_sonnet"
     mcp_servers: ["servicenow_mcp"]
     additional_authorized_imports: ["json"]
+    verbosity_level: 1  # 0: ERROR, 1: INFO, 2: DEBUG
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
