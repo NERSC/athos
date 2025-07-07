@@ -23,17 +23,38 @@ def test_multiple_flows_execution(tmp_path, monkeypatch):
     (case_dir / "user_description.txt").write_text("desc")
     (case_dir / "solution.md").write_text("sol")
 
-    manager = Mock()
-    manager.describe_flow.return_value = {}
-    manager.config.execution_flows = {
-        "f1": SimpleNamespace(model="m1"),
-        "f2": SimpleNamespace(model="m2"),
-    }
-    manager._get_or_create_model.return_value = lambda msgs: ChatMessage(
-        role="assistant", content="{\"score\": 1, \"feedback\": \"ok\"}"
+    created_flows = []
+
+    def _make_flow(*args, **kwargs):
+        f = AsyncMock()
+        f.execute.return_value = "resp"
+        f.close = Mock()
+        created_flows.append(f)
+        return f
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        execution_flows={
+            "f1": DummyFlowCfg("m1"),
+            "f2": DummyFlowCfg("m2"),
+        },
+        models={
+            "m1": SimpleNamespace(model_id="m1"),
+            "m2": SimpleNamespace(model_id="m2"),
+        },
     )
-    manager.execute_flow = AsyncMock(return_value="resp")
-    monkeypatch.setattr(revals, "create_athos_manager", Mock(return_value=manager))
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        "athos.factories.build_model",
+        lambda cfg: (lambda messages: SimpleNamespace(content="ok")),
+    )
+    monkeypatch.setattr(revals, "build_flow", Mock(side_effect=_make_flow))
 
     monkeypatch.setattr(
         sys,
@@ -52,7 +73,7 @@ def test_multiple_flows_execution(tmp_path, monkeypatch):
 
     revals.main()
 
-    assert manager.execute_flow.call_count == 2
-    called_flows = [c.args[0] for c in manager.execute_flow.call_args_list]
-    assert called_flows == ["f1", "f2"]
-
+    # First two created flows correspond to the user flows
+    for f in created_flows[:2]:
+        assert f.execute.call_count == 1
+        assert f.close.call_count == 1

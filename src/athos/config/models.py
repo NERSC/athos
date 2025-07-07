@@ -120,26 +120,6 @@ class BaseFlowConfig(BaseModel):
     model: str = Field(description="Reference to model configuration")
 
 
-class ChatbotFlowConfig(BaseFlowConfig):
-    """Configuration for ChatbotFlow"""
-
-    type: Literal["chatbot"]
-    system_prompt: Optional[str] = Field(default=None, description="System prompt override")
-    max_iterations: int = Field(default=10, gt=0, description="Maximum execution iterations")
-
-
-class AgentFlowConfig(BaseFlowConfig):
-    """Configuration for AgentFlow"""
-
-    type: Literal["agent"]
-    agent_type: AgentType = Field(default=AgentType.CODE, description="Underlying agent implementation")
-    mcp_servers: List[str] = Field(default_factory=list, description="List of MCP server names")
-    tools: List[str] = Field(default_factory=list, description="List of tool names")
-    max_steps: int = Field(default=10, gt=0, description="Maximum execution steps")
-    verbosity_level: Optional[int] = Field(default=1, description="Agent verbosity level")
-    additional_authorized_imports: List[str] = Field(default_factory=list, description="Additional modules the agent may import")
-
-
 class PromptChainFlowConfig(BaseFlowConfig):
     """Configuration for PromptChainFlow"""
 
@@ -168,7 +148,7 @@ class AthosConfig(BaseModel):
         from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
 
         # Ensure built-in flows are registered
-        import athos.core.builtin_flows  # noqa: F401 - register built-in flows
+        import athos.flows.builtins  # noqa: F401 - register built-in flows
 
         # Ensure plugins are loaded before validation
         load_plugins()
