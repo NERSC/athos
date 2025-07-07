@@ -142,7 +142,7 @@ class TestModelConfig:
         """Test api_key environment variable expansion."""
         monkeypatch.setenv('TEST_API_KEY', 'secret123')
         config = ModelConfig(model_id="test", api_key="${TEST_API_KEY}")
-        assert config.api_key == "secret123"
+        assert config.api_key.get_secret_value() == "secret123"
     
     def test_environment_variable_expansion_api_base(self, monkeypatch):
         """Test api_base environment variable expansion."""
@@ -159,7 +159,7 @@ class TestModelConfig:
         """Test behavior with missing environment variables."""
         monkeypatch.delenv('MISSING_VAR', raising=False)
         config = ModelConfig(model_id="test", api_key="${MISSING_VAR}")
-        assert config.api_key == "${MISSING_VAR}"  # Should remain unexpanded
+        assert config.api_key.get_secret_value() == "${MISSING_VAR}"  # Should remain unexpanded
     
     def test_complex_environment_variable_expansion(self, monkeypatch):
         """Test complex environment variable scenarios."""
@@ -922,6 +922,6 @@ class TestIntegrationScenarios:
         )
         
         # Verify environment variable expansion
-        assert config.models["gpt4"].api_key == "sk-test123"
+        assert config.models["gpt4"].api_key.get_secret_value() == "sk-test123"
         assert config.models["gpt4"].api_base == "https://api.openai.com/v1"
         assert config.models["local"].api_base == "http://localhost:8000"

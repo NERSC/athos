@@ -311,7 +311,7 @@ execution_flows:
 ''')
         
         cfg = ConfigLoader.load_config(str(cfg_file))
-        assert cfg.models["test_model"].api_key == "secret123"
+        assert cfg.models["test_model"].api_key.get_secret_value() == "secret123"
         assert cfg.models["test_model"].api_base == "https://api.test.com"
         # Note: command field doesn't have env var expansion in MCPServerConfig
         assert cfg.mcp_servers["test_server"].command == "${TEST_COMMAND}"
@@ -334,7 +334,7 @@ execution_flows:
 ''')
         
         cfg = ConfigLoader.load_config(str(cfg_file))
-        assert cfg.models["test_model"].api_key == "${MISSING_VAR}"  # Should remain unexpanded
+        assert cfg.models["test_model"].api_key.get_secret_value() == "${MISSING_VAR}"  # Should remain unexpanded
 
     def test_load_config_complex_environment_variables(self, tmp_path, monkeypatch):
         """Test complex environment variable scenarios."""

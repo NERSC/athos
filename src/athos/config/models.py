@@ -2,7 +2,7 @@ import os
 import re
 from enum import Enum
 from typing import Dict, List, Any, Optional, Union, Annotated, Type
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
+from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, SecretStr
 from typing_extensions import Literal
 
 # ExecutionFlowType enum removed - flow types are now dynamically registered
@@ -23,7 +23,7 @@ class ModelConfig(BaseModel):
     model_config = ConfigDict(extra='forbid')
 
     model_id: str
-    api_key: Optional[str] = Field(default=None, description="API key for model access")
+    api_key: Optional[SecretStr] = Field(default=None, description="API key for model access")
     api_base: Optional[str] = Field(default=None, description="Base URL for API")
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Model temperature")
     max_tokens: int = Field(default=1024, gt=0, description="Maximum tokens to generate")
