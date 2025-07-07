@@ -62,7 +62,6 @@ class AthosManager:
             raise ValueError(f"Unsupported MCP type {mcp_config.mcp_type}")
         
         mcp_client = MCPClient(params)
-        logger.info(f"Create MCP client: {params}")
         self.mcp_clients[name] = mcp_client
         return mcp_client
     
