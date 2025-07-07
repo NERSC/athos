@@ -3,11 +3,14 @@
 
 import asyncio
 import logging
+from dotenv import load_dotenv
 
 from athos.core.manager import create_athos_manager
 
 logger = logging.getLogger(__name__)
 
+# Load environment variables from .env file
+load_dotenv()
 
 # CLI interface (basic example)
 async def main():

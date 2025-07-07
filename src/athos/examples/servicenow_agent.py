@@ -27,9 +27,12 @@ import asyncio
 import argparse
 import os
 import pprint
+from dotenv import load_dotenv
 
 from athos.core.manager import create_athos_manager
 
+# Load environment variables from .env file
+load_dotenv()
 
 async def demonstrate_incident_summary(mgr, flow_name: str, incident: str) -> bool:
     """Summarize an existing incident."""
