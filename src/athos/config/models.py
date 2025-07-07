@@ -5,11 +5,7 @@ from typing import Dict, List, Any, Optional, Union, Annotated, Type
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict
 from typing_extensions import Literal
 
-class ExecutionFlowType(str, Enum):
-    """Supported execution flow types"""
-    CHATBOT = "chatbot"
-    AGENT = "agent"
-    PROMPT_CHAIN = "prompt_chain"
+# ExecutionFlowType enum removed - flow types are now dynamically registered
 
 
 class AgentType(str, Enum):
@@ -120,14 +116,14 @@ class BaseFlowConfig(BaseModel):
     """Base configuration for execution flows"""
     model_config = ConfigDict(extra='forbid')
 
-    type: ExecutionFlowType
+    type: str = Field(description="Flow type identifier")
     model: str = Field(description="Reference to model configuration")
 
 
 class ChatbotFlowConfig(BaseFlowConfig):
     """Configuration for ChatbotFlow"""
 
-    type: Literal[ExecutionFlowType.CHATBOT]
+    type: Literal["chatbot"]
     system_prompt: Optional[str] = Field(default=None, description="System prompt override")
     max_iterations: int = Field(default=10, gt=0, description="Maximum execution iterations")
 
@@ -135,7 +131,7 @@ class ChatbotFlowConfig(BaseFlowConfig):
 class AgentFlowConfig(BaseFlowConfig):
     """Configuration for AgentFlow"""
 
-    type: Literal[ExecutionFlowType.AGENT]
+    type: Literal["agent"]
     agent_type: AgentType = Field(default=AgentType.CODE, description="Underlying agent implementation")
     mcp_servers: List[str] = Field(default_factory=list, description="List of MCP server names")
     tools: List[str] = Field(default_factory=list, description="List of tool names")
@@ -147,18 +143,9 @@ class AgentFlowConfig(BaseFlowConfig):
 class PromptChainFlowConfig(BaseFlowConfig):
     """Configuration for PromptChainFlow"""
 
-    type: Literal[ExecutionFlowType.PROMPT_CHAIN]
+    type: Literal["prompt_chain"]
     prompt_chain: Optional[List[Dict[str, str]]] = Field(default=None, description="Prompt chain configuration")
 
-
-FlowConfig = Annotated[
-    Union[
-        ChatbotFlowConfig,
-        AgentFlowConfig,
-        PromptChainFlowConfig,
-    ],
-    Field(discriminator='type')
-]
 
 class AthosConfig(BaseModel):
     """Main ATHOS configuration"""
@@ -167,34 +154,85 @@ class AthosConfig(BaseModel):
     models: Dict[str, ModelConfig] = Field(default_factory=dict, description="Model configurations")
     tools: Dict[str, ToolConfig] = Field(default_factory=dict, description="Tool configurations")
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict, description="MCP server configurations")
-    execution_flows: Dict[str, FlowConfig] = Field(default_factory=dict, description="Execution flow configurations")
+    execution_flows: Dict[str, BaseFlowConfig] = Field(default_factory=dict, description="Execution flow configurations")
     hpc_cluster_config: Optional[Dict[str, Any]] = Field(default=None, description="HPC cluster configuration")
     logging_config: Optional[Dict[str, Any]] = Field(default=None, description="Logging configuration")
 
+    @model_validator(mode='before')
+    @classmethod
+    def validate_and_construct_flows(cls, data: Any) -> Any:
+        """Dynamically construct and validate flow configs based on registry"""
+        if not isinstance(data, dict):
+            return data
+
+        from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
+
+        # Ensure built-in flows are registered
+        import athos.core.builtin_flows  # noqa: F401 - register built-in flows
+
+        # Ensure plugins are loaded before validation
+        load_plugins()
+
+        execution_flows = data.get('execution_flows', {})
+        if not execution_flows:
+            return data
+
+        constructed_flows = {}
+
+        for flow_name, flow_data in execution_flows.items():
+            # Extract flow type from raw data
+            if isinstance(flow_data, dict):
+                flow_type = flow_data.get('type')
+                if not flow_type:
+                    raise ValueError(f"Flow '{flow_name}' missing 'type' field")
+            else:
+                raise ValueError(f"Flow '{flow_name}' must be a dictionary with 'type' field")
+
+            # Look up config class from registry
+            if flow_type not in FLOW_REGISTRY:
+                raise ValueError(f"Unknown flow type '{flow_type}' for flow '{flow_name}'. Available types: {list(FLOW_REGISTRY.keys())}")
+
+            config_cls, _ = FLOW_REGISTRY[flow_type]
+
+            # Dynamically construct the appropriate config
+            try:
+                flow_config = config_cls.model_validate(flow_data)
+                constructed_flows[flow_name] = flow_config
+            except Exception as e:
+                raise ValueError(f"Invalid config for flow '{flow_name}' of type '{flow_type}': {e}")
+
+        # Replace raw data with constructed configs
+        data['execution_flows'] = constructed_flows
+        return data
+
     @model_validator(mode='after')
     def validate_references(self):
-       """Validate that execution flows reference valid models, tools, and MCP servers"""
-       for flow_name, flow_config in self.execution_flows.items():
-           # Validate model reference
-           if flow_config.model not in self.models:
-               raise ValueError(
-                   f"Flow '{flow_name}' references unknown model '{flow_config.model}'"
-               )
+        """Validate that execution flows reference valid models, tools, and MCP servers"""
+        return self._validate_references()
 
-           # Validate MCP server references if present
-           mcp_servers = getattr(flow_config, "mcp_servers", [])
-           for mcp_name in mcp_servers:
-               if mcp_name not in self.mcp_servers:
-                   raise ValueError(
-                       f"Flow '{flow_name}' references unknown MCP server '{mcp_name}'"
-                   )
+    def _validate_references(self):
+        """Validate that execution flows reference valid models, tools, and MCP servers"""
+        for flow_name, flow_config in self.execution_flows.items():
+            # Validate model reference
+            if flow_config.model not in self.models:
+                raise ValueError(
+                    f"Flow '{flow_name}' references unknown model '{flow_config.model}'"
+                )
 
-           # Validate tool references if present
-           tools = getattr(flow_config, "tools", [])
-           for tool_name in tools:
-               if tool_name not in self.tools:
-                   raise ValueError(
-                       f"Flow '{flow_name}' references unknown tool '{tool_name}'"
-                   )
+            # Validate MCP server references if present
+            mcp_servers = getattr(flow_config, "mcp_servers", [])
+            for mcp_name in mcp_servers:
+                if mcp_name not in self.mcp_servers:
+                    raise ValueError(
+                        f"Flow '{flow_name}' references unknown MCP server '{mcp_name}'"
+                    )
 
-       return self
+            # Validate tool references if present
+            tools = getattr(flow_config, "tools", [])
+            for tool_name in tools:
+                if tool_name not in self.tools:
+                    raise ValueError(
+                        f"Flow '{flow_name}' references unknown tool '{tool_name}'"
+                    )
+
+        return self

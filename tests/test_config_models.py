@@ -10,7 +10,6 @@ import os
 import pytest
 from pydantic import ValidationError
 from athos.config.models import (
-    ExecutionFlowType,
     MCPType,
     ModelConfig,
     MCPServerConfig,
@@ -20,33 +19,6 @@ from athos.config.models import (
     PromptChainFlowConfig,
     AthosConfig,
 )
-
-
-class TestExecutionFlowType:
-    """Test ExecutionFlowType enum validation."""
-    
-    def test_valid_flow_types(self):
-        """Test all valid enum values."""
-        assert ExecutionFlowType.CHATBOT == "chatbot"
-        assert ExecutionFlowType.AGENT == "agent"
-        assert ExecutionFlowType.PROMPT_CHAIN == "prompt_chain"
-    
-    def test_string_enum_behavior(self):
-        """Test that enum values can be used as strings."""
-        # Test that enum values work in string contexts
-        flow_type = ExecutionFlowType.CHATBOT
-        assert flow_type.value == "chatbot"
-        assert flow_type == "chatbot"  # String comparison works
-    
-    def test_enum_in_model_validation(self):
-        """Test enum validation within ExecutionFlowConfig."""
-        # Valid enum usage
-        config = ChatbotFlowConfig(type=ExecutionFlowType.CHATBOT, model="test_model")
-        assert config.type == ExecutionFlowType.CHATBOT
-        
-        # Test string value also works
-        config = ChatbotFlowConfig(type="chatbot", model="test_model")
-        assert config.type == ExecutionFlowType.CHATBOT
 
 
 class TestMCPType:
@@ -431,8 +403,8 @@ class TestExecutionFlowConfig:
     def test_required_fields(self):
         """Test required field validation."""
         # Valid minimal configuration
-        config = ChatbotFlowConfig(type=ExecutionFlowType.CHATBOT, model="test_model")
-        assert config.type == ExecutionFlowType.CHATBOT
+        config = ChatbotFlowConfig(type="chatbot", model="test_model")
+        assert config.type == "chatbot"
         assert config.model == "test_model"
         
         # Missing type should fail
@@ -441,22 +413,22 @@ class TestExecutionFlowConfig:
         
         # Missing model should fail
         with pytest.raises(ValidationError):
-            ChatbotFlowConfig(type=ExecutionFlowType.CHATBOT)
+            ChatbotFlowConfig(type="chatbot")
     
     def test_default_values(self):
         """Test default field values."""
-        config = ChatbotFlowConfig(type=ExecutionFlowType.CHATBOT, model="test_model")
+        config = ChatbotFlowConfig(type="chatbot", model="test_model")
         assert config.system_prompt is None
         assert config.max_iterations == 10
     
     def test_valid_flow_types(self):
         """Test all valid flow types."""
-        for flow_type in ExecutionFlowType:
-            cfg_cls = {
-                ExecutionFlowType.CHATBOT: ChatbotFlowConfig,
-                ExecutionFlowType.AGENT: AgentFlowConfig,
-                ExecutionFlowType.PROMPT_CHAIN: PromptChainFlowConfig,
-            }[flow_type]
+        flow_types = [
+            ("chatbot", ChatbotFlowConfig),
+            ("agent", AgentFlowConfig),
+            ("prompt_chain", PromptChainFlowConfig),
+        ]
+        for flow_type, cfg_cls in flow_types:
             config = cfg_cls(type=flow_type, model="test_model")
             assert config.type == flow_type
     
@@ -466,7 +438,7 @@ class TestExecutionFlowConfig:
         valid_iterations = [1, 5, 10, 50, 100, 1000]
         for iterations in valid_iterations:
             config = ChatbotFlowConfig(
-                type=ExecutionFlowType.CHATBOT,
+                type="chatbot",
                 model="test_model",
                 max_iterations=iterations
             )
@@ -477,7 +449,7 @@ class TestExecutionFlowConfig:
         for iterations in invalid_iterations:
             with pytest.raises(ValidationError):
                 ChatbotFlowConfig(
-                    type=ExecutionFlowType.CHATBOT,
+                    type="chatbot",
                     model="test_model",
                     max_iterations=iterations
                 )
@@ -485,7 +457,7 @@ class TestExecutionFlowConfig:
     def test_optional_fields(self):
         """Test optional field handling."""
         config = AgentFlowConfig(
-            type=ExecutionFlowType.AGENT,
+            type="agent",
             model="test_model",
             agent_type="code",
             mcp_servers=["server1", "server2"],
@@ -496,8 +468,8 @@ class TestExecutionFlowConfig:
     
     def test_empty_lists_default(self):
         """Test that empty lists are properly initialized."""
-        config1 = AgentFlowConfig(type=ExecutionFlowType.AGENT, model="model1")
-        config2 = AgentFlowConfig(type=ExecutionFlowType.AGENT, model="model2")
+        config1 = AgentFlowConfig(type="agent", model="model1")
+        config2 = AgentFlowConfig(type="agent", model="model2")
         
         # Modify one instance
         config1.mcp_servers.append("server1")
@@ -520,7 +492,7 @@ class TestExecutionFlowConfig:
         ]
         for chain in prompt_chains:
             config = PromptChainFlowConfig(
-                type=ExecutionFlowType.PROMPT_CHAIN,
+                type="prompt_chain",
                 model="test_model",
                 prompt_chain=chain,
             )
@@ -531,7 +503,7 @@ class TestExecutionFlowConfig:
         """Test that extra fields are rejected."""
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             ChatbotFlowConfig(
-                type=ExecutionFlowType.CHATBOT,
+                type="chatbot",
                 model="test_model",
                 extra_field="not_allowed"
             )
@@ -567,10 +539,10 @@ class TestAthosConfig:
         config = AthosConfig(
             models={"gpt4": ModelConfig(model_id="gpt-4")},
             execution_flows={
-                "chat": ChatbotFlowConfig(
-                    type=ExecutionFlowType.CHATBOT,
-                    model="gpt4"
-                )
+                "chat": {
+                    "type": "chatbot",
+                    "model": "gpt4"
+                }
             }
         )
         assert "gpt4" in config.models
@@ -582,10 +554,10 @@ class TestAthosConfig:
             AthosConfig(
                 models={"gpt4": ModelConfig(model_id="gpt-4")},
                 execution_flows={
-                    "chat": ChatbotFlowConfig(
-                        type=ExecutionFlowType.CHATBOT,
-                        model="unknown_model"
-                    )
+                    "chat": {
+                        "type": "chatbot",
+                        "model": "unknown_model"
+                    }
                 }
             )
     
@@ -595,12 +567,12 @@ class TestAthosConfig:
             models={"gpt4": ModelConfig(model_id="gpt-4")},
             tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
             execution_flows={
-                "code": AgentFlowConfig(
-                    type=ExecutionFlowType.AGENT,
-                    model="gpt4",
-                    agent_type="code",
-                    tools=["calculator"]
-                )
+                "code": {
+                    "type": "agent",
+                    "model": "gpt4",
+                    "agent_type": "code",
+                    "tools": ["calculator"]
+                }
             }
         )
         assert "calculator" in config.tools
@@ -613,12 +585,12 @@ class TestAthosConfig:
                 models={"gpt4": ModelConfig(model_id="gpt-4")},
                 tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
                 execution_flows={
-                    "code": AgentFlowConfig(
-                        type=ExecutionFlowType.AGENT,
-                        model="gpt4",
-                        agent_type="code",
-                        tools=["unknown_tool"]
-                    )
+                    "code": {
+                        "type": "agent",
+                        "model": "gpt4",
+                        "agent_type": "code",
+                        "tools": ["unknown_tool"]
+                    }
                 }
             )
     
@@ -628,12 +600,12 @@ class TestAthosConfig:
             models={"gpt4": ModelConfig(model_id="gpt-4")},
             mcp_servers={"file_server": MCPServerConfig(mcp_type=MCPType.MCP_STDIO, command="file-server")},
             execution_flows={
-                "agent": AgentFlowConfig(
-                    type=ExecutionFlowType.AGENT,
-                    model="gpt4",
-                    agent_type="tool_calling",
-                    mcp_servers=["file_server"]
-                )
+                "agent": {
+                    "type": "agent",
+                    "model": "gpt4",
+                    "agent_type": "tool_calling",
+                    "mcp_servers": ["file_server"]
+                }
             }
         )
         assert "file_server" in config.mcp_servers
@@ -646,12 +618,12 @@ class TestAthosConfig:
                 models={"gpt4": ModelConfig(model_id="gpt-4")},
                 mcp_servers={"file_server": MCPServerConfig(mcp_type=MCPType.MCP_STDIO, command="file-server")},
                 execution_flows={
-                    "agent": AgentFlowConfig(
-                        type=ExecutionFlowType.AGENT,
-                        model="gpt4",
-                        agent_type="tool_calling",
-                        mcp_servers=["unknown_server"]
-                    )
+                    "agent": {
+                        "type": "agent",
+                        "model": "gpt4",
+                        "agent_type": "tool_calling",
+                        "mcp_servers": ["unknown_server"]
+                    }
                 }
             )
     
@@ -661,18 +633,18 @@ class TestAthosConfig:
             models={"gpt4": ModelConfig(model_id="gpt-4")},
             tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
             execution_flows={
-                "flow1": AgentFlowConfig(
-                    type=ExecutionFlowType.AGENT,
-                    model="gpt4",
-                    agent_type="code",
-                    tools=["calculator"],
-                ),
-                "flow2": AgentFlowConfig(
-                    type=ExecutionFlowType.AGENT,
-                    model="gpt4",
-                    agent_type="tool_calling",
-                    tools=["calculator"],
-                )
+                "flow1": {
+                    "type": "agent",
+                    "model": "gpt4",
+                    "agent_type": "code",
+                    "tools": ["calculator"]
+                },
+                "flow2": {
+                    "type": "agent",
+                    "model": "gpt4",
+                    "agent_type": "tool_calling",
+                    "tools": ["calculator"]
+                }
             }
         )
         assert len(config.execution_flows) == 2
@@ -697,17 +669,17 @@ class TestAthosConfig:
                 "db_server": MCPServerConfig(mcp_type=MCPType.MCP_SSE, url="https://db.example.com")
             },
             execution_flows={
-                "chat": ChatbotFlowConfig(
-                    type=ExecutionFlowType.CHATBOT,
-                    model="gpt4",
-                ),
-                "research": AgentFlowConfig(
-                    type=ExecutionFlowType.AGENT,
-                    model="claude",
-                    agent_type="tool_calling",
-                    tools=["calculator", "web_search"],
-                    mcp_servers=["file_server", "db_server"],
-                ),
+                "chat": {
+                    "type": "chatbot",
+                    "model": "gpt4"
+                },
+                "research": {
+                    "type": "agent",
+                    "model": "claude",
+                    "agent_type": "tool_calling",
+                    "tools": ["calculator", "web_search"],
+                    "mcp_servers": ["file_server", "db_server"]
+                }
             }
         )
         # Should validate successfully
@@ -723,13 +695,13 @@ class TestAthosConfig:
                 models={"gpt4": ModelConfig(model_id="gpt-4")},
                 tools={"calculator": ToolConfig(class_name="Calculator", module_path="tools.calc")},
                 execution_flows={
-                    "flow": AgentFlowConfig(
-                        type=ExecutionFlowType.AGENT,
-                        model="unknown_model",  # Invalid model
-                        agent_type="tool_calling",
-                        tools=["unknown_tool"],  # Invalid tool
-                        mcp_servers=["unknown_server"],  # Invalid MCP server
-                    )
+                    "flow": {
+                        "type": "agent",
+                        "model": "unknown_model",  # Invalid model
+                        "agent_type": "tool_calling",
+                        "tools": ["unknown_tool"],  # Invalid tool
+                        "mcp_servers": ["unknown_server"]  # Invalid MCP server
+                    }
                 }
             )
         # Should fail on first invalid reference (model)
@@ -779,7 +751,7 @@ class TestErrorHandling:
                 models={"invalid": ModelConfig(model_id="test", temperature=5.0)},  # Invalid temperature
                 execution_flows={
                     "flow": ChatbotFlowConfig(
-                        type=ExecutionFlowType.CHATBOT,
+                        type="chatbot",
                         model="invalid"
                     )
                 }
@@ -796,7 +768,7 @@ class TestErrorHandling:
         assert config.temperature == 2.0
         
         config = ChatbotFlowConfig(
-            type=ExecutionFlowType.CHATBOT,
+            type="chatbot",
             model="test",
             max_iterations=1,
         )
@@ -812,10 +784,10 @@ class TestErrorHandling:
         assert isinstance(config.max_tokens, int)
     
     def test_enum_case_sensitivity(self):
-        """Test enum case sensitivity."""
-        # Valid lowercase enum values should work
+        """Test flow type case sensitivity."""
+        # Valid lowercase flow type should work
         config = ChatbotFlowConfig(type="chatbot", model="test")
-        assert config.type == ExecutionFlowType.CHATBOT
+        assert config.type == "chatbot"
         
         # Invalid case should fail
         with pytest.raises(ValidationError):
@@ -872,27 +844,27 @@ class TestIntegrationScenarios:
                 )
             },
             execution_flows={
-                "chatbot": ChatbotFlowConfig(
-                    type=ExecutionFlowType.CHATBOT,
-                    model="gpt4",
-                    system_prompt="You are a friendly chatbot.",
-                ),
-                "code_assistant": AgentFlowConfig(
-                    type=ExecutionFlowType.AGENT,
-                    model="local_llm",
-                    agent_type="code",
-                    tools=["calculator"],
-                    mcp_servers=["filesystem"],
-                    max_steps=20,
-                ),
-                "research_agent": AgentFlowConfig(
-                    type=ExecutionFlowType.AGENT,
-                    model="gpt4",
-                    agent_type="tool_calling",
-                    tools=["calculator", "web_search"],
-                    mcp_servers=["filesystem", "database"],
-                    max_steps=15,
-                ),
+                "chatbot": {
+                    "type": "chatbot",
+                    "model": "gpt4",
+                    "system_prompt": "You are a friendly chatbot."
+                },
+                "code_assistant": {
+                    "type": "agent",
+                    "model": "local_llm",
+                    "agent_type": "code",
+                    "tools": ["calculator"],
+                    "mcp_servers": ["filesystem"],
+                    "max_steps": 20
+                },
+                "research_agent": {
+                    "type": "agent",
+                    "model": "gpt4",
+                    "agent_type": "tool_calling",
+                    "tools": ["calculator", "web_search"],
+                    "mcp_servers": ["filesystem", "database"],
+                    "max_steps": 15
+                }
             },
             hpc_cluster_config={
                 "cluster_name": "perlmutter",
@@ -942,10 +914,10 @@ class TestIntegrationScenarios:
                 "local": local_model
             },
             execution_flows={
-                "chat": ChatbotFlowConfig(
-                    type=ExecutionFlowType.CHATBOT,
-                    model="gpt4",
-                )
+                "chat": {
+                    "type": "chatbot",
+                    "model": "gpt4"
+                }
             }
         )
         
