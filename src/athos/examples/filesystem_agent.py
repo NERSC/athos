@@ -22,10 +22,10 @@ import os
 import pprint
 from pathlib import Path
 
-from athos.core.manager import create_athos_manager
+from athos.runtime import build_config, build_flow
 
 
-async def demonstrate_basic_filesystem_tasks(mgr, flow_name: str):
+async def demonstrate_basic_filesystem_tasks(flow):
     """Demonstrate basic filesystem operations"""
     print("\n🎯 Demonstrating Basic Filesystem Tasks...")
     print("=" * 60)
@@ -46,7 +46,7 @@ async def demonstrate_basic_filesystem_tasks(mgr, flow_name: str):
     print("\n🏃 Executing task...")
     
     try:
-        result1 = await mgr.execute_flow(flow_name, task1)
+        result1 = await flow.execute(task1)
         print("\n✅ Task 1 completed!")
         print("📄 Agent response:")
         print(result1)
@@ -59,7 +59,7 @@ async def demonstrate_basic_filesystem_tasks(mgr, flow_name: str):
     return True
 
 
-async def demonstrate_advanced_filesystem_tasks(mgr, flow_name: str):
+async def demonstrate_advanced_filesystem_tasks(flow):
     """Demonstrate advanced filesystem operations"""
     print("\n🎯 Demonstrating Advanced Filesystem Tasks...")
     print("=" * 60)
@@ -84,7 +84,7 @@ async def demonstrate_advanced_filesystem_tasks(mgr, flow_name: str):
     print("\n🏃 Executing advanced task...")
     
     try:
-        result2 = await mgr.execute_flow(flow_name, task2)
+        result2 = await flow.execute(task2)
         print("\n✅ Task 2 completed!")
         print("📄 Agent response:")
         print(result2)
@@ -97,7 +97,7 @@ async def demonstrate_advanced_filesystem_tasks(mgr, flow_name: str):
     return True
 
 
-async def demonstrate_file_exploration_task(mgr, flow_name: str):
+async def demonstrate_file_exploration_task(flow):
     """Demonstrate file exploration and analysis"""
     print("\n🎯 Demonstrating File Exploration Task...")
     print("=" * 60)
@@ -122,7 +122,7 @@ async def demonstrate_file_exploration_task(mgr, flow_name: str):
     print("\n🏃 Executing exploration task...")
     
     try:
-        result3 = await mgr.execute_flow(flow_name, task3)
+        result3 = await flow.execute(task3)
         print("\n✅ Task 3 completed!")
         print("📄 Agent response:")
         print(result3)
@@ -192,39 +192,36 @@ async def main():
     
     try:
         # Initialize ATHOS manager
-        print("🔧 Initializing ATHOS manager...")
-        mgr = create_athos_manager(args.config)
+        print("🔧 Initializing ATHOS...")
+        cfg = build_config(args.config)
         
         # Print available flows for reference
         print("\n📋 Available flows:")
-        for flow in mgr.list_flows():
-            print(f"  - {flow}")
-            #flow_info = mgr.describe_flow(flow)
-            if flow == args.flow:
-                print("    ⭐ (selected for demo)")
-                #pprint.pprint(flow_info, indent=6)
+        for flow_name in cfg.execution_flows:
+            s = f"  - {flow_name}"
+            if flow_name == args.flow:
+                s += "    ⭐ (selected for demo)"
+            print(s)
         
         print(f"\n🎯 Using flow: {args.flow}")
+        pprint.pprint(cfg.execution_flows[args.flow], indent=6)
         
-        # Verify the selected flow exists
-        if args.flow not in mgr.list_flows():
-            print(f"❌ Error: Flow '{args.flow}' not found in configuration")
-            print("Available flows:", mgr.list_flows())
-            return
-        
+        # Build the flow
+        flow = build_flow(args.flow, cfg)
+
         # Execute demonstration tasks
         success_count = 0
         
         # Task 1: Basic filesystem operations
-        if await demonstrate_basic_filesystem_tasks(mgr, args.flow):
+        if await demonstrate_basic_filesystem_tasks(flow):
             success_count += 1
         
         # Task 2: Advanced filesystem operations
-        if await demonstrate_advanced_filesystem_tasks(mgr, args.flow):
+        if await demonstrate_advanced_filesystem_tasks(flow):
             success_count += 1
         
         # Task 3: File exploration and analysis
-        if await demonstrate_file_exploration_task(mgr, args.flow):
+        if await demonstrate_file_exploration_task(flow):
             success_count += 1
         
         # Summary

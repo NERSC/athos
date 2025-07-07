@@ -6,7 +6,7 @@ import asyncio
 import argparse
 import pprint
     
-from athos.core.manager import create_athos_manager
+from athos.runtime import build_config, build_flow
 
 async def main():
     parser = argparse.ArgumentParser(description="ATHOS chatbot example")
@@ -14,18 +14,23 @@ async def main():
                         help="Path to configuration YAML file")
     args = parser.parse_args()
 
-    mgr = create_athos_manager(args.config)
+    # Load ATHOS configuration
+    cfg = build_config(args.config)
 
     # Print some info about available flows
-    for flow in mgr.list_flows():
-        print(f"Flow: {flow}")
-        #pprint.pprint(mgr.describe_flow(flow))
-        print()
+    print("Available flows:")
+    for name in cfg.execution_flows:
+        print(f"- {name}")
 
-    flow = "web_agent"
+    # Construct web_agent flow
+    flow_name = "web_agent"
+    print(f"Constructing flow {flow_name}")
+    pprint.pprint(cfg.execution_flows[flow_name])
+    flow = build_flow(flow_name, cfg)
 
+    # Run queries
     query = "What are some upcoming or ongoing training events at NERSC?"
-    result = await mgr.execute_flow(flow, query)
+    result = await flow.execute(query)
     print(f"Query: {query}")
     print(f"Result: {result}")
 

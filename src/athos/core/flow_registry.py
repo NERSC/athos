@@ -2,12 +2,14 @@ from typing import Callable, Dict, Tuple, Type
 from importlib.metadata import entry_points
 import logging
 
-from athos.core.flows import BaseFlow
+from athos.flows import BaseFlow
 from athos.config.models import BaseFlowConfig
 
 logger = logging.getLogger(__name__)
 
-FlowFactory = Callable[[BaseFlowConfig, "AthosManager"], BaseFlow]
+from athos.config.models import AthosConfig
+
+FlowFactory = Callable[[BaseFlowConfig, AthosConfig], BaseFlow]
 FLOW_REGISTRY: Dict[str, Tuple[Type[BaseFlowConfig], FlowFactory]] = {}
 
 

@@ -33,7 +33,6 @@ echo ""
 DEMO_DIR=${ATHOS_DEMO_DIR:-"./athos_filesystem_demo"}
 
 # Run the demo
-ls config/
 python -m athos.examples.filesystem_agent --config $PWD/config/config.yaml --demo-dir "$DEMO_DIR"
 
 echo ""

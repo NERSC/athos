@@ -7,8 +7,11 @@ import re
 from pathlib import Path
 import pprint
 
-from athos.core.manager import create_athos_manager
 from smolagents import ChatMessage
+
+from athos.runtime import build_config, build_flow
+from athos.factories import build_model
+
 
 def load_test_cases(cases_dir: Path):
     tests = []
@@ -22,13 +25,16 @@ def load_test_cases(cases_dir: Path):
             continue
         description = desc_file.read_text()
         solution = sol_file.read_text()
-        tests.append({
-            "name": case_dir.name,
-            "description": description,
-            "solution": solution,
-            "files_dir": files_dir if files_dir.exists() else None,
-        })
+        tests.append(
+            {
+                "name": case_dir.name,
+                "description": description,
+                "solution": solution,
+                "files_dir": files_dir if files_dir.exists() else None,
+            }
+        )
     return tests
+
 
 def build_input(description: str, files_dir: Path):
     input_data = description.strip()
@@ -43,6 +49,7 @@ def build_input(description: str, files_dir: Path):
         if blocks:
             input_data += "\n\nAttached files:\n" + "\n\n".join(blocks)
     return input_data
+
 
 def evaluate_response(eval_model, solution: str, response: str):
     prompt = (
@@ -85,7 +92,14 @@ def evaluate_response(eval_model, solution: str, response: str):
                 pass
         return None
 
-    result = _parse_json(text)
+    try:
+        result = _parse_json(text)
+    except Exception as e:
+        print("FAILURE in evaluation parsing")
+        print("Evaluator output:")
+        print(text)
+        raise e
+
     if result and isinstance(result, dict):
         score = result.get("score")
         feedback = result.get("feedback")
@@ -93,6 +107,7 @@ def evaluate_response(eval_model, solution: str, response: str):
         score = None
         feedback = text
     return score, feedback
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -104,30 +119,36 @@ def main():
         help="One or more flow names to evaluate",
     )
     parser.add_argument("--cases-dir", default="evals/test_cases")
-    parser.add_argument("--eval-model", default=None,
-                        help="Model name for evaluation (from config models)")
-    parser.add_argument("--output", default=None,
-                        help="Optional output file for results JSON")
+    parser.add_argument(
+        "--eval-model",
+        default=None,
+        help="Model name for evaluation (from config models)",
+    )
+    parser.add_argument(
+        "--output", default=None, help="Optional output file for results JSON"
+    )
     args = parser.parse_args()
 
-    manager = create_athos_manager(args.config)
+    cfg = build_config(args.config)
+    flows = {name: build_flow(name, cfg) for name in args.flow}
+    print("Loaded flows:")
+    print(flows)
     cases = load_test_cases(Path(args.cases_dir))
 
     all_results = {}
 
     for flow_name in args.flow:
-        pprint.pprint(manager.describe_flow(flow_name))
+        flow = flows[flow_name]
+        flow_config = cfg.execution_flows[flow_name]
 
-        flow_config = manager.config.execution_flows[flow_name]
+        # Print flow config for debugging
+        pprint.pprint(flow_config.model_dump())
+
+        # Evaluator model
         eval_model_name = args.eval_model or flow_config.model
-        try:
-            # Lazily load the evaluation model if needed
-            eval_model = manager._get_or_create_model(eval_model_name)
-        except ValueError:
-            print(
-                f"Error: evaluation model '{eval_model_name}' not found in configuration"
-            )
-            continue
+        if args.eval_model and args.eval_model not in cfg.models:
+            raise ValueError(f"Evaluation model '{args.eval_model}' not found in config models")
+        eval_model_instance = build_model(cfg.models[eval_model_name])
 
         results = []
         for case in cases:
@@ -137,10 +158,10 @@ def main():
             files_dir = case["files_dir"]
             input_data = build_input(desc, files_dir)
             try:
-                response = asyncio.run(manager.execute_flow(flow_name, input_data))
+                response = asyncio.run(flow.execute(input_data))
             except Exception as e:
                 response = f"Error executing flow: {e}"
-            score, feedback = evaluate_response(eval_model, sol, response)
+            score, feedback = evaluate_response(eval_model_instance, sol, response)
             results.append(
                 {
                     "test_case": name,
@@ -165,8 +186,15 @@ def main():
 
         all_results[flow_name] = results
 
+    for f in flows.values():
+        try:
+            f.close()
+        except Exception as e:  # pragma: no cover - cleanup errors ignored
+            print(f"Warning: failed to close flow: {e}")
+
     if args.output:
         Path(args.output).write_text(json.dumps(all_results, indent=2))
+
 
 if __name__ == "__main__":
     main()
