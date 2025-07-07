@@ -101,7 +101,7 @@ class AthosManager:
         model = OpenAIServerModel(
             model_id=model_config.model_id,
             api_base=model_config.api_base,
-            api_key=model_config.api_key,
+            api_key=model_config.api_key.get_secret_value() if model_config.api_key else None,
         )
         self.models[name] = model
         logger.info(f"Initialized model: {name}")

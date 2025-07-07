@@ -86,7 +86,7 @@ class AgentFlow(BaseFlow):
         **agent_kwargs,
     ):
         if agent_type == "tool_calling":
-            agent_kwargs.pop("additional_authorized_imports")
+            agent_kwargs.pop("additional_authorized_imports", None)
             self.agent = ToolCallingAgent(tools=tools, model=model, **agent_kwargs)
             self.agent_type = agent_type
         else:
