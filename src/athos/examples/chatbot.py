@@ -24,6 +24,9 @@ async def main():
     for name in cfg.execution_flows:
         print(f"- {name}")
 
+    # Print info about hpc_chatbot flow
+    pprint.pprint(cfg.execution_flows["hpc_chatbot"])
+
     # Run some example questions in conversation
     query = "What is NERSC?"
     result = await chat_flow.execute(query)

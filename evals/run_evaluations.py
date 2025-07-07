@@ -7,8 +7,10 @@ import re
 from pathlib import Path
 import pprint
 
-from athos.runtime import build_config, build_flow
 from smolagents import ChatMessage
+
+from athos.runtime import build_config, build_flow
+from athos.factories import build_model
 
 
 def load_test_cases(cases_dir: Path):
@@ -122,24 +124,23 @@ def main():
 
     cfg = build_config(args.config)
     flows = {name: build_flow(name, cfg) for name in args.flow}
+    print("Loaded flows:")
+    print(flows)
     cases = load_test_cases(Path(args.cases_dir))
 
     all_results = {}
 
     for flow_name in args.flow:
-        # Print flow config for debugging
-        pprint.pprint(cfg.execution_flows[flow_name].model_dump())
-
+        flow = flows[flow_name]
         flow_config = cfg.execution_flows[flow_name]
-        eval_model_name = args.eval_model or flow_config.model
-        eval_model = (
-            build_flow(eval_model_name, cfg)
-            if eval_model_name != flow_name
-            else flows[flow_name]
-        )
-        # Build model separately using helper if needed
-        from athos.factories import build_model
 
+        # Print flow config for debugging
+        pprint.pprint(flow_config.model_dump())
+
+        # Evaluator model
+        eval_model_name = args.eval_model or flow_config.model
+        if args.eval_model and args.eval_model not in cfg.models:
+            raise ValueError(f"Evaluation model '{args.eval_model}' not found in config models")
         eval_model_instance = build_model(cfg.models[eval_model_name])
 
         results = []
@@ -150,7 +151,7 @@ def main():
             files_dir = case["files_dir"]
             input_data = build_input(desc, files_dir)
             try:
-                response = asyncio.run(flows[flow_name].execute(input_data))
+                response = asyncio.run(flow.execute(input_data))
             except Exception as e:
                 response = f"Error executing flow: {e}"
             score, feedback = evaluate_response(eval_model_instance, sol, response)

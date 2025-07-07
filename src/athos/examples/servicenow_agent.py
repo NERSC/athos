@@ -29,12 +29,13 @@ import os
 import pprint
 from dotenv import load_dotenv
 
-from athos.core.manager import create_athos_manager
+from athos.runtime import build_config, build_flow
 
 # Load environment variables from .env file
 load_dotenv()
 
-async def demonstrate_incident_summary(mgr, flow_name: str, incident: str) -> bool:
+
+async def demonstrate_incident_summary(flow, incident: str) -> bool:
     """Summarize an existing incident."""
     print("\n🎯 Demonstrating Incident Summary...")
     print("=" * 60)
@@ -49,7 +50,7 @@ async def demonstrate_incident_summary(mgr, flow_name: str, incident: str) -> bo
     print("\n🏃 Executing task...")
 
     try:
-        result = await mgr.execute_flow(flow_name, task)
+        result = await flow.execute(task)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
         print(result)
@@ -61,7 +62,7 @@ async def demonstrate_incident_summary(mgr, flow_name: str, incident: str) -> bo
     return True
 
 
-async def demonstrate_triage_incident(mgr, flow_name: str, incident: str) -> bool:
+async def demonstrate_triage_incident(flow, incident: str) -> bool:
     """Assign the incident to DAS group and Steven Farrell."""
     print("\n🎯 Demonstrating Incident Triage...")
     print("=" * 60)
@@ -77,7 +78,7 @@ async def demonstrate_triage_incident(mgr, flow_name: str, incident: str) -> boo
     print("\n🏃 Executing task...")
 
     try:
-        result = await mgr.execute_flow(flow_name, task)
+        result = await flow.execute(task)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
         print(result)
@@ -89,7 +90,7 @@ async def demonstrate_triage_incident(mgr, flow_name: str, incident: str) -> boo
     return True
 
 
-async def demonstrate_add_work_note(mgr, flow_name: str, incident: str) -> bool:
+async def demonstrate_add_work_note(flow, incident: str) -> bool:
     """Add a work note to the incident."""
     print("\n🎯 Demonstrating Adding Work Note...")
     print("=" * 60)
@@ -104,7 +105,7 @@ async def demonstrate_add_work_note(mgr, flow_name: str, incident: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await mgr.execute_flow(flow_name, task)
+        result = await flow.execute(task)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
         print(result)
@@ -116,7 +117,7 @@ async def demonstrate_add_work_note(mgr, flow_name: str, incident: str) -> bool:
     return True
 
 
-async def demonstrate_resolve_incident(mgr, flow_name: str, incident: str) -> bool:
+async def demonstrate_resolve_incident(flow, incident: str) -> bool:
     """Resolve the incident with close notes."""
     print("\n🎯 Demonstrating Incident Resolution...")
     print("=" * 60)
@@ -131,7 +132,7 @@ async def demonstrate_resolve_incident(mgr, flow_name: str, incident: str) -> bo
     print("\n🏃 Executing task...")
 
     try:
-        result = await mgr.execute_flow(flow_name, task)
+        result = await flow.execute(task)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
         print(result)
@@ -143,7 +144,7 @@ async def demonstrate_resolve_incident(mgr, flow_name: str, incident: str) -> bo
     return True
 
 
-async def demonstrate_incident_creation(mgr, flow_name: str) -> bool:
+async def demonstrate_incident_creation(flow) -> bool:
     """Create a test incident in ServiceNow."""
     print("\n🎯 Demonstrating Incident Creation...")
     print("=" * 60)
@@ -159,7 +160,7 @@ async def demonstrate_incident_creation(mgr, flow_name: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await mgr.execute_flow(flow_name, task)
+        result = await flow.execute(task)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
         print(result)
@@ -171,7 +172,7 @@ async def demonstrate_incident_creation(mgr, flow_name: str) -> bool:
     return True
 
 
-async def demonstrate_incident_listing(mgr, flow_name: str) -> bool:
+async def demonstrate_incident_listing(flow) -> bool:
     """List recent incidents."""
     print("\n🎯 Demonstrating Incident Listing...")
     print("=" * 60)
@@ -186,7 +187,7 @@ async def demonstrate_incident_listing(mgr, flow_name: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await mgr.execute_flow(flow_name, task)
+        result = await flow.execute(task)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
         print(result)
@@ -198,7 +199,7 @@ async def demonstrate_incident_listing(mgr, flow_name: str) -> bool:
     return True
 
 
-async def demonstrate_knowledge_search(mgr, flow_name: str) -> bool:
+async def demonstrate_knowledge_search(flow) -> bool:
     """Search the knowledge base for a common article."""
     print("\n🎯 Demonstrating Knowledge Base Search...")
     print("=" * 60)
@@ -213,7 +214,7 @@ async def demonstrate_knowledge_search(mgr, flow_name: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await mgr.execute_flow(flow_name, task)
+        result = await flow.execute(task)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
         print(result)
@@ -263,21 +264,23 @@ async def main() -> None:
             print(f"   - {var}")
         print("The demo may fail without these variables.\n")
 
-    mgr = create_athos_manager(args.config)
+    # Initialize ATHOS manager
+    print("🔧 Initializing ATHOS...")
+    cfg = build_config(args.config)
 
+    # Print available flows for reference
     print("\n📋 Available flows:")
-    for flow in mgr.list_flows():
-        print(f"  - {flow}")
-        if flow == args.flow:
-            print("    ⭐ (selected for demo)")
-            #pprint.pprint(mgr.describe_flow(flow), indent=6)
+    for flow_name in cfg.execution_flows:
+        s = f"  - {flow_name}"
+        if flow_name == args.flow:
+            s += "    ⭐ (selected for demo)"
+        print(s)
 
     print(f"\n🎯 Using flow: {args.flow}")
+    pprint.pprint(cfg.execution_flows[args.flow], indent=6)
 
-    if args.flow not in mgr.list_flows():
-        print(f"❌ Error: Flow '{args.flow}' not found in configuration")
-        print("Available flows:", mgr.list_flows())
-        return
+    # Build the flow
+    flow = build_flow(args.flow, cfg)
 
     selected_tasks = [t.strip() for t in args.tasks.split(',') if t.strip()]
 
@@ -287,13 +290,13 @@ async def main() -> None:
         return
 
     task_funcs = {
-        "create": lambda: demonstrate_incident_creation(mgr, args.flow),
-        "list": lambda: demonstrate_incident_listing(mgr, args.flow),
-        "search": lambda: demonstrate_knowledge_search(mgr, args.flow),
-        "summary": lambda: demonstrate_incident_summary(mgr, args.flow, args.incident),
-        "triage": lambda: demonstrate_triage_incident(mgr, args.flow, args.incident),
-        "note": lambda: demonstrate_add_work_note(mgr, args.flow, args.incident),
-        "resolve": lambda: demonstrate_resolve_incident(mgr, args.flow, args.incident),
+        "create": lambda: demonstrate_incident_creation(flow),
+        "list": lambda: demonstrate_incident_listing(flow),
+        "search": lambda: demonstrate_knowledge_search(flow),
+        "summary": lambda: demonstrate_incident_summary(flow, args.incident),
+        "triage": lambda: demonstrate_triage_incident(flow, args.incident),
+        "note": lambda: demonstrate_add_work_note(flow, args.incident),
+        "resolve": lambda: demonstrate_resolve_incident(flow, args.incident),
     }
 
     success_count = 0
