@@ -92,7 +92,14 @@ def evaluate_response(eval_model, solution: str, response: str):
                 pass
         return None
 
-    result = _parse_json(text)
+    try:
+        result = _parse_json(text)
+    except Exception as e:
+        print("FAILURE in evaluation parsing")
+        print("Evaluator output:")
+        print(text)
+        raise e
+
     if result and isinstance(result, dict):
         score = result.get("score")
         feedback = result.get("feedback")
