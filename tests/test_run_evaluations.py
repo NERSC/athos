@@ -54,6 +54,11 @@ def test_multiple_flows_execution(tmp_path, monkeypatch):
         "athos.factories.build_model",
         lambda cfg: (lambda messages: SimpleNamespace(content="ok")),
     )
+    monkeypatch.setattr(
+        revals,
+        "build_model",
+        lambda cfg: (lambda messages: SimpleNamespace(content="ok")),
+    )
     monkeypatch.setattr(revals, "build_flow", Mock(side_effect=_make_flow))
 
     monkeypatch.setattr(
