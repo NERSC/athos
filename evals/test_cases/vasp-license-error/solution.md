@@ -1,1 +1,1 @@
-From INC0231437
+The user is trying to run vasp, and getting a "No such file or directory" error for the executable. However, the actual issue is that the user is not in a vasp unix file group and so permission issues prevent the executable from being found. To gain access to the VASP binaries at NERSC through an existing VASP license, users must fill out the VASP License Confirmation Request form. Once the license is confirmed, NERSC will add the user to a unix file group: vasp5 for VASP 5, and vasp6 for VASP 6.
