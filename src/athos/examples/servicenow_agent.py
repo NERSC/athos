@@ -199,31 +199,31 @@ async def demonstrate_incident_listing(flow) -> bool:
     return True
 
 
-async def demonstrate_knowledge_search(flow) -> bool:
-    """Search the knowledge base for a common article."""
-    print("\n🎯 Demonstrating Knowledge Base Search...")
-    print("=" * 60)
-
-    task = """
-    Search the ServiceNow knowledge base for articles about resetting a user
-    password. Return the titles of up to three relevant articles.
-    """
-
-    print("📝 Task: Search knowledge base")
-    print("Task description:", task.strip())
-    print("\n🏃 Executing task...")
-
-    try:
-        result = await flow.execute(task)
-        print("\n✅ Task completed!")
-        print("📄 Agent response:")
-        print(result)
-        print("\n" + "=" * 60)
-    except Exception as e:
-        print(f"❌ Error searching knowledge base: {e}")
-        return False
-
-    return True
+#async def demonstrate_knowledge_search(flow) -> bool:
+#    """Search the knowledge base for a common article."""
+#    print("\n🎯 Demonstrating Knowledge Base Search...")
+#    print("=" * 60)
+#
+#    task = """
+#    Search the ServiceNow knowledge base for articles about resetting a user
+#    password. Return the titles of up to three relevant articles.
+#    """
+#
+#    print("📝 Task: Search knowledge base")
+#    print("Task description:", task.strip())
+#    print("\n🏃 Executing task...")
+#
+#    try:
+#        result = await flow.execute(task)
+#        print("\n✅ Task completed!")
+#        print("📄 Agent response:")
+#        print(result)
+#        print("\n" + "=" * 60)
+#    except Exception as e:
+#        print(f"❌ Error searching knowledge base: {e}")
+#        return False
+#
+#    return True
 
 
 async def main() -> None:
@@ -239,10 +239,10 @@ async def main() -> None:
                         help="Name of the ServiceNow flow to use")
     parser.add_argument(
         "--tasks",
-        default="create,list,search",
+        default="list",
         help=(
             "Comma-separated list of tasks to run. Available tasks: "
-            "create,list,search,summary,triage,note,resolve"
+            "create,list,summary,triage,note,resolve"
         ),
     )
     parser.add_argument(
@@ -292,7 +292,7 @@ async def main() -> None:
     task_funcs = {
         "create": lambda: demonstrate_incident_creation(flow),
         "list": lambda: demonstrate_incident_listing(flow),
-        "search": lambda: demonstrate_knowledge_search(flow),
+        #"search": lambda: demonstrate_knowledge_search(flow),
         "summary": lambda: demonstrate_incident_summary(flow, args.incident),
         "triage": lambda: demonstrate_triage_incident(flow, args.incident),
         "note": lambda: demonstrate_add_work_note(flow, args.incident),
