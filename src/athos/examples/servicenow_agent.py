@@ -239,10 +239,10 @@ async def main() -> None:
                         help="Name of the ServiceNow flow to use")
     parser.add_argument(
         "--tasks",
-        default="create,list,search",
+        default="list",
         help=(
             "Comma-separated list of tasks to run. Available tasks: "
-            "create,list,search,summary,triage,note,resolve"
+            "create,list,summary,triage,note,resolve"
         ),
     )
     parser.add_argument(
