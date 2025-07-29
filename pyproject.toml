@@ -23,8 +23,8 @@ dependencies = [
     "uvicorn>=0.22.0",
     "httpx>=0.24.0",
     "PyYAML>=6.0",
-    "fastmcp>=2.10.6",
-    "authlib>=1.6.0",
+    "fastmcp",
+    "authlib",
 ]
 
 [project.optional-dependencies]
