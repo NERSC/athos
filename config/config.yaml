@@ -87,6 +87,13 @@ mcp_servers:
       SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
       SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
 
+  sfapi_mcp:
+    mcp_type: "mcp_stdio"
+    command: "nersc-sfapi-mcp"
+    env:
+      NERSC_CLIENT_ID: "${NERSC_CLIENT_ID}"
+      NERSC_PRIVATE_KEY_PATH: "${NERSC_PRIVATE_KEY_PATH}"
+
   # Additional MCP servers can be added here as comments for reference:
   #
   # # GitHub MCP server (stdio transport)
@@ -196,6 +203,12 @@ execution_flows:
     mcp_servers: ["servicenow_mcp"]
     additional_authorized_imports: ["json"]
     verbosity_level: 1  # 0: ERROR, 1: INFO, 2: DEBUG
+
+  sfapi_agent:
+    type: "agent"
+    agent_type: "tool_calling"
+    model: "gpt_4o"
+    mcp_servers: ["sfapi_mcp"]
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
