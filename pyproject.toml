@@ -37,7 +37,7 @@ dev = [
 [project.scripts]
 servicenow-mcp = "athos.tools.servicenow_mcp.cli:main"
 servicenow-mcp-sse = "athos.tools.servicenow_mcp.server_sse:main"
-nersc-sfapi-mcp = "athos.tools.sfapi_mcp.server:main"
+nersc-sfapi-mcp = "athos.tools.sfapi_mcp.server:cli"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
