@@ -417,7 +417,7 @@ class NERSCMCPServer:
                 return self._handle_error(e)
         
         @self.mcp.tool()
-        async def get_available_systems(self) -> Dict[str, Any]:
+        async def get_available_systems() -> Dict[str, Any]:
             """Get list of available NERSC systems with their current status."""
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
