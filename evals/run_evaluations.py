@@ -10,7 +10,7 @@ import pprint
 from smolagents import ChatMessage
 
 from athos.runtime import build_config, build_flow
-from athos.factories import build_model
+import athos.factories
 
 
 def load_test_cases(cases_dir: Path):
@@ -148,7 +148,9 @@ def main():
         eval_model_name = args.eval_model or flow_config.model
         if args.eval_model and args.eval_model not in cfg.models:
             raise ValueError(f"Evaluation model '{args.eval_model}' not found in config models")
-        eval_model_instance = build_model(cfg.models[eval_model_name])
+        eval_model_instance = athos.factories.build_model(
+            cfg.models[eval_model_name]
+        )
 
         results = []
         for case in cases:
