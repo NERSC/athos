@@ -447,11 +447,11 @@ class NERSCMCPServer:
             except Exception as e:
                 return self._handle_error(e)
     
-    async def run(self):
+    def run(self) -> None:
         """Run the MCP server"""
         logger.info("Starting NERSC SuperFacility API MCP Server")
         try:
-            await self.mcp.run()
+            self.mcp.run()
         except KeyboardInterrupt:
             logger.info("Server interrupted by user")
         except Exception as e:
@@ -497,9 +497,14 @@ async def main():
             logger.warning(f"Failed to auto-initialize authentication: {str(e)}")
     
     try:
-        await server.run()
+        await asyncio.to_thread(server.run)
     finally:
         await server.cleanup()
 
-if __name__ == "__main__":
+
+def cli() -> None:
+    """Entry point for the ``nersc-sfapi-mcp`` console script."""
     asyncio.run(main())
+
+if __name__ == "__main__":
+    cli()
