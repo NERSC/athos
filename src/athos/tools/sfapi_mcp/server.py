@@ -7,6 +7,7 @@ It supports system status checking, job management, file operations, and command
 Authentication is handled via OAuth2 client credentials flow.
 """
 
+import argparse
 import asyncio
 import json
 import logging
@@ -19,6 +20,8 @@ from urllib.parse import urljoin
 import httpx
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field
+from authlib.integrations.httpx_client import AsyncOAuth2Client
+from authlib.oauth2.rfc7523 import PrivateKeyJWT
 
 # Configure logging
 logging.basicConfig(
@@ -38,51 +41,31 @@ class NERSCAuth:
         self.access_token = None
         self.token_expires_at = None
         self.client = httpx.AsyncClient(timeout=30.0)
+        self.oauth_client = AsyncOAuth2Client(
+            client_id=self.client_id,
+            client_secret=self.private_key,
+            token_endpoint_auth_method="private_key_jwt",
+        )
+        self.oauth_client.register_client_auth_method(PrivateKeyJWT(self.token_url))
     
     async def get_access_token(self) -> str:
         """Get or refresh access token"""
         if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
             return self.access_token
         
-        # Import authlib here to avoid dependency issues if not installed
         try:
-            from authlib.jose import JsonWebSignature
-        except ImportError:
-            raise ImportError("authlib is required for authentication. Install with: pip install authlib")
-        
-        try:
-            # Create JWT assertion
-            now = datetime.now()
-            payload = {
-                "iss": self.client_id,
-                "sub": self.client_id,
-                "aud": self.token_url,
-                "jti": f"{self.client_id}-{int(now.timestamp())}",
-                "exp": int((now + timedelta(minutes=5)).timestamp()),
-                "iat": int(now.timestamp())
-            }
-            
-            jws = JsonWebSignature()
-            client_assertion = jws.serialize_compact(payload, self.private_key, alg="RS256")
-            
-            # Exchange assertion for access token
-            data = {
-                "grant_type": "client_credentials",
-                "client_assertion_type": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-                "client_assertion": client_assertion
-            }
-            
-            response = await self.client.post(self.token_url, data=data)
-            response.raise_for_status()
-            
-            token_data = response.json()
+            token_data = await self.oauth_client.fetch_token(
+                url=self.token_url,
+                grant_type="client_credentials",
+            )
             self.access_token = token_data["access_token"]
             # Tokens typically expire in 10 minutes, refresh a bit earlier
-            self.token_expires_at = datetime.now() + timedelta(seconds=token_data.get("expires_in", 600) - 60)
-            
+            self.token_expires_at = datetime.now() + timedelta(
+                seconds=token_data.get("expires_in", 600) - 60
+            )
             logger.info("Successfully obtained access token")
             return self.access_token
-            
+
         except Exception as e:
             logger.error(f"Failed to obtain access token: {str(e)}")
             raise
@@ -120,16 +103,22 @@ class NERSCAuth:
     async def close(self):
         """Close the HTTP client"""
         await self.client.aclose()
+        await self.oauth_client.aclose()
 
 class NERSCMCPServer:
     """MCP Server for NERSC SuperFacility API"""
     
-    def __init__(self):
+    def __init__(self, client_id: Optional[str] = None, private_key: Optional[str] = None):
         self.mcp = FastMCP("NERSC SuperFacility API")
         self.auth: Optional[NERSCAuth] = None
         self.common_systems = [
             "perlmutter", "cori", "dtn", "archive", "spin", "jupyter"
         ]
+        if client_id and private_key:
+            try:
+                self.auth = NERSCAuth(client_id, private_key)
+            except Exception as e:
+                logger.warning(f"Failed to initialize authentication: {e}")
         self.setup_tools()
     
     def _handle_error(self, error: Exception) -> Dict[str, Any]:
@@ -139,7 +128,7 @@ class NERSCMCPServer:
         
         if "401" in error_msg or "unauthorized" in error_msg.lower():
             return {
-                "error": "Authentication failed. Please check your credentials and try initializing authentication again.",
+                "error": "Authentication failed. Verify credentials and restart the server.",
                 "type": "authentication_error"
             }
         elif "403" in error_msg or "forbidden" in error_msg.lower():
@@ -167,28 +156,9 @@ class NERSCMCPServer:
         """Setup MCP tools"""
         
         @self.mcp.tool()
-        async def initialize_auth(
-            client_id: str = Field(description="NERSC SuperFacility API client ID"),
-            private_key: str = Field(description="Private key for authentication (PEM format)")
-        ) -> Dict[str, Any]:
-            """Initialize authentication with NERSC SuperFacility API credentials"""
-            try:
-                self.auth = NERSCAuth(client_id, private_key)
-                # Test authentication
-                await self.auth.get_access_token()
-                logger.info("Authentication initialized successfully")
-                return {
-                    "status": "success",
-                    "message": "Authentication initialized successfully",
-                    "client_id": client_id[:8] + "..." if len(client_id) > 8 else client_id
-                }
-            except Exception as e:
-                return self._handle_error(e)
-        
-        @self.mcp.tool()
         async def get_system_status(
             system: Optional[str] = Field(
-                None, 
+                None,
                 description=f"System name (e.g., 'perlmutter', 'cori', 'dtn', 'archive'). If None, returns all systems. Common systems: {', '.join(self.common_systems)}"
             )
         ) -> Dict[str, Any]:
@@ -219,7 +189,7 @@ class NERSCMCPServer:
             """List contents of a directory on a NERSC system. Requires authentication."""
             if not self.auth:
                 return {
-                    "error": "Authentication not initialized. Call initialize_auth first.",
+                    "error": "Authentication not configured. Set credentials before starting the server.",
                     "type": "authentication_required"
                 }
             
@@ -238,7 +208,7 @@ class NERSCMCPServer:
         ) -> Dict[str, Any]:
             """Get information about a specific file on a NERSC system. Requires authentication."""
             if not self.auth:
-                return {"error": "Authentication not initialized. Call initialize_auth first."}
+                return {"error": "Authentication not configured. Set credentials before starting the server."}
             
             try:
                 response = await self.auth.get(f"utilities/ls/{system}{filepath}")
@@ -255,7 +225,7 @@ class NERSCMCPServer:
             """Execute a command on a NERSC system login node. Requires elevated authentication."""
             if not self.auth:
                 return {
-                    "error": "Authentication not initialized. Call initialize_auth first.",
+                    "error": "Authentication not configured. Set credentials before starting the server.",
                     "type": "authentication_required"
                 }
             
@@ -276,7 +246,7 @@ class NERSCMCPServer:
         ) -> Dict[str, Any]:
             """Submit a job to a NERSC system. Requires elevated authentication."""
             if not self.auth:
-                return {"error": "Authentication not initialized. Call initialize_auth first."}
+                return {"error": "Authentication not configured. Set credentials before starting the server."}
             
             try:
                 data = {
@@ -296,7 +266,7 @@ class NERSCMCPServer:
             """Get status and results of a previously submitted task. Requires authentication."""
             if not self.auth:
                 return {
-                    "error": "Authentication not initialized. Call initialize_auth first.",
+                    "error": "Authentication not configured. Set credentials before starting the server.",
                     "type": "authentication_required"
                 }
             
@@ -323,7 +293,7 @@ class NERSCMCPServer:
         ) -> Dict[str, Any]:
             """Get job queue information for a system. Requires authentication."""
             if not self.auth:
-                return {"error": "Authentication not initialized. Call initialize_auth first."}
+                return {"error": "Authentication not configured. Set credentials before starting the server."}
             
             try:
                 endpoint = f"compute/jobs/{system}"
@@ -349,7 +319,7 @@ class NERSCMCPServer:
             list of compute allocations from the authenticated user's projects.
             """
             if not self.auth:
-                return {"error": "Authentication not initialized. Call initialize_auth first."}
+                return {"error": "Authentication not configured. Set credentials before starting the server."}
             
             try:
                 endpoint = f"account/usage/{system}"
@@ -371,7 +341,7 @@ class NERSCMCPServer:
         ) -> Dict[str, Any]:
             """Transfer a file between NERSC systems. Requires authentication."""
             if not self.auth:
-                return {"error": "Authentication not initialized. Call initialize_auth first."}
+                return {"error": "Authentication not configured. Set credentials before starting the server."}
             
             try:
                 data = {
@@ -472,35 +442,40 @@ class NERSCMCPServer:
             await self.auth.close()
             logger.info("Closed authentication client")
 
-def load_config_from_env() -> Dict[str, str]:
-    """Load configuration from environment variables"""
-    config = {}
-    
-    # Check for required environment variables
-    client_id = os.getenv("NERSC_CLIENT_ID")
-    private_key_path = os.getenv("NERSC_PRIVATE_KEY_PATH")
-    
+def load_config(
+    client_id_arg: Optional[str] = None,
+    private_key_path_arg: Optional[str] = None,
+) -> Dict[str, str]:
+    """Load configuration from CLI arguments or environment variables."""
+    config: Dict[str, str] = {}
+
+    client_id = client_id_arg or os.getenv("NERSC_CLIENT_ID")
+    key_path = private_key_path_arg or os.getenv("NERSC_PRIVATE_KEY_PATH")
+
     if client_id:
         config["client_id"] = client_id
-    
-    if private_key_path and Path(private_key_path).exists():
-        config["private_key"] = Path(private_key_path).read_text()
-    
+
+    if key_path and Path(key_path).exists():
+        config["private_key"] = Path(key_path).read_text()
+
     return config
 
-def main():
+def main() -> None:
     """Main entry point"""
-    server = NERSCMCPServer()
-    
-    # Try to auto-initialize authentication from environment
-    config = load_config_from_env()
-    if config.get("client_id") and config.get("private_key"):
-        try:
-            # Create auth but don't test it here since we're not in async context
-            server.auth = NERSCAuth(config["client_id"], config["private_key"])
-            logger.info("Authentication configured from environment variables")
-        except Exception as e:
-            logger.warning(f"Failed to configure authentication: {str(e)}")
+    parser = argparse.ArgumentParser(description="NERSC SFAPI MCP server")
+    parser.add_argument("--client-id", help="SuperFacility client ID", default=None)
+    parser.add_argument("--private-key-path", help="Path to private key file", default=None)
+    args = parser.parse_args()
+
+    config = load_config(args.client_id, args.private_key_path)
+    server = NERSCMCPServer(
+        client_id=config.get("client_id"),
+        private_key=config.get("private_key"),
+    )
+    if server.auth:
+        logger.info("Authentication configured for client %s", server.auth.client_id)
+    else:
+        logger.info("Starting without authentication. Some tools will be unavailable.")
     
     try:
         server.run()
