@@ -6,6 +6,7 @@ based on the FastMCP quickstart guide's testing instructions.
 """
 
 import asyncio
+from dotenv import load_dotenv
 from fastmcp import Client
 
 from athos.tools.sfapi_mcp.server import NERSCMCPServer
@@ -14,6 +15,9 @@ from athos.tools.sfapi_mcp.server import NERSCMCPServer
 async def main() -> None:
     """Create the server and call a couple of tools using ``Client``."""
 
+    # Load environment variables from .env file
+    load_dotenv()
+
     # Instantiate the server object which holds a ``FastMCP`` instance
     server = NERSCMCPServer()
 
@@ -21,13 +25,23 @@ async def main() -> None:
     client = Client(server.mcp)
 
     async with client:
+
+        # Show all available tools
+        tools = await client.list_tools()
+        print("Available tools:")
+        for tool in tools:
+            print(" * ", tool, "\n")
+
         # Fetch the status of a specific system. This tool requires no auth.
         status = await client.call_tool("get_system_status", {"system": "perlmutter"})
         print("Perlmutter status:", status)
 
-        # List all available systems for convenience
-        systems = await client.call_tool("get_available_systems", {})
-        print("Available systems:", systems)
+        # # List all available systems for convenience
+        # systems = await client.call_tool("get_available_systems", {})
+        # print("Available systems:", systems)
+
+        # Authenticate
+
 
     # Clean up HTTP resources used by the server
     await server.cleanup()
