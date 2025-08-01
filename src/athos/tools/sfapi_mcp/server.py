@@ -307,26 +307,13 @@ class NERSCMCPServer:
                 return {"error": str(e)}
         
         @self.mcp.tool()
-        async def get_compute_allocation(
-            system: str = Field(description="System name (e.g., 'perlmutter')"),
-            repo: Optional[str] = Field(None, description="Repository/project name (optional)")
-        ) -> Dict[str, Any]:
-            """
-            Get compute allocation (i.e. project) information.
-
-            This function requires authentication.
-            If the repo argument is not specified, this function will return the
-            list of compute allocations from the authenticated user's projects.
-            """
+        async def get_projects() -> Dict[str, Any]:
+            """Retrieve NERSC projects for the authenticated user."""
             if not self.auth:
                 return {"error": "Authentication not configured. Set credentials before starting the server."}
-            
+
             try:
-                endpoint = f"account/usage/{system}"
-                if repo:
-                    endpoint += f"/{repo}"
-                
-                response = await self.auth.get(endpoint)
+                response = await self.auth.get("account/projects")
                 response.raise_for_status()
                 return response.json()
             except Exception as e:

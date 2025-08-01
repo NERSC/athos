@@ -44,14 +44,9 @@ async def main() -> None:
         # systems = await client.call_tool("get_available_systems", {})
         # print("Available systems:", systems)
 
-        # Retrieve compute allocations
-        result = await client.call_tool(
-            "get_compute_allocation",
-            {
-                "system": "perlmutter",
-            }
-        )
-        print("Compute allocations:", result)
+        # Retrieve project information
+        result = await client.call_tool("get_projects", {})
+        print("Projects:", result)
 
     # Clean up HTTP resources used by the server
     await server.cleanup()
