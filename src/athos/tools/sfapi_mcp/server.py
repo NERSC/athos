@@ -386,18 +386,18 @@ class NERSCMCPServer:
             except Exception as e:
                 return {"error": str(e)}
         
-        @self.mcp.tool()
-        async def get_system_info(
-            system: str = Field(description="System name (e.g., 'perlmutter')")
-        ) -> Dict[str, Any]:
-            """Get detailed information about a NERSC system. No authentication required."""
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(f"https://api.nersc.gov/api/v1.2/resources/{system}")
-                    response.raise_for_status()
-                    return response.json()
-            except Exception as e:
-                return {"error": str(e)}
+        # @self.mcp.tool()
+        # async def get_system_info(
+        #     system: str = Field(description="System name (e.g., 'perlmutter')")
+        # ) -> Dict[str, Any]:
+        #     """Get detailed information about a NERSC system. No authentication required."""
+        #     try:
+        #         async with httpx.AsyncClient() as client:
+        #             response = await client.get(f"https://api.nersc.gov/api/v1.2/resources/{system}")
+        #             response.raise_for_status()
+        #             return response.json()
+        #     except Exception as e:
+        #         return {"error": str(e)}
         
         @self.mcp.tool()
         async def get_outages(
