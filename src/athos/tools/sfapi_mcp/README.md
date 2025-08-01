@@ -8,7 +8,7 @@ This Model Context Protocol (MCP) server provides access to NERSC's SuperFacilit
 - **File Operations**: List directories and get file information
 - **Job Management**: Submit jobs, check job status, and monitor job queues
 - **Command Execution**: Run commands on login nodes
-- **Resource Monitoring**: Check compute allocations and usage
+- **Resource Monitoring**: Check project allocations and usage
 - **File Transfer**: Transfer files between NERSC systems
 - **Outage Information**: Get planned maintenance and outage information
 
@@ -58,7 +58,7 @@ nersc-sfapi-mcp --client-id $NERSC_CLIENT_ID --private-key-path $NERSC_PRIVATE_K
 - `run_command`: Execute commands on login nodes
 
 ### Account Management (Authentication Required)
-- `get_compute_allocation`: Check compute allocation usage
+- `get_projects`: List projects and allocation usage
 
 ## Authentication
 
