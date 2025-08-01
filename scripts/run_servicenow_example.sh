@@ -7,8 +7,10 @@ echo "🚀 Starting ATHOS ServiceNow Agent Example..."
 echo "This demo shows ServiceNow operations using the ATHOS framework"
 echo ""
 
-tasks=summary
-incident=INC0247613
+tasks=summary #,triage,note,create
+incident=INC0247655
+#tasks=summary,create
+#incident=INC0247613
 
 #if [ -z "$1" ]; then
 #  echo "Usage: $0 INCIDENT_NUMBER"
