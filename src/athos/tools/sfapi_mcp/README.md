@@ -16,7 +16,8 @@ This Model Context Protocol (MCP) server provides access to NERSC's SuperFacilit
 
 1. Create a SuperFacility API client in [NERSC Iris](https://iris.nersc.gov/profile)
 2. Download your private key
-3. Set environment variables, e.g. in a `./.env` file:
+3. Provide credentials via environment variables or command line options.
+   Environment variables can be placed in a `./.env` file:
 
 ```
 NERSC_CLIENT_ID=your_client_id_here
@@ -28,12 +29,12 @@ NERSC_PRIVATE_KEY_PATH=/path/to/your/private_key.pem
 ### Running the Server
 
 ```bash
-python nersc_mcp/server.py
+python nersc_mcp/server.py --client-id $NERSC_CLIENT_ID --private-key-path $NERSC_PRIVATE_KEY_PATH
 ```
 
 Or if installed:
 ```bash
-nersc-mcp
+nersc-sfapi-mcp --client-id $NERSC_CLIENT_ID --private-key-path $NERSC_PRIVATE_KEY_PATH
 ```
 
 ## Available Tools
