@@ -488,7 +488,7 @@ def load_config_from_env() -> Dict[str, str]:
     
     return config
 
-async def main():
+def main():
     """Main entry point"""
     server = NERSCMCPServer()
     
@@ -496,21 +496,26 @@ async def main():
     config = load_config_from_env()
     if config.get("client_id") and config.get("private_key"):
         try:
+            # Create auth but don't test it here since we're not in async context
             server.auth = NERSCAuth(config["client_id"], config["private_key"])
-            await server.auth.get_access_token()
-            logger.info("Auto-initialized authentication from environment variables")
+            logger.info("Authentication configured from environment variables")
         except Exception as e:
-            logger.warning(f"Failed to auto-initialize authentication: {str(e)}")
+            logger.warning(f"Failed to configure authentication: {str(e)}")
     
     try:
-        await asyncio.to_thread(server.run)
+        server.run()
     finally:
-        await server.cleanup()
+        # Run cleanup in async context if needed
+        if server.auth:
+            try:
+                asyncio.run(server.cleanup())
+            except Exception as e:
+                logger.warning(f"Error during cleanup: {str(e)}")
 
 
 def cli() -> None:
     """Entry point for the ``nersc-sfapi-mcp`` console script."""
-    asyncio.run(main())
+    main()
 
 if __name__ == "__main__":
     cli()
