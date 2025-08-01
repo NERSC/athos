@@ -407,7 +407,7 @@ class NERSCMCPServer:
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
                     if system:
-                        url = f"https://api.nersc.gov/api/v1.2/status/{system}/outages"
+                        url = f"https://api.nersc.gov/api/v1.2/status/outages/{system}"
                     else:
                         url = "https://api.nersc.gov/api/v1.2/status/outages"
                     
