@@ -9,7 +9,7 @@ import asyncio
 from dotenv import load_dotenv
 from fastmcp import Client
 
-from athos.tools.sfapi_mcp.server import NERSCMCPServer
+from athos.tools.sfapi_mcp.server import NERSCMCPServer, load_config
 
 
 async def main() -> None:
@@ -19,7 +19,11 @@ async def main() -> None:
     load_dotenv()
 
     # Instantiate the server object which holds a ``FastMCP`` instance
-    server = NERSCMCPServer()
+    config = load_config()
+    server = NERSCMCPServer(
+        client_id=config.get("client_id"),
+        private_key=config.get("private_key"),
+    )
 
     # Point the FastMCP client at the server's ``mcp`` attribute
     client = Client(server.mcp)
@@ -40,8 +44,14 @@ async def main() -> None:
         # systems = await client.call_tool("get_available_systems", {})
         # print("Available systems:", systems)
 
-        # Authenticate
-
+        # Retrieve compute allocations
+        result = await client.call_tool(
+            "get_compute_allocation",
+            {
+                "system": "perlmutter",
+            }
+        )
+        print("Compute allocations:", result)
 
     # Clean up HTTP resources used by the server
     await server.cleanup()
