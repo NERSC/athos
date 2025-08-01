@@ -341,7 +341,13 @@ class NERSCMCPServer:
             system: str = Field(description="System name (e.g., 'perlmutter')"),
             repo: Optional[str] = Field(None, description="Repository/project name (optional)")
         ) -> Dict[str, Any]:
-            """Get compute allocation information. Requires authentication."""
+            """
+            Get compute allocation (i.e. project) information.
+
+            This function requires authentication.
+            If the repo argument is not specified, this function will return the
+            list of compute allocations from the authenticated user's projects.
+            """
             if not self.auth:
                 return {"error": "Authentication not initialized. Call initialize_auth first."}
             
