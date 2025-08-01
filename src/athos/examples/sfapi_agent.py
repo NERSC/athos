@@ -19,8 +19,6 @@ async def demonstrate_systems_status(flow) -> bool:
 
     task = """
     What systems are available at NERSC and what are their current statuses?
-    Use the `get_available_systems` tool to retrieve the list and summarize the
-    status of each system.
     """
 
     print("📝 Task: System status")
@@ -46,9 +44,8 @@ async def demonstrate_outage_summary(flow) -> bool:
     print("=" * 60)
 
     task = """
-    Summarize the most recent unscheduled major outages at NERSC. Use the
-    `get_outages` tool to obtain the outage information and provide a short
-    summary.
+    Summarize the most recent unscheduled major Perlmutter outages at NERSC.
+    Provide a short summary of each.
     """
 
     print("📝 Task: Outage summary")
@@ -74,9 +71,7 @@ async def demonstrate_project_membership(flow) -> bool:
     print("=" * 60)
 
     task = """
-    Which NERSC projects do I belong to? Use the `get_compute_allocation` tool
-    with system `perlmutter` and no repository specified to list the projects
-    associated with the authenticated user. Summarize the results.
+    Summarize my available allocations on Perlmutter.
     """
 
     print("📝 Task: Project membership")
@@ -173,7 +168,8 @@ async def main() -> None:
         print("⚠️  Some tasks encountered errors - check the output above")
 
 
-if __name__ == "__main__":
+def run_demo():
+    """Entry point for running the demo"""
     print("Starting ATHOS SFAPI demo...")
     try:
         asyncio.run(main())
@@ -181,3 +177,11 @@ if __name__ == "__main__":
         print("\n👋 Goodbye!")
     except Exception as e:
         print(f"\n💥 Demo failed: {e}")
+
+
+if __name__ == "__main__":
+    run_demo()
+else:
+    # When run as a module (python -m athos.examples.sfapi_agent)
+    # Execute the demo directly
+    run_demo()
