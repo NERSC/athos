@@ -1,4 +1,5 @@
 import sys
+import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -82,3 +83,20 @@ def test_multiple_flows_execution(tmp_path, monkeypatch):
     for f in created_flows[:2]:
         assert f.execute.call_count == 1
         assert f.close.call_count == 1
+
+
+def test_load_qa_cases(tmp_path):
+    qa_file = tmp_path / "cases.jsonl"
+    entries = [
+        {"name": "c1", "question": "q1", "answer": "a1"},
+        {"name": "c2", "question": "q2", "answer": "a2"},
+    ]
+    with qa_file.open("w") as f:
+        for e in entries:
+            f.write(json.dumps(e) + "\n")
+
+    cases = revals.load_qa_cases(qa_file)
+    assert cases == [
+        {"name": "c1", "description": "q1", "solution": "a1"},
+        {"name": "c2", "description": "q2", "solution": "a2"},
+    ]
