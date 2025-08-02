@@ -194,7 +194,7 @@ class NERSCMCPServer:
                 }
             
             try:
-                response = await self.auth.get(f"utilities/ls/{system}{path}")
+                response = await self.auth.get(f"utilities/ls/{system}/{path}")
                 data = response.json()
                 logger.info(f"Successfully listed directory {path} on {system}")
                 return data
@@ -378,7 +378,7 @@ class NERSCMCPServer:
                     
                     data = response.json()
                     logger.info(f"Successfully retrieved outage information for {system or 'all systems'}")
-                    return data
+                    return {"outages": data}
                     
             except Exception as e:
                 return self._handle_error(e)
@@ -446,8 +446,11 @@ def load_config(
     if client_id:
         config["client_id"] = client_id
 
-    if key_path and Path(key_path).exists():
-        config["private_key"] = Path(key_path).read_text()
+    if key_path:
+        expanded_key_path = Path(key_path).expanduser()
+        if expanded_key_path.exists():
+            # logger.info("key path exists")
+            config["private_key"] = expanded_key_path.read_text()
 
     return config
 

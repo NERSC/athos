@@ -71,7 +71,7 @@ async def demonstrate_project_membership(flow) -> bool:
     print("=" * 60)
 
     task = """
-    Summarize my available allocations on Perlmutter.
+    Summarize my projects and associated allocations on Perlmutter.
     """
 
     print("📝 Task: Project membership")

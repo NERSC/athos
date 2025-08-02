@@ -5,8 +5,10 @@ This example demonstrates how to use the FastMCP `Client` to invoke tools on
 based on the FastMCP quickstart guide's testing instructions.
 """
 
+import os
 import asyncio
 from dotenv import load_dotenv
+
 from fastmcp import Client
 
 from athos.tools.sfapi_mcp.server import NERSCMCPServer, load_config
@@ -40,13 +42,23 @@ async def main() -> None:
         status = await client.call_tool("get_system_status", {"system": "perlmutter"})
         print("Perlmutter status:", status)
 
-        # # List all available systems for convenience
-        # systems = await client.call_tool("get_available_systems", {})
-        # print("Available systems:", systems)
+        # List all available systems for convenience
+        systems = await client.call_tool("get_available_systems", {})
+        print("Available systems:", systems)
 
         # Retrieve project information
         result = await client.call_tool("get_projects", {})
         print("Projects:", result)
+
+        # List contents of a directory
+        result = await client.call_tool(
+            "list_directory", 
+            {
+                "system": "perlmutter",
+                "path": os.getcwd()
+            }
+        )
+        print("Directory contents:", result)
 
     # Clean up HTTP resources used by the server
     await server.cleanup()
