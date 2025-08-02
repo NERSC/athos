@@ -11,6 +11,7 @@ from smolagents import ChatMessage
 
 from athos.runtime import build_config, build_flow
 import athos.factories
+from athos.factories import build_model
 
 
 def load_test_cases(cases_dir: Path):
@@ -34,6 +35,25 @@ def load_test_cases(cases_dir: Path):
             }
         )
     return tests
+
+
+def load_qa_cases(path: Path):
+    """Load question/answer cases from a JSON Lines file."""
+    cases = []
+    with path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            data = json.loads(line)
+            cases.append(
+                {
+                    "name": data.get("name"),
+                    "description": data.get("question"),
+                    "solution": data.get("answer"),
+                }
+            )
+    return cases
 
 
 def build_input(description: str, files_dir: Path):
