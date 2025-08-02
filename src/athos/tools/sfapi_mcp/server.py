@@ -315,7 +315,11 @@ class NERSCMCPServer:
             try:
                 response = await self.auth.get("account/projects")
                 response.raise_for_status()
-                return response.json()
+                data = response.json()
+                # The API returns a list of project dictionaries. MCP tools
+                # require `structured_content` to be a dict, so wrap the list
+                # under a `projects` key for compatibility.
+                return {"projects": data}
             except Exception as e:
                 return {"error": str(e)}
         
