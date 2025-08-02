@@ -1,0 +1,5 @@
+{"name": "perlmutter_gpus", "question": "What type of GPUs are in the Perlmutter supercomputer?", "answer": "Nvidia A100s, 40G and 80G types"}
+{"name": "perlmutter_debug_qos", "question": "What is the Perlmutter debug QOS time limit?", "answer": "30 minutes or 0.5 hour"}
+{"name": "nersc_ai_support_group", "question": "Which group at NERSC is primarily responsible for supporting AI software users?", "answer": "DAS, the Data and AI Services Group"}
+{"name": "purged_filesystem", "question": "Which NERSC filesystem is subject to a purging policy?", "answer": "Perlmutter scratch filesystem"}
+{"name": "premium_qos_charge_factor", "question": "What is the charge factor when using the premium QOS on Perlmutter?", "answer": "The charge factor for premium jobs is 2 until a project has used 20 percent of its allocation on premium jobs. After that point, the charge factor increases to 4"}
