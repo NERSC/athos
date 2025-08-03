@@ -11,7 +11,6 @@ from smolagents import ChatMessage
 
 from athos.runtime import build_config, build_flow
 import athos.factories
-from athos.factories import build_model
 
 
 def load_test_cases(cases_dir: Path):
@@ -138,24 +137,53 @@ def main():
         required=True,
         help="One or more flow names to evaluate",
     )
-    parser.add_argument("--cases-dir", default="evals/test_cases")
+    parser.add_argument(
+        "--cases-dir",
+        action="append",
+        default=[],
+        help="Directory containing test case subdirectories (can be used multiple times)",
+    )
+    parser.add_argument(
+        "--qa-file",
+        action="append",
+        default=[],
+        help="JSON Lines file with question/answer pairs (can be used multiple times)",
+    )
     parser.add_argument(
         "--eval-model",
         default=None,
         help="Model name for evaluation (from config models)",
     )
     parser.add_argument(
-        "--output", default=None, help="Optional output file for results JSON"
+        "--output",
+        default=None,
+        help="Optional output file for results JSON",
+    )
+    parser.add_argument(
+        "--passing-score",
+        type=float,
+        default=80.0,
+        help="Score threshold for accuracy calculations",
     )
     args = parser.parse_args()
+
+    if not args.cases_dir and not args.qa_file:
+        args.cases_dir = ["evals/test_cases"]
 
     cfg = build_config(args.config)
     flows = {name: build_flow(name, cfg) for name in args.flow}
     print("Loaded flows:")
     print(flows)
-    cases = load_test_cases(Path(args.cases_dir))
 
-    all_results = {}
+    datasets = []
+    for d in args.cases_dir:
+        path = Path(d)
+        datasets.append((path.name, load_test_cases(path)))
+    for fpath in args.qa_file:
+        path = Path(fpath)
+        datasets.append((path.stem, load_qa_cases(path)))
+
+    all_results = {fn: {} for fn in args.flow}
 
     for flow_name in args.flow:
         flow = flows[flow_name]
@@ -167,46 +195,60 @@ def main():
         # Evaluator model
         eval_model_name = args.eval_model or flow_config.model
         if args.eval_model and args.eval_model not in cfg.models:
-            raise ValueError(f"Evaluation model '{args.eval_model}' not found in config models")
+            raise ValueError(
+                f"Evaluation model '{args.eval_model}' not found in config models"
+            )
         eval_model_instance = athos.factories.build_model(
             cfg.models[eval_model_name]
         )
 
-        results = []
-        for case in cases:
-            name = case["name"]
-            desc = case["description"]
-            sol = case["solution"]
-            files_dir = case["files_dir"]
-            input_data = build_input(desc, files_dir)
-            try:
-                response = asyncio.run(flow.execute(input_data))
-            except Exception as e:
-                response = f"Error executing flow: {e}"
-            score, feedback = evaluate_response(eval_model_instance, sol, response)
-            results.append(
-                {
-                    "test_case": name,
-                    "response": response,
-                    "score": score,
-                    "feedback": feedback,
-                }
-            )
+        for dataset_name, cases in datasets:
+            results = []
+            for case in cases:
+                name = case["name"]
+                desc = case["description"]
+                sol = case["solution"]
+                files_dir = case.get("files_dir")
+                input_data = build_input(desc, files_dir)
+                try:
+                    response = asyncio.run(flow.execute(input_data))
+                except Exception as e:
+                    response = f"Error executing flow: {e}"
+                score, feedback = evaluate_response(
+                    eval_model_instance, sol, response
+                )
+                results.append(
+                    {
+                        "test_case": name,
+                        "response": response,
+                        "score": score,
+                        "feedback": feedback,
+                    }
+                )
 
-        total = 0
-        count = 0
-        print(f"\nEvaluation Results for {flow_name}:")
-        for r in results:
-            s = r["score"]
-            print(f"- {r['test_case']}: score={s}")
-            if isinstance(s, (int, float)):
-                total += s
-                count += 1
-        if count > 0:
-            avg = total / count
-            print(f"Average score for {flow_name}: {avg:.2f}\n")
+            total = 0
+            count = 0
+            passes = 0
+            print(f"\nEvaluation Results for {flow_name} on {dataset_name}:")
+            for r in results:
+                s = r["score"]
+                print(f"- {r['test_case']}: score={s}")
+                if isinstance(s, (int, float)):
+                    total += s
+                    count += 1
+                    if s >= args.passing_score:
+                        passes += 1
+            if count > 0:
+                avg = total / count
+                acc = passes / count
+                print(
+                    f"Average score for {flow_name} on {dataset_name}: {avg:.2f}"
+                )
+                print(
+                    f"Accuracy for {flow_name} on {dataset_name}: {acc:.2%}\n"
+                )
 
-        all_results[flow_name] = results
+            all_results[flow_name][dataset_name] = results
 
     for f in flows.values():
         try:
