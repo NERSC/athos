@@ -11,7 +11,9 @@ python evals/run_evaluations.py \
   --config config/config.yaml \
   --flow <flow_name> [<flow_name2> ...] \
   [--eval-model <model_name>] \
-  [--cases-dir test_cases] \
+  [--cases-dir <dir1> --cases-dir <dir2> ...] \
+  [--qa-file <qa.jsonl> ...] \
+  [--passing-score 80] \
   [--output results.json]
 ```
 
@@ -19,7 +21,9 @@ Arguments:
 - `--config`: Path to the ATHOS YAML config file (default: `config/config.yaml`).
 - `--flow`: One or more execution flow names to test (required).
 - `--eval-model`: Optional override model name for evaluation (defaults to the model used by each flow).
-- `--cases-dir`: Directory containing test case subdirectories (default: `test_cases`).
+- `--cases-dir`: Directory containing structured test case subdirectories. May be provided multiple times. Defaults to `test_cases` if no datasets are specified.
+- `--qa-file`: Path to a JSON Lines file of question/answer pairs. May be provided multiple times.
+- `--passing-score`: Score threshold used when computing accuracy (default: `80`).
 - `--output`: File path to write a JSON report of results.
 
 ## Available test cases
