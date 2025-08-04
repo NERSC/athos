@@ -1,10 +1,21 @@
 # ATHOS evaluations
 
-This directory contains test cases and a script for evaluating ATHOS agent flows on common HPC troubleshooting scenarios.
+This directory contains test cases and utilities for evaluating ATHOS agent flows on common HPC troubleshooting scenarios as well as simple question/answer prompts.
 
-Run the evaluation script to execute one or more flows on all test cases and grade the responses against the reference solutions.
+## JSONL question/answer format
 
-Usage:
+Q&A datasets are supplied as [JSON Lines](https://jsonlines.org/) files where each line is a standalone JSON object with three keys: `name`, `question`, and `answer`.
+
+Example:
+
+```jsonl
+{"name": "perlmutter_gpus", "question": "What type of GPUs are in the Perlmutter supercomputer?", "answer": "Nvidia A100s, 40G and 80G types"}
+```
+
+Pass one or more of these files to `run_evaluations.py` using the `--qa-file` flag.
+
+## Usage
+
 ```bash
 # Ensure required environment variables for your LLM models are set (e.g., CBORG_API_KEY, CBORG_API_URL).
 python evals/run_evaluations.py \
@@ -22,9 +33,24 @@ Arguments:
 - `--flow`: One or more execution flow names to test (required).
 - `--eval-model`: Optional override model name for evaluation (defaults to the model used by each flow).
 - `--cases-dir`: Directory containing structured test case subdirectories. May be provided multiple times. Defaults to `test_cases` if no datasets are specified.
-- `--qa-file`: Path to a JSON Lines file of question/answer pairs. May be provided multiple times.
+- `--qa-file`: JSONL file of question/answer pairs. May be provided multiple times.
 - `--passing-score`: Score threshold used when computing accuracy (default: `80`).
 - `--output`: File path to write a JSON report of results.
+
+### Running specific datasets
+
+- **HPC troubleshooting cases only** (default):
+  ```bash
+  python evals/run_evaluations.py --config config/config.yaml --flow hpc_chatbot
+  ```
+- **Q&A cases only**:
+  ```bash
+  python evals/run_evaluations.py --config config/config.yaml --flow hpc_chatbot --qa-file evals/simple_qa.jsonl
+  ```
+- **Both HPC and Q&A cases**:
+  ```bash
+  python evals/run_evaluations.py --config config/config.yaml --flow hpc_chatbot --cases-dir evals/test_cases --qa-file evals/simple_qa.jsonl
+  ```
 
 ## Available test cases
 
