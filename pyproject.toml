@@ -25,7 +25,7 @@ dependencies = [
     "PyYAML",
     "fastmcp>=2.10.6",
     "authlib",
-]
+  ]
 
 [project.optional-dependencies]
 dev = [
