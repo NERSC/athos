@@ -94,6 +94,10 @@ mcp_servers:
       NERSC_CLIENT_ID: "${NERSC_CLIENT_ID}"
       NERSC_PRIVATE_KEY_PATH: "${NERSC_PRIVATE_KEY_PATH}"
 
+  rag_mcp:
+    mcp_type: "mcp_stdio"
+    command: "rag-mcp"
+
   # Additional MCP servers can be added here as comments for reference:
   #
   # # GitHub MCP server (stdio transport)

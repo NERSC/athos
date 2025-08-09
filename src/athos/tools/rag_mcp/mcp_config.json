@@ -1,11 +1,7 @@
 {
   "mcpServers": {
     "rag": {
-      "command": "python",
-      "args": ["rag_mcp_server.py"],
-      "env": {
-        "PYTHONPATH": "."
-      }
+      "command": "rag-mcp"
     }
   }
 }
