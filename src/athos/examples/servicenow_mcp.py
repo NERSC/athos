@@ -1,51 +1,63 @@
-"""
-Simple example demonstrating usage of the servicenow_mcp tool.
+"""Standalone testing of the ServiceNow MCP server using FastMCP.
+
+This example mirrors ``sfapi_client_test.py`` and demonstrates how to invoke
+tools on :class:`~athos.tools.servicenow_mcp.server.ServiceNowMCPServer` using
+``fastmcp.Client`` without running a separate server process.
 """
 
+import asyncio
 import os
 from dotenv import load_dotenv
 
-from mcp import StdioServerParameters
-from smolagents.mcp_client import MCPClient
+from fastmcp import Client
 
-# Load environment variables from .env file
-load_dotenv()
-
-# Connect to the running MCP server (stdio transport).
-# For STDIO, smolagents will launch the process automatically.
-print("Constructing params")
-mcp_params = StdioServerParameters(
-    command="servicenow-mcp",
-    #command="python",
-    #args=["-m", "athos.tools.servicenow_mcp.cli"],
-    env={
-        "SERVICENOW_INSTANCE_URL": os.getenv("SERVICENOW_INSTANCE_URL"),
-        "SERVICENOW_USERNAME": os.getenv("SERVICENOW_USERNAME"),
-        "SERVICENOW_PASSWORD": os.getenv("SERVICENOW_PASSWORD"),
-        "SERVICENOW_AUTH_TYPE": os.getenv("SERVICENOW_AUTH_TYPE")
-    },
+from athos.tools.servicenow_mcp.server import ServiceNowMCPServer
+from athos.tools.servicenow_mcp.utils.config import (
+    AuthConfig,
+    AuthType,
+    BasicAuthConfig,
+    ServerConfig,
 )
 
-print("Constructing client")
-mcp_client = MCPClient(mcp_params)
-print(mcp_client)
 
-# Gather tools exposed by the MCP server
-tools = list(mcp_client.get_tools())
+async def main() -> None:
+    """Create the server and call a couple of tools using ``Client``."""
 
-# Debugging
-print("Available tools:")
-for tool in tools:
-    print(f"- {tool.name}: {tool.description}")
-    #print(f"  Inputs: {tool.inputs}")
-    #print()
-print()
+    # Load environment variables from .env file
+    load_dotenv()
 
-# Get the tool I want to test
-view_incident_logs = next(t for t in tools if t.name=="view_incident_logs")
-print(view_incident_logs)
+    # Build server configuration using basic authentication
+    auth_cfg = AuthConfig(
+        type=AuthType.BASIC,
+        basic=BasicAuthConfig(
+            username=os.environ["SERVICENOW_USERNAME"],
+            password=os.environ["SERVICENOW_PASSWORD"],
+        ),
+    )
 
-# Invoke the tool
-result = view_incident_logs(limit=10, offset=0, state="", assigned_to="", category="", query="", incident_number="INC0247613", sys_id="")
+    config = ServerConfig(
+        instance_url=os.environ["SERVICENOW_INSTANCE_URL"],
+        auth=auth_cfg,
+    )
 
-print(f"Result: {result}")
+    # Instantiate the server object which holds a ``FastMCP`` instance
+    server = ServiceNowMCPServer(config)
+
+    # Point the FastMCP client at the server's ``mcp`` attribute
+    client = Client(server.mcp)
+
+    async with client:
+        # Show all available tools
+        tools = await client.list_tools()
+        print("Available tools:")
+        for tool in tools:
+            print(" * ", tool, "\n")
+
+        # Retrieve recent incidents
+        incidents = await client.call_tool("list_incidents", {"limit": 5})
+        print("Recent incidents:", incidents)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
