@@ -37,7 +37,14 @@ class ServiceNowMCPServer:
         async def create_incident(
             params: incident_tools.CreateIncidentParams,
         ) -> Dict[str, Any]:
-            """Create a ServiceNow incident."""
+            """Create a new incident in ServiceNow.
+
+            Args:
+                params: Parameters for creating the incident.
+
+            Returns:
+                Dictionary with the created incident details.
+            """
             try:
                 return await asyncio.to_thread(
                     incident_tools.create_incident, self.config, self.auth, params
@@ -49,7 +56,14 @@ class ServiceNowMCPServer:
         async def update_incident(
             params: incident_tools.UpdateIncidentParams,
         ) -> Dict[str, Any]:
-            """Update a ServiceNow incident."""
+            """Update an existing incident in ServiceNow.
+
+            Args:
+                params: Parameters for updating the incident.
+
+            Returns:
+                Dictionary with the updated incident details.
+            """
             try:
                 return await asyncio.to_thread(
                     incident_tools.update_incident, self.config, self.auth, params
@@ -61,7 +75,14 @@ class ServiceNowMCPServer:
         async def add_comment(
             params: incident_tools.AddCommentParams,
         ) -> Dict[str, Any]:
-            """Add a comment or work note to an incident."""
+            """Add a comment to an incident in ServiceNow.
+
+            Args:
+                params: Parameters for adding the comment.
+
+            Returns:
+                Dictionary with the result of the operation.
+            """
             try:
                 return await asyncio.to_thread(
                     incident_tools.add_comment, self.config, self.auth, params
@@ -73,7 +94,14 @@ class ServiceNowMCPServer:
         async def resolve_incident(
             params: incident_tools.ResolveIncidentParams,
         ) -> Dict[str, Any]:
-            """Resolve an incident with notes."""
+            """Resolve an incident in ServiceNow.
+
+            Args:
+                params: Parameters for resolving the incident.
+
+            Returns:
+                Dictionary with the result of the operation.
+            """
             try:
                 return await asyncio.to_thread(
                     incident_tools.resolve_incident, self.config, self.auth, params
@@ -85,7 +113,14 @@ class ServiceNowMCPServer:
         async def list_incidents(
             params: incident_tools.ListIncidentsParams,
         ) -> Dict[str, Any]:
-            """List recent incidents."""
+            """List incidents from ServiceNow.
+
+            Args:
+                params: Parameters for listing incidents.
+
+            Returns:
+                Dictionary with list of incidents.
+            """
             try:
                 return await asyncio.to_thread(
                     incident_tools.list_incidents, self.config, self.auth, params
@@ -97,7 +132,14 @@ class ServiceNowMCPServer:
         async def view_incident_logs(
             params: incident_tools.ViewIncidentLogsParams,
         ) -> Dict[str, Any]:
-            """View activity logs for an incident."""
+            """View the activity logs for an incident in ServiceNow.
+
+            Args:
+                params: Parameters for viewing incident logs.
+
+            Returns:
+                Dictionary with list of incident logs.
+            """
             try:
                 return await asyncio.to_thread(
                     incident_tools.view_incident_logs, self.config, self.auth, params
@@ -109,7 +151,14 @@ class ServiceNowMCPServer:
         async def get_user(
             params: user_tools.GetUserParams,
         ) -> Dict[str, Any]:
-            """Retrieve a user record."""
+            """Get a user from ServiceNow by user ID, username, or email.
+
+            Args:
+                params: Parameters for getting the user.
+
+            Returns:
+                Dictionary containing user details.
+            """
             try:
                 return await asyncio.to_thread(
                     user_tools.get_user, self.config, self.auth, params
@@ -121,7 +170,14 @@ class ServiceNowMCPServer:
         async def list_users(
             params: user_tools.ListUsersParams,
         ) -> Dict[str, Any]:
-            """List users from ServiceNow."""
+            """List users from ServiceNow with optional filtering.
+
+            Args:
+                params: Parameters for listing users.
+
+            Returns:
+                Dictionary containing list of users.
+            """
             try:
                 return await asyncio.to_thread(
                     user_tools.list_users, self.config, self.auth, params
