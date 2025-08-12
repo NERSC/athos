@@ -7,6 +7,6 @@ focusing on the ITSM module.
 
 __version__ = "0.1.0"
 
-from .server import ServiceNowMCP
+from .server import ServiceNowMCPServer
 
-__all__ = ["ServiceNowMCP"] 
+__all__ = ["ServiceNowMCPServer"]

@@ -19,8 +19,6 @@ dependencies = [
     "pydantic-settings>=2.10.1,<3.0.0",
     "requests",
     "python-dotenv",
-    "starlette",
-    "uvicorn",
     "httpx",
     "PyYAML",
     "fastmcp>=2.10.6",
@@ -36,7 +34,6 @@ dev = [
 
 [project.scripts]
 servicenow-mcp = "athos.tools.servicenow_mcp.cli:main"
-servicenow-mcp-sse = "athos.tools.servicenow_mcp.server_sse:main"
 nersc-sfapi-mcp = "athos.tools.sfapi_mcp.server:cli"
 
 [tool.pytest.ini_options]
