@@ -1,86 +1,76 @@
-#!/usr/bin/env python3
-"""MCP server providing BM25-based retrieval over NERSC docs."""
+"""FastMCP server providing BM25-based retrieval over NERSC docs."""
+
+from __future__ import annotations
 
 import argparse
 import asyncio
 from pathlib import Path
-from typing import List
+from typing import Optional
 
-from mcp.server import NotificationOptions, Server
-from mcp.server.models import InitializationOptions
-from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
-import mcp.types as types
+from fastmcp import FastMCP
+from pydantic import BaseModel, Field
 
 from .rag_bm25 import RAGBM25
 
 REPO_URL = "https://gitlab.com/NERSC/nersc.gitlab.io.git"
 LOCAL_PATH = Path(__file__).resolve().parent / "nersc_docs"
 
-server = Server("rag-mcp-server")
-rag_index: RAGBM25 | None = None
+
+class QueryParams(BaseModel):
+    """Parameters for the query tool."""
+
+    query: str = Field(..., description="Search query")
+    k: int = Field(5, description="Number of results to return")
 
 
-@server.list_tools()
-async def list_tools() -> List[Tool]:
-    return [
-        Tool(
-            name="query",
-            description="Search NERSC documentation using BM25",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string"},
-                    "k": {"type": "integer", "default": 5},
-                },
-                "required": ["query"],
-            },
-        )
-    ]
+class RAGMCPServer:
+    """FastMCP-based server for RAG BM25 retrieval."""
+
+    def __init__(self) -> None:
+        self.mcp = FastMCP("RAG")
+        self.rag_index: Optional[RAGBM25] = None
+        self._setup_tools()
+
+    def _setup_tools(self) -> None:
+        @self.mcp.tool()
+        async def query(params: QueryParams) -> str:
+            """Search NERSC documentation using BM25."""
+
+            if self.rag_index is None:
+                return "Index not ready"
+
+            results = await asyncio.to_thread(
+                self.rag_index.query, params.query, k=params.k
+            )
+            texts = [f"{path}: {chunk}" for path, chunk in results]
+            return "\n\n".join(texts) if texts else "No results found"
+
+    def build_index(self, rebuild: bool = False) -> None:
+        """Build or rebuild the BM25 index."""
+
+        if rebuild and LOCAL_PATH.exists():
+            import shutil
+
+            shutil.rmtree(LOCAL_PATH)
+
+        self.rag_index = RAGBM25.from_repo(REPO_URL, str(LOCAL_PATH))
+
+    def run(self) -> None:
+        """Run the MCP server."""
+
+        self.mcp.run()
 
 
-@server.call_tool()
-async def call_tool(name: str, arguments: dict) -> List[types.TextContent]:
-    if name != "query":
-        raise ValueError(f"Unknown tool: {name}")
-    query = str(arguments.get("query", ""))
-    k = int(arguments.get("k", 5))
-    if not query:
-        return [types.TextContent(type="text", text="Empty query")] 
-    if rag_index is None:
-        return [types.TextContent(type="text", text="Index not ready")]
-    results = rag_index.query(query, k=k)
-    texts = [f"{path}: {chunk}" for path, chunk in results]
-    return [types.TextContent(type="text", text="\n\n".join(texts))]
-
-
-async def main() -> None:
-    global rag_index
+def main() -> None:
     parser = argparse.ArgumentParser(description="RAG MCP Server")
     parser.add_argument("--rebuild", action="store_true", help="Rebuild index")
     args = parser.parse_args()
 
-    if args.rebuild and LOCAL_PATH.exists():
-        import shutil
-
-        shutil.rmtree(LOCAL_PATH)
-
-    rag_index = RAGBM25.from_repo(REPO_URL, str(LOCAL_PATH))
-
-    async with stdio_server() as (read, write):
-        await server.run(
-            read,
-            write,
-            InitializationOptions(
-                server_name="rag-mcp-server",
-                server_version="0.1.0",
-                capabilities=server.get_capabilities(
-                    notification_options=NotificationOptions(),
-                    experimental_capabilities={},
-                ),
-            ),
-        )
+    server = RAGMCPServer()
+    server.build_index(rebuild=args.rebuild)
+    server.run()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
+

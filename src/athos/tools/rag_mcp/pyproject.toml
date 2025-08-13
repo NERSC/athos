@@ -1,10 +1,10 @@
 [project]
 name = "rag-mcp"
 version = "0.1.0"
-description = "MCP server for BM25 retrieval over NERSC docs"
+description = "FastMCP server for BM25 retrieval over NERSC docs"
 requires-python = ">=3.10"
 dependencies = [
-  "mcp>=1.0.0",
+  "fastmcp>=2.10.6",
 ]
 
 [build-system]

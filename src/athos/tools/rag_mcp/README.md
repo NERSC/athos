@@ -1,6 +1,6 @@
 # RAG MCP Server
 
-This MCP server exposes a single `query` tool that searches the NERSC
+This FastMCP server exposes a single `query` tool that searches the NERSC
 user documentation hosted at
 <https://gitlab.com/NERSC/nersc.gitlab.io>.
 
