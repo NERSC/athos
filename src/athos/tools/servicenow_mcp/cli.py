@@ -7,11 +7,9 @@ import logging
 import os
 import sys
 
-import anyio
 from dotenv import load_dotenv
-from mcp.server.stdio import stdio_server
 
-from .server import ServiceNowMCP
+from .server import ServiceNowMCPServer
 from .utils.config import (
     ApiKeyConfig,
     AuthConfig,
@@ -99,14 +97,6 @@ def parse_args():
         "--api-key-header",
         help="API key header name",
         default=os.environ.get("SERVICENOW_API_KEY_HEADER", "X-ServiceNow-API-Key"),
-    )
-
-    # Script execution API resource path
-    script_execution_group = parser.add_argument_group("Script Execution API")
-    script_execution_group.add_argument(
-        "--script-execution-api-resource-path",
-        help="Script execution API resource path",
-        default=os.environ.get("SCRIPT_EXECUTION_API_RESOURCE_PATH"),
     )
 
     return parser.parse_args()
@@ -207,15 +197,6 @@ def create_config(args) -> ServerConfig:
         # Should not happen if choices are enforced by argparse
         raise ValueError(f"Unsupported authentication type: {args.auth_type}")
 
-    # Script execution path
-    script_execution_api_resource_path = args.script_execution_api_resource_path or os.getenv(
-        "SCRIPT_EXECUTION_API_RESOURCE_PATH"
-    )
-    if not script_execution_api_resource_path:
-        logger.warning(
-            "Script execution API resource path not set (--script-execution-api-resource-path or SCRIPT_EXECUTION_API_RESOURCE_PATH). ExecuteScriptInclude tool may fail."
-        )
-
     # Create the final ServerConfig
     # Ensure ServerConfig model expects 'auth' as a nested object
     return ServerConfig(
@@ -224,18 +205,7 @@ def create_config(args) -> ServerConfig:
         # Include other server config fields if they exist on ServerConfig model
         debug=args.debug,
         timeout=args.timeout,
-        script_execution_api_resource_path=script_execution_api_resource_path,
     )
-
-
-async def arun_server(server_instance):
-    """Runs the given MCP server instance using stdio transport."""
-    logger.info("Starting server with stdio transport...")
-    async with stdio_server() as streams:
-        # Get initialization options from the low-level server
-        init_options = server_instance.create_initialization_options()
-        await server_instance.run(streams[0], streams[1], init_options)
-    logger.info("Stdio server finished.")
 
 
 def main():
@@ -254,19 +224,13 @@ def main():
         else:
             logging.getLogger().setLevel(logging.INFO)
 
-        # Create server configuration
         config = create_config(args)
-        # Log the instance URL being used (mask sensitive parts of config if needed)
-        logger.info(f"Initializing ServiceNow MCP server for instance: {config.instance_url}")
+        logger.info(
+            f"Initializing ServiceNow MCP server for instance: {config.instance_url}"
+        )
 
-        # Create server controller instance
-        mcp_controller = ServiceNowMCP(config)
-
-        # Get the low-level server instance to run
-        server_to_run = mcp_controller.start()
-
-        # Run the server using anyio and the stdio transport
-        anyio.run(arun_server, server_to_run)
+        server = ServiceNowMCPServer(config)
+        server.run()
 
     except ValueError as e:
         logger.error(f"Configuration or runtime error: {e}")

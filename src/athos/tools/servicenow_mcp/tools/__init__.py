@@ -11,10 +11,6 @@ from .incident_tools import (
     update_incident,
     view_incident_logs,
 )
-from .knowledge_base import (
-    get_article,
-    list_articles,
-)
 from .user_tools import (
     get_user,
     list_users,
@@ -32,8 +28,4 @@ __all__ = [
     # User lookup tools
     "get_user",
     "list_users",
-    
-    # Knowledge lookup tools
-    "get_article",
-    "list_articles",
-] 
+]

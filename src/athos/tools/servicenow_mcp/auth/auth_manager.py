@@ -7,7 +7,6 @@ import logging
 from typing import Dict, Optional
 
 import requests
-from requests.auth import HTTPBasicAuth
 
 from ..utils.config import AuthConfig, AuthType
 

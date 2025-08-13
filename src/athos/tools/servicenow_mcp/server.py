@@ -1,339 +1,193 @@
-"""
-ServiceNow MCP Server
+"""ServiceNow MCP server implemented with FastMCP."""
 
-This module provides the main implementation of the ServiceNow MCP server.
-"""
+from __future__ import annotations
 
-import json
+import asyncio
 import logging
-import os
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, Union
 
-import mcp.types as types
-import yaml
-from mcp.server.lowlevel import Server
-from pydantic import ValidationError
+from fastmcp import FastMCP
 
 from .auth.auth_manager import AuthManager
 from .utils.config import ServerConfig
-from .utils.tool_utils import get_tool_definitions
+from .tools import incident_tools, user_tools
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
-# Define path for the configuration file
-TOOL_PACKAGE_CONFIG_PATH = os.getenv("TOOL_PACKAGE_CONFIG_PATH", "config/tool_packages.yaml")
 
+class ServiceNowMCPServer:
+    """FastMCP based ServiceNow server."""
 
-def serialize_tool_output(result: Any, tool_name: str) -> str:
-    """Serializes tool output to a string, preferably JSON indented."""
-    try:
-        if isinstance(result, str):
-            # If it's already a string, assume it's intended as such
-            # Try to parse/re-dump JSON for consistent formatting if it looks like JSON
-            try:
-                parsed = json.loads(result)
-                return json.dumps(parsed, indent=2)
-            except json.JSONDecodeError:
-                return result  # Return as is if not valid JSON
-        elif isinstance(result, dict):
-            # Dump dicts to JSON
-            return json.dumps(result, indent=2)
-        elif hasattr(result, "model_dump_json"):  # Pydantic v2
-            # Prefer Pydantic v2 model_dump_json
-            # The indent argument might not be supported by all versions/models,
-            # so we might need to dump to dict first if indent is crucial.
-            try:
-                return result.model_dump_json(indent=2)
-            except TypeError:  # Handle case where indent is not supported
-                return json.dumps(result.model_dump(), indent=2)
-        elif hasattr(result, "model_dump"):  # Pydantic v2 fallback
-            # Fallback to Pydantic v2 model_dump -> dict -> json
-            return json.dumps(result.model_dump(), indent=2)
-        elif hasattr(result, "dict"):  # Pydantic v1
-            # Fallback to Pydantic v1 dict -> json
-            return json.dumps(result.dict(), indent=2)
-        elif isinstance(result, (list, tuple)):
-            # Handle lists and tuples
-            return json.dumps(result, indent=2, default=str)
-        else:
-            # Absolute fallback: convert to string
-            logger.warning(
-                f"Could not serialize result for tool '{tool_name}' to JSON, falling back to str(). Type: {type(result)}"
-            )
-            return str(result)
-    except Exception as e:
-        logger.error(f"Error during serialization for tool '{tool_name}': {e}", exc_info=True)
-        # Return an error message string formatted as JSON
-        return json.dumps(
-            {"error": f"Serialization failed for tool {tool_name}", "details": str(e)}, indent=2
-        )
-
-
-class ServiceNowMCP:
-    """
-    ServiceNow MCP Server implementation.
-
-    This class provides a Model Context Protocol (MCP) server for ServiceNow,
-    allowing LLMs to interact with ServiceNow data and functionality.
-    It supports loading specific tool packages via the MCP_TOOL_PACKAGE env var.
-    """
-
-    def __init__(self, config: Union[Dict, ServerConfig]):
-        """
-        Initialize the ServiceNow MCP server.
-
-        Args:
-            config: Server configuration, either as a dictionary or ServerConfig object.
-        """
+    def __init__(self, config: Union[ServerConfig, Dict[str, Any]]):
         if isinstance(config, dict):
             self.config = ServerConfig(**config)
         else:
             self.config = config
 
-        self.auth_manager = AuthManager(self.config.auth)
-        self.mcp_server = Server("ServiceNow")  # Use low-level Server
-        self.name = "ServiceNow"
+        self.auth = AuthManager(self.config.auth)
+        self.mcp = FastMCP("ServiceNow")
+        self._setup_tools()
 
-        self.package_definitions: Dict[str, List[str]] = {}
-        self.enabled_tool_names: List[str] = []
-        self.current_package_name: str = "none"
-        self._load_package_config()
-        self._determine_enabled_tools()
+    def _handle_error(self, error: Exception) -> Dict[str, Any]:
+        logger.error("Tool error: %s", error)
+        return {"error": str(error)}
 
-        # Get tool definitions
-        self.tool_definitions = get_tool_definitions(None, None)
+    def _setup_tools(self) -> None:
+        @self.mcp.tool()
+        async def create_incident(
+            params: incident_tools.CreateIncidentParams,
+        ) -> Dict[str, Any]:
+            """Create a new incident in ServiceNow.
 
-        self._register_handlers()
+            Args:
+                params: Parameters for creating the incident.
 
-    def _register_handlers(self):
-        """Register the list_tools and call_tool handlers."""
-        self.mcp_server.list_tools()(self._list_tools_impl)
-        self.mcp_server.call_tool()(self._call_tool_impl)
-        logger.info("Registered list_tools and call_tool handlers.")
-
-    def _load_package_config(self):
-        """Load tool package definitions from the YAML configuration file."""
-        config_path = TOOL_PACKAGE_CONFIG_PATH
-        if not os.path.isabs(config_path):
-            config_path = os.path.join(os.path.dirname(__file__), config_path)
-            config_path = os.path.abspath(config_path)
-
-        try:
-            with open(config_path, "r") as f:
-                loaded_config = yaml.safe_load(f)
-                if isinstance(loaded_config, dict):
-                    self.package_definitions = loaded_config
-                    logger.info(f"Successfully loaded tool package config from {config_path}")
-                else:
-                    logger.error(
-                        f"Invalid format in {config_path}: Expected a dictionary, got {type(loaded_config)}. No packages loaded."
-                    )
-                    self.package_definitions = {}
-        except FileNotFoundError:
-            logger.error(
-                f"Tool package config file not found at {config_path}. No packages loaded."
-            )
-            self.package_definitions = {}
-        except yaml.YAMLError as e:
-            logger.error(
-                f"Error parsing tool package config file {config_path}: {e}. No packages loaded."
-            )
-            self.package_definitions = {}
-        except Exception as e:
-            logger.error(f"Unexpected error loading tool package config {config_path}: {e}")
-            self.package_definitions = {}
-
-    def _determine_enabled_tools(self):
-        """Determine which tool package and tools to enable based on environment variable."""
-        requested_package = os.getenv("MCP_TOOL_PACKAGE", "service_desk").strip()
-
-        if not requested_package:
-            self.current_package_name = "service_desk"
-            logger.info("MCP_TOOL_PACKAGE is empty, defaulting to 'service_desk' package.")
-        elif requested_package in self.package_definitions:
-            self.current_package_name = requested_package
-            logger.info(f"MCP_TOOL_PACKAGE set to '{self.current_package_name}'.")
-        else:
-            self.current_package_name = "none"
-            logger.warning(
-                f"MCP_TOOL_PACKAGE '{requested_package}' is not a valid package name. "
-                f"Valid packages: {list(self.package_definitions.keys())}. Loading 'none' package."
-            )
-
-        if self.package_definitions:
-            self.enabled_tool_names = self.package_definitions.get(self.current_package_name, [])
-        else:
-            self.enabled_tool_names = []
-
-        logger.info(
-            f"Loading package '{self.current_package_name}' with {len(self.enabled_tool_names)} tools."
-        )
-
-    async def _list_tools_impl(self) -> List[types.Tool]:
-        """Implementation for the list_tools MCP endpoint."""
-        tool_list: List[types.Tool] = []
-
-        # Add the introspection tool if not 'none' package
-        if self.current_package_name != "none":
-            tool_list.append(
-                types.Tool(
-                    name="list_tool_packages",
-                    description="Lists available tool packages and the currently loaded one.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "random_string": {
-                                "type": "string",
-                                "description": "Dummy parameter for no-parameter tools",
-                            }
-                        },
-                        "required": ["random_string"],
-                    },
+            Returns:
+                Dictionary with the created incident details.
+            """
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.create_incident, self.config, self.auth, params
                 )
-            )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
 
-        # Iterate through defined tools and add enabled ones
-        for tool_name, definition in self.tool_definitions.items():
-            if tool_name in self.enabled_tool_names:
-                _impl_func, params_model, _return_annotation, description, _serialization = (
-                    definition
+        @self.mcp.tool()
+        async def update_incident(
+            params: incident_tools.UpdateIncidentParams,
+        ) -> Dict[str, Any]:
+            """Update an existing incident in ServiceNow.
+
+            Args:
+                params: Parameters for updating the incident.
+
+            Returns:
+                Dictionary with the updated incident details.
+            """
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.update_incident, self.config, self.auth, params
                 )
-                try:
-                    # Handle Pydantic v2 schema generation
-                    if hasattr(params_model, 'model_json_schema'):
-                        schema = params_model.model_json_schema()
-                    elif hasattr(params_model, 'schema'):
-                        schema = params_model.schema()
-                    else:
-                        # Fallback for older Pydantic versions
-                        schema = {
-                            "type": "object",
-                            "properties": {},
-                            "additionalProperties": False
-                        }
-                        logger.warning(f"Could not generate schema for tool '{tool_name}', using fallback")
-                    
-                    tool_list.append(
-                        types.Tool(
-                            name=tool_name, 
-                            description=description, 
-                            inputSchema=schema,
-                            outputSchema={
-                                "type": "object",
-                                "description": f"JSON response from {tool_name}",
-                                "properties": {
-                                    "success": {"type": "boolean"},
-                                    "message": {"type": "string"},
-                                    "data": {"type": "object", "description": "Tool-specific data"}
-                                }
-                            }
-                        )
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to generate schema for tool '{tool_name}': {e}", exc_info=True
-                    )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
 
-        logger.debug(f"Listing {len(tool_list)} tools for package '{self.current_package_name}'.")
-        return tool_list
+        @self.mcp.tool()
+        async def add_comment(
+            params: incident_tools.AddCommentParams,
+        ) -> Dict[str, Any]:
+            """Add a comment to an incident in ServiceNow.
 
-    async def _call_tool_impl(self, name: str, arguments: dict) -> list[types.TextContent]:
-        """
-        Implementation for the call_tool MCP endpoint.
-        Handles argument parsing, tool execution, result serialization (to string),
-        and returning a list containing a single TextContent object.
+            Args:
+                params: Parameters for adding the comment.
 
-        Args:
-            name: The name of the tool to call.
-            arguments: The arguments for the tool as a dictionary.
-
-        Returns:
-            A list containing a single TextContent object with the tool output.
-
-        Raises:
-            ValueError: If the tool is unknown, disabled, or if arguments are invalid.
-            RuntimeError: If tool execution or serialization fails.
-        """
-        logger.info(f"Received call_tool request for tool '{name}'")
-        # Handle the introspection tool separately
-        if name == "list_tool_packages":
-            if self.current_package_name == "none":
-                raise ValueError(
-                    "Tool 'list_tool_packages' is not available in the 'none' package."
+            Returns:
+                Dictionary with the result of the operation.
+            """
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.add_comment, self.config, self.auth, params
                 )
-            result_dict = self._list_tool_packages_impl()
-            serialized_string = json.dumps(result_dict, indent=2)
-            # Return a list with a TextContent object
-            return [types.TextContent(type="text", text=serialized_string)]
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
 
-        # Check if the tool exists and is enabled
-        if name not in self.tool_definitions:
-            raise ValueError(f"Unknown tool: {name}")
-        if name not in self.enabled_tool_names:
-            raise ValueError(
-                f"Tool '{name}' is not enabled in the current package '{self.current_package_name}'."
-            )
+        @self.mcp.tool()
+        async def resolve_incident(
+            params: incident_tools.ResolveIncidentParams,
+        ) -> Dict[str, Any]:
+            """Resolve an incident in ServiceNow.
 
-        # Get tool definition (we don't need the serialization hint anymore)
-        definition = self.tool_definitions[name]
-        impl_func, params_model, _return_annotation, _description, _serialization = definition
+            Args:
+                params: Parameters for resolving the incident.
 
-        # Validate and parse arguments using the Pydantic model
-        try:
-            params = params_model(**arguments)
-            logger.debug(f"Parsed arguments for tool '{name}': {params}")
-        except ValidationError as e:
-            logger.error(f"Invalid arguments for tool '{name}': {e}", exc_info=True)
-            raise ValueError(f"Invalid arguments for tool '{name}': {e}") from e
-        except Exception as e:
-            logger.error(
-                f"Unexpected error parsing arguments for tool '{name}': {e}", exc_info=True
-            )
-            raise ValueError(f"Failed to parse arguments for tool '{name}': {e}")
+            Returns:
+                Dictionary with the result of the operation.
+            """
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.resolve_incident, self.config, self.auth, params
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
 
-        # Execute the tool implementation function
-        try:
-            result = impl_func(self.config, self.auth_manager, params)
-            logger.debug(f"Raw result type from tool '{name}': {type(result)}")
-        except Exception as e:
-            logger.error(f"Error executing tool '{name}': {e}", exc_info=True)
-            raise RuntimeError(f"Error during execution of tool '{name}': {e}") from e
+        @self.mcp.tool()
+        async def list_incidents(
+            params: incident_tools.ListIncidentsParams,
+        ) -> Dict[str, Any]:
+            """List incidents from ServiceNow.
 
-        # Serialize the result to a string (preferably JSON) using the helper
-        serialized_string = serialize_tool_output(result, name)
-        logger.debug(f"Serialized value for tool '{name}': {serialized_string[:500]}...")
+            Args:
+                params: Parameters for listing incidents.
 
-        # Return a list with a TextContent object
-        return [types.TextContent(type="text", text=serialized_string)]
+            Returns:
+                Dictionary with list of incidents.
+            """
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.list_incidents, self.config, self.auth, params
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
 
-    def _list_tool_packages_impl(self) -> Dict[str, Any]:
-        """Implementation logic for the list_tool_packages tool."""
-        available_packages = list(self.package_definitions.keys())
-        return {
-            "current_package": self.current_package_name,
-            "available_packages": available_packages,
-            "message": (
-                f"Currently loaded package: '{self.current_package_name}'. "
-                f"Set MCP_TOOL_PACKAGE env var to one of {available_packages} to switch."
-            ),
-        }
+        @self.mcp.tool()
+        async def view_incident_logs(
+            params: incident_tools.ViewIncidentLogsParams,
+        ) -> Dict[str, Any]:
+            """View the activity logs for an incident in ServiceNow.
 
-    def start(self) -> Server:
-        """
-        Prepares and returns the configured low-level MCP Server instance.
+            Args:
+                params: Parameters for viewing incident logs.
 
-        The caller (e.g., cli.py) is responsible for obtaining the server
-        instance from this method and running it within an appropriate
-        async transport context (e.g., mcp.server.stdio.stdio_server).
+            Returns:
+                Dictionary with list of incident logs.
+            """
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.view_incident_logs, self.config, self.auth, params
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
 
-        Returns:
-            The configured mcp.server.lowlevel.Server instance.
-        """
-        logger.info(
-            "ServiceNowMCP instance configured. Returning low-level server instance for external execution."
-        )
-        # The actual running of the server (server.run(...)) must happen
-        # within an async context managed by the caller (e.g., using anyio
-        # and a specific transport like stdio_server or SseServerTransport).
-        return self.mcp_server
+        @self.mcp.tool()
+        async def get_user(
+            params: user_tools.GetUserParams,
+        ) -> Dict[str, Any]:
+            """Get a user from ServiceNow by user ID, username, or email.
+
+            Args:
+                params: Parameters for getting the user.
+
+            Returns:
+                Dictionary containing user details.
+            """
+            try:
+                return await asyncio.to_thread(
+                    user_tools.get_user, self.config, self.auth, params
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
+
+        @self.mcp.tool()
+        async def list_users(
+            params: user_tools.ListUsersParams,
+        ) -> Dict[str, Any]:
+            """List users from ServiceNow with optional filtering.
+
+            Args:
+                params: Parameters for listing users.
+
+            Returns:
+                Dictionary containing list of users.
+            """
+            try:
+                return await asyncio.to_thread(
+                    user_tools.list_users, self.config, self.auth, params
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
+
+    def run(self) -> None:
+        """Run the MCP server."""
+        logger.info("Starting ServiceNow MCP Server")
+        self.mcp.run()
+
+
