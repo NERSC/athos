@@ -13,6 +13,47 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
+def _format_config(cfg):
+    """Create a human-friendly representation of configuration sections."""
+    lines = ["Configuration Summary:"]
+
+    lines.append("Models:")
+    if cfg.models:
+        for name, model in cfg.models.items():
+            model_id = getattr(model, "model_id", "")
+            lines.append(f"  - {name}: {model_id}")
+    else:
+        lines.append("  (none)")
+
+    lines.append("Tools:")
+    if cfg.tools:
+        for name, tool in cfg.tools.items():
+            module = getattr(tool, "module_path", "")
+            cls = getattr(tool, "class_name", "")
+            lines.append(f"  - {name}: {module}.{cls}")
+    else:
+        lines.append("  (none)")
+
+    lines.append("MCP Servers:")
+    if cfg.mcp_servers:
+        for name, mcp in cfg.mcp_servers.items():
+            mcp_type = getattr(mcp, "mcp_type", "")
+            mcp_type = getattr(mcp_type, "value", mcp_type)
+            lines.append(f"  - {name}: {mcp_type}")
+    else:
+        lines.append("  (none)")
+
+    lines.append("Agent Flows:")
+    if cfg.execution_flows:
+        for name, flow in cfg.execution_flows.items():
+            flow_type = getattr(flow, "type", "")
+            lines.append(f"  - {name}: {flow_type}")
+    else:
+        lines.append("  (none)")
+
+    return "\n".join(lines)
+
+
 # CLI interface (basic example)
 async def main():
     """Main CLI interface for ATHOS"""
@@ -24,8 +65,13 @@ async def main():
     parser.add_argument(
         "--config", required=True, help="Path to configuration YAML file"
     )
-    parser.add_argument("--flow", required=True, help="Execution flow name")
-    parser.add_argument("--input", required=True, help="Input for the execution flow")
+    parser.add_argument("--flow", help="Execution flow name")
+    parser.add_argument("--input", help="Input for the execution flow")
+    parser.add_argument(
+        "--show-config",
+        action="store_true",
+        help="Display loaded configuration and exit",
+    )
     parser.add_argument(
         "-v",
         "--log-level",
@@ -35,10 +81,16 @@ async def main():
 
     args = parser.parse_args()
 
+    flow = None
     try:
         cfg = build_config(args.config)
         if args.log_level:
             logging.getLogger().setLevel(getattr(logging, args.log_level))
+        if args.show_config:
+            print(_format_config(cfg))
+            return 0
+        if not args.flow or not args.input:
+            parser.error("--flow and --input are required unless --show-config is used")
         flow = build_flow(args.flow, cfg)
         result = await flow.execute(args.input)
         print(f"Result: {result}")
@@ -46,10 +98,11 @@ async def main():
         logger.error(f"Execution failed: {e}")
         raise e
     finally:
-        try:
-            flow.close()
-        except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
-            logger.warning("Error during flow cleanup: %s", e)
+        if flow is not None:
+            try:
+                flow.close()
+            except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
+                logger.warning("Error during flow cleanup: %s", e)
 
     return 0
 
