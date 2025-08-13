@@ -15,8 +15,12 @@ from athos.tools.rag_mcp.rag_mcp_server import RAGMCPServer
 async def main() -> None:
     """Create the server, build the index and query the docs."""
 
-    # Instantiate the server object which holds a ``FastMCP`` instance
-    server = RAGMCPServer()
+    # Instantiate the server object which holds a ``FastMCP`` instance.
+    # Here we demonstrate overriding chunking parameters and the query
+    # docstring; ``repo_url`` and ``docs_path`` could also be supplied if you
+    # wanted to index a different repository or a local directory of Markdown
+    # files.
+    server = RAGMCPServer(chunk_size=150, overlap=25, query_docstring="Query NERSC docs")
     server.build_index()
 
     # Point the FastMCP client at the server's ``mcp`` attribute
