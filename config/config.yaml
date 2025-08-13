@@ -73,11 +73,11 @@ models:
 
 # MCP servers
 mcp_servers:
-  # WARNING: filesystem_mcp is given edit privs in current working directory
+  # WARNING: filesystem_mcp is given edit privs in specified directory below
   filesystem_mcp:
     mcp_type: "mcp_stdio"
     command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "."]
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
   
   servicenow_mcp:
     mcp_type: "mcp_stdio"
