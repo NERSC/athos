@@ -16,13 +16,6 @@ REPO_URL = "https://gitlab.com/NERSC/nersc.gitlab.io.git"
 LOCAL_PATH = Path(__file__).resolve().parent / "nersc_docs"
 
 
-class QueryParams(BaseModel):
-    """Parameters for the query tool."""
-
-    query: str = Field(..., description="Search query")
-    k: int = Field(5, description="Number of results to return")
-
-
 class RAGMCPServer:
     """FastMCP-based server for RAG BM25 retrieval."""
 
@@ -33,14 +26,17 @@ class RAGMCPServer:
 
     def _setup_tools(self) -> None:
         @self.mcp.tool()
-        async def query(params: QueryParams) -> str:
+        async def query(
+            query: str = Field(description="Search query string"),
+            k: int = Field(5, description="Number of results to return", ge=1, le=100)
+        ) -> str:
             """Search NERSC documentation using BM25."""
 
             if self.rag_index is None:
                 return "Index not ready"
 
             results = await asyncio.to_thread(
-                self.rag_index.query, params.query, k=params.k
+                self.rag_index.query, query, k=k
             )
             texts = [f"{path}: {chunk}" for path, chunk in results]
             return "\n\n".join(texts) if texts else "No results found"
