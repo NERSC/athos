@@ -94,14 +94,28 @@ mcp_servers:
       NERSC_CLIENT_ID: "${NERSC_CLIENT_ID}"
       NERSC_PRIVATE_KEY_PATH: "${NERSC_PRIVATE_KEY_PATH}"
 
-  rag_mcp:
+  docs_rag_mcp:
     mcp_type: "mcp_stdio"
     command: "rag-mcp"
     args: [
       "--repo-url", "https://gitlab.com/NERSC/nersc.gitlab.io.git",
       "--docs-path", "/tmp/nersc_docs",
       "--chunk-size", "200",
-      "--overlap", "50"
+      "--overlap", "50",
+      "--query-name", "query_docs",
+      "--query-docstring", "Query the NERSC public documentation"
+    ]
+
+  consulting_docs_rag_mcp:
+    mcp_type: "mcp_stdio"
+    command: "rag-mcp"
+    args: [
+      #"--repo-url", "https://gitlab.nersc.gov/nersc/consulting/consulting-documentation.git",
+      "--docs-path", "$SCRATCH/consulting-documentation-main",
+      "--chunk-size", "200",
+      "--overlap", "50",
+      "--query-name", "query_consulting_docs",
+      "--query-docstring", "Query the NERSC internal consultant documentation"
     ]
 
   # Additional MCP servers can be added here as comments for reference:
@@ -224,7 +238,7 @@ execution_flows:
     type: "agent"
     agent_type: "tool_calling"
     model: "gpt_4o"
-    mcp_servers: ["rag_mcp"]
+    mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
