@@ -33,6 +33,7 @@ dev = [
 ]
 
 [project.scripts]
+athos = "athos.main:cli"
 servicenow-mcp = "athos.tools.servicenow_mcp.cli:main"
 nersc-sfapi-mcp = "athos.tools.sfapi_mcp.server:cli"
 rag-mcp = "athos.tools.rag_mcp.rag_mcp_server:cli"
