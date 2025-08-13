@@ -169,10 +169,8 @@ class HPCSmolAgent(Agent):
         if self.enable_rag:
             try:
                 rag_parameters = StdioServerParameters(
-                    command="uv",
-                    args=["run", "python", "run_server.py"],
+                    command="rag-mcp",
                     env={},
-                    cwd="/global/homes/z/zijielei/workspace/agentic_HPC/rag_mcp"
                 )
                 
                 # Create tool collection and enter the context manager

@@ -71,6 +71,10 @@ def main() -> None:
     server.run()
 
 
-if __name__ == "__main__":
-    main()
+def cli() -> None:
+    """Command-line entry point for the RAG MCP server."""
+    asyncio.run(main())
 
+
+if __name__ == "__main__":
+    cli()
