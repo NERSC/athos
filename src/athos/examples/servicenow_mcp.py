@@ -54,8 +54,7 @@ async def main() -> None:
             print(" * ", tool, "\n")
 
         # Retrieve recent incidents
-        list_incidents_params = dict(limit=5)
-        incidents = await client.call_tool("list_incidents", {"params": list_incidents_params})
+        incidents = await client.call_tool("list_incidents", {"limit": 1})
         print("Recent incidents:", incidents)
 
 
