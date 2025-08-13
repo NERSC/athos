@@ -8,48 +8,78 @@ from pathlib import Path
 from typing import Optional
 
 from fastmcp import FastMCP
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from .rag_bm25 import RAGBM25
 
-REPO_URL = "https://gitlab.com/NERSC/nersc.gitlab.io.git"
-LOCAL_PATH = Path(__file__).resolve().parent / "nersc_docs"
+DEFAULT_REPO_URL = "https://gitlab.com/NERSC/nersc.gitlab.io.git"
+DEFAULT_LOCAL_PATH = Path(__file__).resolve().parent / "nersc_docs"
 
 
 class RAGMCPServer:
     """FastMCP-based server for RAG BM25 retrieval."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        repo_url: str | None = DEFAULT_REPO_URL,
+        docs_path: str | Path | None = DEFAULT_LOCAL_PATH,
+        *,
+        chunk_size: int = 200,
+        overlap: int = 50,
+        query_docstring: str = "Search NERSC documentation using BM25.",
+    ) -> None:
         self.mcp = FastMCP("RAG")
         self.rag_index: Optional[RAGBM25] = None
+        self.repo_url = repo_url
+        self.docs_path = Path(docs_path) if docs_path is not None else None
+        self.chunk_size = chunk_size
+        self.overlap = overlap
+        self.query_docstring = query_docstring
         self._setup_tools()
 
     def _setup_tools(self) -> None:
         @self.mcp.tool()
         async def query(
             query: str = Field(description="Search query string"),
-            k: int = Field(5, description="Number of results to return", ge=1, le=100)
+            k: int = Field(5, description="Number of results to return", ge=1, le=100),
         ) -> str:
-            """Search NERSC documentation using BM25."""
+            """Placeholder docstring overwritten at runtime."""
 
             if self.rag_index is None:
                 return "Index not ready"
 
-            results = await asyncio.to_thread(
-                self.rag_index.query, query, k=k
-            )
+            results = await asyncio.to_thread(self.rag_index.query, query, k=k)
             texts = [f"{path}: {chunk}" for path, chunk in results]
             return "\n\n".join(texts) if texts else "No results found"
+
+        # Allow custom documentation for this tool
+        query.__doc__ = self.query_docstring
 
     def build_index(self, rebuild: bool = False) -> None:
         """Build or rebuild the BM25 index."""
 
-        if rebuild and LOCAL_PATH.exists():
+        if self.docs_path is not None and rebuild and self.docs_path.exists():
             import shutil
 
-            shutil.rmtree(LOCAL_PATH)
+            shutil.rmtree(self.docs_path)
 
-        self.rag_index = RAGBM25.from_repo(REPO_URL, str(LOCAL_PATH))
+        if self.repo_url:
+            path = self.docs_path or DEFAULT_LOCAL_PATH
+            self.rag_index = RAGBM25.from_repo(
+                self.repo_url,
+                str(path),
+                chunk_size=self.chunk_size,
+                overlap=self.overlap,
+            )
+            self.docs_path = Path(path)
+        elif self.docs_path is not None:
+            self.rag_index = RAGBM25.from_path(
+                self.docs_path,
+                chunk_size=self.chunk_size,
+                overlap=self.overlap,
+            )
+        else:
+            raise ValueError("Either repo_url or docs_path must be provided")
 
     def run(self) -> None:
         """Run the MCP server."""

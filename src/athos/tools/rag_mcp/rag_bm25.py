@@ -1,7 +1,7 @@
 import math
 import subprocess
 from pathlib import Path
-from typing import List, Tuple, Sequence, Dict
+from typing import Dict, List, Sequence, Tuple
 
 
 def _chunk_text(text: str, chunk_size: int = 200, overlap: int = 50) -> List[str]:
@@ -32,12 +32,25 @@ def _chunk_text(text: str, chunk_size: int = 200, overlap: int = 50) -> List[str
 class RAGBM25:
     """BM25 retrieval over Markdown documents."""
 
-    def __init__(self, docs: Sequence[Tuple[str, str]]):
+    def __init__(
+        self,
+        docs: Sequence[Tuple[str, str]],
+        chunk_size: int = 200,
+        overlap: int = 50,
+    ) -> None:
+        """Initialize the BM25 index.
+
+        Args:
+            docs: Iterable of ``(path, text)`` tuples to index.
+            chunk_size: Maximum number of words per chunk.
+            overlap: Number of overlapping words between chunks.
+        """
+
         self.docs = docs
         self.chunks: List[Tuple[str, str]] = []
         self.tokenized_chunks: List[List[str]] = []
         for path, text in docs:
-            for chunk in _chunk_text(text):
+            for chunk in _chunk_text(text, chunk_size=chunk_size, overlap=overlap):
                 self.chunks.append((path, chunk))
                 self.tokenized_chunks.append(chunk.lower().split())
 
@@ -59,19 +72,34 @@ class RAGBM25:
         cls,
         repo_url: str,
         local_path: str,
+        *,
+        chunk_size: int = 200,
+        overlap: int = 50,
     ) -> "RAGBM25":
         """Clone repo if needed and build index from Markdown files."""
         repo_dir = Path(local_path)
         if not repo_dir.exists():
             subprocess.run(["git", "clone", repo_url, str(repo_dir)], check=True)
+        return cls.from_path(repo_dir, chunk_size=chunk_size, overlap=overlap)
+
+    @classmethod
+    def from_path(
+        cls,
+        path: str | Path,
+        *,
+        chunk_size: int = 200,
+        overlap: int = 50,
+    ) -> "RAGBM25":
+        """Build index from Markdown files in an existing directory."""
+        root = Path(path)
         docs: List[Tuple[str, str]] = []
-        for md_file in repo_dir.rglob("*.md"):
+        for md_file in root.rglob("*.md"):
             try:
                 text = md_file.read_text(encoding="utf-8")
                 docs.append((str(md_file), text))
             except Exception:
                 continue
-        return cls(docs)
+        return cls(docs, chunk_size=chunk_size, overlap=overlap)
 
     def query(self, question: str, k: int = 5) -> List[Tuple[str, str]]:
         """Return top-k chunks for query."""
