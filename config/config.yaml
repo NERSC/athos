@@ -220,6 +220,12 @@ execution_flows:
     model: "gpt_4o"
     mcp_servers: ["sfapi_mcp"]
 
+  docs_rag_agent:
+    type: "agent"
+    agent_type: "tool_calling"
+    model: "gpt_4o"
+    mcp_servers: ["rag_mcp"]
+
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
   #   type: "agent"
