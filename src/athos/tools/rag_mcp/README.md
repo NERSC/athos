@@ -11,7 +11,11 @@ with file path context.
 ## Running
 
 ```bash
-python rag_mcp_server.py
+python rag_mcp_server.py [--repo-url URL] [--docs-path PATH] \
+                         [--chunk-size N] [--overlap M] [--rebuild]
 ```
 
-Use `--rebuild` to force re-cloning and re-indexing the repository.
+Use `--rebuild` to force re-cloning and re-indexing the repository. The
+`--repo-url` and `--docs-path` arguments control which repository and local
+directory are indexed. `--chunk-size` and `--overlap` tune how the
+documentation is split into chunks for retrieval.
