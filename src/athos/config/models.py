@@ -65,17 +65,29 @@ class MCPServerConfig(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def expand_dict_env_vars(cls, data: Any) -> Any:
-        """Expand environment variables in env and headers dictionaries."""
+        """Expand environment variables in env, headers and args."""
         if isinstance(data, dict):
             # Expand environment variables in env dictionary values
             if 'env' in data and isinstance(data['env'], dict):
-                data['env'] = {k: os.path.expandvars(v) if isinstance(v, str) else v
-                              for k, v in data['env'].items()}
+                data['env'] = {
+                    k: os.path.expandvars(v) if isinstance(v, str) else v
+                    for k, v in data['env'].items()
+                }
 
             # Expand environment variables in headers dictionary values
             if 'headers' in data and isinstance(data['headers'], dict):
-                data['headers'] = {k: os.path.expandvars(v) if isinstance(v, str) else v
-                                  for k, v in data['headers'].items()}
+                data['headers'] = {
+                    k: os.path.expandvars(v) if isinstance(v, str) else v
+                    for k, v in data['headers'].items()
+                }
+
+            # Expand environment variables in args list values
+            if 'args' in data and isinstance(data['args'], list):
+                data['args'] = [
+                    os.path.expandvars(v) if isinstance(v, str) else v
+                    for v in data['args']
+                ]
+
         return data
 
     @model_validator(mode='after')

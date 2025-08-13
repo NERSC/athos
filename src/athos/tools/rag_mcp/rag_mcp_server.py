@@ -89,10 +89,35 @@ class RAGMCPServer:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="RAG MCP Server")
+    parser.add_argument("--repo-url", default=None, help="Git repository URL to index")
+    parser.add_argument(
+        "--docs-path",
+        "--local-dir",
+        dest="docs_path",
+        default=None,
+        help="Local directory containing documentation",
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=200,
+        help="Text chunk size for indexing",
+    )
+    parser.add_argument(
+        "--overlap",
+        type=int,
+        default=50,
+        help="Token overlap between chunks",
+    )
     parser.add_argument("--rebuild", action="store_true", help="Rebuild index")
     args = parser.parse_args()
 
-    server = RAGMCPServer()
+    server = RAGMCPServer(
+        repo_url=args.repo_url,
+        docs_path=args.docs_path,
+        chunk_size=args.chunk_size,
+        overlap=args.overlap,
+    )
     server.build_index(rebuild=args.rebuild)
     server.run()
 

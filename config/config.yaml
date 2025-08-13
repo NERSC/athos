@@ -78,7 +78,7 @@ mcp_servers:
     mcp_type: "mcp_stdio"
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-  
+
   servicenow_mcp:
     mcp_type: "mcp_stdio"
     command: "servicenow-mcp"
@@ -97,6 +97,12 @@ mcp_servers:
   rag_mcp:
     mcp_type: "mcp_stdio"
     command: "rag-mcp"
+    args: [
+      "--repo-url", "https://gitlab.com/NERSC/nersc.gitlab.io.git",
+      "--docs-path", "/tmp/nersc_docs",
+      "--chunk-size", "200",
+      "--overlap", "50"
+    ]
 
   # Additional MCP servers can be added here as comments for reference:
   #
