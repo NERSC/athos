@@ -32,7 +32,7 @@ async def main() -> None:
         # Perform a simple query
         results = await client.call_tool(
             "query",
-            {"query": "what is NERSC?", "k": 3},
+            {"query": "How can I run pytorch workloads at NERSC?", "k": 3},
         )
         print("Query results:\n", results)
 
