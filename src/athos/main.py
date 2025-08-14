@@ -63,7 +63,9 @@ async def main():
         description="ATHOS - Agentic AI Toolkit for HPC Operations"
     )
     parser.add_argument(
-        "--config", required=True, help="Path to configuration YAML file"
+        "--config",
+        default="config/config.yaml",
+        help="Path to configuration YAML file"
     )
     parser.add_argument("--flow", help="Execution flow name")
     parser.add_argument("--input", help="Input for the execution flow")
@@ -107,5 +109,9 @@ async def main():
     return 0
 
 
-if __name__ == "__main__":
+def cli() -> None:
     asyncio.run(main())
+
+
+if __name__ == "__main__":
+    cli()

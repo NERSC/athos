@@ -26,6 +26,7 @@ class RAGMCPServer:
         *,
         chunk_size: int = 200,
         overlap: int = 50,
+        query_name: str = "query_docs",
         query_docstring: str = "Search NERSC documentation using BM25.",
     ) -> None:
         self.mcp = FastMCP("RAG")
@@ -34,16 +35,19 @@ class RAGMCPServer:
         self.docs_path = Path(docs_path) if docs_path is not None else None
         self.chunk_size = chunk_size
         self.overlap = overlap
+        self.query_name = query_name
         self.query_docstring = query_docstring
         self._setup_tools()
 
     def _setup_tools(self) -> None:
-        @self.mcp.tool()
+        @self.mcp.tool(
+            name=self.query_name,
+            description=self.query_docstring,
+        )
         async def query(
             query: str = Field(description="Search query string"),
             k: int = Field(5, description="Number of results to return", ge=1, le=100),
         ) -> str:
-            """Placeholder docstring overwritten at runtime."""
 
             if self.rag_index is None:
                 return "Index not ready"
@@ -51,9 +55,6 @@ class RAGMCPServer:
             results = await asyncio.to_thread(self.rag_index.query, query, k=k)
             texts = [f"{path}: {chunk}" for path, chunk in results]
             return "\n\n".join(texts) if texts else "No results found"
-
-        # Allow custom documentation for this tool
-        query.__doc__ = self.query_docstring
 
     def build_index(self, rebuild: bool = False) -> None:
         """Build or rebuild the BM25 index."""
@@ -109,6 +110,16 @@ def main() -> None:
         default=50,
         help="Token overlap between chunks",
     )
+    parser.add_argument(
+        "--query-name",
+        default="query_docs",
+        help="Function name for the query tool"
+    )
+    parser.add_argument(
+        "--query-docstring",
+        default="Query the available documentation",
+        help="Function documentation string for the query tool"
+    )
     parser.add_argument("--rebuild", action="store_true", help="Rebuild index")
     args = parser.parse_args()
 
@@ -117,6 +128,8 @@ def main() -> None:
         docs_path=args.docs_path,
         chunk_size=args.chunk_size,
         overlap=args.overlap,
+        query_name=args.query_name,
+        query_docstring=args.query_docstring,
     )
     server.build_index(rebuild=args.rebuild)
     server.run()
