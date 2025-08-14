@@ -12,7 +12,7 @@ dependencies = [
     "openai>=1.0.0,<2.0.0",
     "openai-agents>=0.2.4,<1.0.0",
     "mcp[cli]>=1.12.2,<2.0.0",
-    "smolagents[mcp]>=1.20.0",
+    "smolagents[mcp,gradio]>=1.20.0",
     "ddgs",
     "markdownify",
     "pydantic>=2.11.7,<3.0.0",
@@ -23,6 +23,7 @@ dependencies = [
     "PyYAML",
     "fastmcp>=2.10.6",
     "authlib",
+    "ipykernel",
   ]
 
 [project.optional-dependencies]
