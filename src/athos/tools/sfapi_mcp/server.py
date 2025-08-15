@@ -414,11 +414,11 @@ class NERSCMCPServer:
             except Exception as e:
                 return self._handle_error(e)
     
-    def run(self) -> None:
+    async def run(self) -> None:
         """Run the MCP server"""
         logger.info("Starting NERSC SuperFacility API MCP Server")
         try:
-            self.mcp.run()
+            await self.mcp.run_async()
         except KeyboardInterrupt:
             logger.info("Server interrupted by user")
         except Exception as e:
@@ -426,6 +426,10 @@ class NERSCMCPServer:
             raise
         finally:
             logger.info("Shutting down server")
+            try:
+                await self.cleanup()
+            except Exception as e:
+                logger.warning(f"Error during cleanup: {str(e)}")
     
     async def cleanup(self):
         """Clean up resources"""
@@ -454,7 +458,7 @@ def load_config(
 
     return config
 
-def main() -> None:
+async def main() -> None:
     """Main entry point"""
     parser = argparse.ArgumentParser(description="NERSC SFAPI MCP server")
     parser.add_argument("--client-id", help="SuperFacility client ID", default=None)
@@ -470,21 +474,13 @@ def main() -> None:
         logger.info("Authentication configured for client %s", server.auth.client_id)
     else:
         logger.info("Starting without authentication. Some tools will be unavailable.")
-    
-    try:
-        server.run()
-    finally:
-        # Run cleanup in async context if needed
-        if server.auth:
-            try:
-                asyncio.run(server.cleanup())
-            except Exception as e:
-                logger.warning(f"Error during cleanup: {str(e)}")
+
+    await server.run()
 
 
 def cli() -> None:
     """Entry point for the ``nersc-sfapi-mcp`` console script."""
-    main()
+    asyncio.run(main())
 
 if __name__ == "__main__":
     cli()
