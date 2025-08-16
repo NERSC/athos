@@ -186,14 +186,6 @@ tools:
   #     module_system: "lmod"
   #     default_modules: ["gcc/11.2.0", "openmpi/4.1.1"]
 
-  # # File system utilities
-  # filesystem_tool:
-  #   class_name: "FileSystemTool"
-  #   module_path: "athos.tools.filesystem_tools"
-  #   parameters:
-  #     scratch_dirs: ["/scratch", "/tmp"]
-  #     home_quota_check: true
-
 # Agent Execution Flows define the agent system
 execution_flows:
   # Simple chatbot for general HPC questions
@@ -239,6 +231,12 @@ execution_flows:
     agent_type: "tool_calling"
     model: "gpt_4o"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
+
+  hpc_consultant:
+    type: "agent"
+    agent_type: "code"
+    model: "cborg_coder"
+    mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp"]
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
