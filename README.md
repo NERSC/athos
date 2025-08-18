@@ -107,8 +107,8 @@ Example scripts demonstrating agent and tool integrations can be found in this
 directory. For instance `filesystem_agent.py` showcases the MCP filesystem
 tools. The `servicenow_agent.py` example demonstrates interacting with a
 ServiceNow instance through the ServiceNow MCP server. You can choose which
-ServiceNow tasks to run using ``--tasks`` and specify an incident with
-``--incident``.
+ServiceNow tasks to run using `--tasks` and specify an incident with
+`--incident`.
 
 ### `src/athos/main.py`
 **CLI interface and entry point**
