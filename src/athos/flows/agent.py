@@ -84,6 +84,7 @@ class AgentFlowConfig(BaseFlowConfig):
     max_steps: int = Field(default=10, gt=0)
     verbosity_level: Optional[int] = Field(default=1)
     additional_authorized_imports: List[str] = Field(default_factory=list)
+    instructions: Optional[str] = Field(default=None)
 
 
 def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
@@ -106,6 +107,7 @@ def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
         max_steps=cfg.max_steps,
         verbosity_level=cfg.verbosity_level,
         additional_authorized_imports=cfg.additional_authorized_imports,
+        instructions=cfg.instructions,
     )
 
 
