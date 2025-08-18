@@ -39,6 +39,13 @@ models:
     temperature: 0.7
     max_tokens: 2048
 
+  gpt_5:
+    model_id: "openai/gpt-5"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
+    temperature: 0.7
+    max_tokens: 2048
+
   # CBORG chat model
   cborg_chat:
     model_id: "lbl/cborg-chat:latest"
@@ -186,14 +193,6 @@ tools:
   #     module_system: "lmod"
   #     default_modules: ["gcc/11.2.0", "openmpi/4.1.1"]
 
-  # # File system utilities
-  # filesystem_tool:
-  #   class_name: "FileSystemTool"
-  #   module_path: "athos.tools.filesystem_tools"
-  #   parameters:
-  #     scratch_dirs: ["/scratch", "/tmp"]
-  #     home_quota_check: true
-
 # Agent Execution Flows define the agent system
 execution_flows:
   # Simple chatbot for general HPC questions
@@ -228,17 +227,33 @@ execution_flows:
     additional_authorized_imports: ["json"]
     verbosity_level: 1  # 0: ERROR, 1: INFO, 2: DEBUG
 
+  # Agent which can call the superfacility API tools
   sfapi_agent:
     type: "agent"
     agent_type: "tool_calling"
     model: "gpt_4o"
     mcp_servers: ["sfapi_mcp"]
 
+  # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
   docs_rag_agent:
     type: "agent"
     agent_type: "tool_calling"
     model: "gpt_4o"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
+
+  # Agent that can interact with servicenow and read from docs
+  hpc_consultant:
+    type: "agent"
+    agent_type: "code"
+    model: "claude_sonnet"
+    additional_authorized_imports: ["json"]
+    mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp"]
+    instructions: |
+      You are an HPC consultant at NERSC who helps users in ServiceNow incidents.
+      Paste your thoughts into the work notes and your replies to the user in the comments.
+      Use the NERSC documentation to provide accurate answers.
+      Update the incident state appropriately. Use "Awaiting User Info" when the user should reply.
+      When the issue is resolved, add some closure notes that summarize the outcomes.
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
