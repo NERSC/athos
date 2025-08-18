@@ -227,22 +227,26 @@ execution_flows:
     additional_authorized_imports: ["json"]
     verbosity_level: 1  # 0: ERROR, 1: INFO, 2: DEBUG
 
+  # Agent which can call the superfacility API tools
   sfapi_agent:
     type: "agent"
     agent_type: "tool_calling"
     model: "gpt_4o"
     mcp_servers: ["sfapi_mcp"]
 
+  # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
   docs_rag_agent:
     type: "agent"
     agent_type: "tool_calling"
     model: "gpt_4o"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
 
+  # Agent that can interact with servicenow and read from docs
   hpc_consultant:
     type: "agent"
     agent_type: "code"
-    model: "cborg_coder"
+    model: "claude_sonnet"
+    additional_authorized_imports: ["json"]
     mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp"]
 
   # # Mixed tools agent (regular + MCP)
