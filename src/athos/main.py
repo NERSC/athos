@@ -7,6 +7,12 @@ from dotenv import load_dotenv
 
 from athos.runtime import build_config, build_flow
 
+# Only needed when launching a Gradio UI
+try:  # pragma: no cover - optional dependency at runtime
+    from smolagents import GradioUI
+except Exception:  # pragma: no cover - smolagents not installed
+    GradioUI = None
+
 logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
@@ -70,6 +76,17 @@ async def main():
     parser.add_argument("--flow", help="Execution flow name")
     parser.add_argument("--input", help="Input for the execution flow")
     parser.add_argument(
+        "--gradio",
+        action="store_true",
+        help="Launch a Gradio server for the specified flow",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=7860,
+        help="Port to run the Gradio server on (default: 7860)",
+    )
+    parser.add_argument(
         "--show-config",
         action="store_true",
         help="Display loaded configuration and exit",
@@ -91,8 +108,20 @@ async def main():
         if args.show_config:
             print(_format_config(cfg))
             return 0
+        if args.gradio:
+            if GradioUI is None:
+                parser.error("smolagents with Gradio support is required to use --gradio")
+            if not args.flow:
+                parser.error("--flow is required when --gradio is used")
+            flow = build_flow(args.flow, cfg)
+            GradioUI(flow.agent).launch(
+                server_name="0.0.0.0", server_port=args.port, share=False
+            )
+            return 0
         if not args.flow or not args.input:
-            parser.error("--flow and --input are required unless --show-config is used")
+            parser.error(
+                "--flow and --input are required unless --show-config or --gradio is used"
+            )
         flow = build_flow(args.flow, cfg)
         result = await flow.execute(args.input)
         print(f"Result: {result}")
