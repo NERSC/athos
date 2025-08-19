@@ -25,17 +25,31 @@ ml conda
 conda activate athos
 ```
 
-From the top level folder, you can then run the CLI:
+From the top level folder, you can run the CLI using the `athos` command:
 
 ```bash
-python -m athos.main --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?"
+athos --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?"
 ```
 
 You can override the configured logging verbosity for a single run using
 `--log-level`:
 
 ```bash
-python -m athos.main --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?" --log-level DEBUG
+athos --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?" --log-level DEBUG
+```
+
+To launch a simple Gradio interface for a flow instead of running a single
+query, pass the `--gradio` flag (optionally selecting a port with `--port`):
+
+```bash
+athos --config config/config.yaml --flow hpc_chatbot --gradio --port 7860
+```
+
+To view a summary of the loaded configuration and exit without running a
+flow, use:
+
+```bash
+athos --config config/config.yaml --show-config
 ```
 
 ### Logging
