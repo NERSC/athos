@@ -6,33 +6,6 @@ workspace_dir: "${ATHOS_WORKSPACE:-/tmp/athos_workspace}"
 
 # Model instances that can be used by agents
 models:
-  # # Primary model for general tasks
-  # llama_3_8b:
-  #   model_id: "meta-llama/Meta-Llama-3-8B-Instruct"
-  #   api_key: "${HF_API_KEY}"  # Environment variable
-  #   temperature: 0.7
-  #   max_tokens: 2048
-  #   system_prompt: |
-  #     You are ATHOS, an AI assistant specialized in High Performance Computing (HPC) operations.
-  #     You help users with cluster management, job scheduling, performance optimization, and troubleshooting.
-  #     Always provide clear, actionable advice and consider HPC best practices.
-
-  # # Specialized model for code generation
-  # code_llama:
-  #   model_id: "codellama/CodeLlama-13b-Instruct-hf"
-  #   api_key: "${HF_API_KEY}"
-  #   temperature: 0.3
-  #   max_tokens: 4096
-  #   system_prompt: |
-  #     You are a specialized code generation assistant for HPC environments.
-  #     Generate efficient, well-documented code for parallel computing, job scripts, and system administration.
-
-  # # Lightweight model for quick responses
-  # phi_3_mini:
-  #   model_id: "microsoft/Phi-3-mini-4k-instruct"
-  #   api_key: "${HF_API_KEY}"
-  #   temperature: 0.5
-  #   max_tokens: 1024
 
   # OpenAI GPT-4o model
   gpt_4o:
