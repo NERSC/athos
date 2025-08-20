@@ -283,6 +283,29 @@ class ServiceNowMCPServer:
                 return self._handle_error(e)
 
         @self.mcp.tool()
+        async def get_incident_attachments(
+            incident_id: str,
+            limit: int = 10,
+            offset: int = 0,
+        ) -> Dict[str, Any]:
+            """Get attachments for an incident in ServiceNow."""
+
+            params = incident_tools.GetIncidentAttachmentsParams(
+                incident_id=incident_id,
+                limit=limit,
+                offset=offset,
+            )
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.get_incident_attachments,
+                    self.config,
+                    self.auth,
+                    params,
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
+
+        @self.mcp.tool()
         async def get_user(
             user_id: Optional[str] = None,
             user_name: Optional[str] = None,

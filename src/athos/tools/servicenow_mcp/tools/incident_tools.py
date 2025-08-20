@@ -194,6 +194,105 @@ def view_incident_logs(
         }
 
 
+class GetIncidentAttachmentsParams(BaseModel):
+    """Parameters for retrieving attachments for an incident."""
+
+    incident_id: str = Field(..., description="Incident ID or sys_id")
+    limit: int = Field(10, description="Maximum number of attachments to return")
+    offset: int = Field(0, description="Offset for pagination")
+
+
+def get_incident_attachments(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: GetIncidentAttachmentsParams,
+) -> dict:
+    """Retrieve attachments for an incident in ServiceNow."""
+
+    incident_id = params.incident_id
+
+    # Determine sys_id from incident_id
+    if len(incident_id) == 32 and all(c in "0123456789abcdef" for c in incident_id):
+        sys_id = incident_id
+    else:
+        try:
+            query_url = f"{config.api_url}/table/incident"
+            query_params = {
+                "sysparm_query": f"number={incident_id}",
+                "sysparm_limit": 1,
+            }
+
+            response = requests.get(
+                query_url,
+                params=query_params,
+                headers=auth_manager.get_headers(),
+                timeout=config.timeout,
+            )
+            response.raise_for_status()
+
+            result = response.json().get("result", [])
+            if not result:
+                return {
+                    "success": False,
+                    "message": f"Incident not found: {incident_id}",
+                    "attachments": [],
+                }
+
+            sys_id = result[0].get("sys_id")
+
+        except requests.RequestException as e:
+            logger.error(f"Failed to find incident: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to find incident: {str(e)}",
+                "attachments": [],
+            }
+
+    api_url = f"{config.api_url}/attachment"
+    query_params = {
+        "table_name": "incident",
+        "table_sys_id": sys_id,
+        "sysparm_limit": params.limit,
+        "sysparm_offset": params.offset,
+    }
+
+    try:
+        response = requests.get(
+            api_url,
+            params=query_params,
+            headers=auth_manager.get_headers(),
+            timeout=config.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        attachments = []
+
+        for att_data in data.get("result", []):
+            attachment = {
+                "sys_id": att_data.get("sys_id"),
+                "file_name": att_data.get("file_name"),
+                "content_type": att_data.get("content_type"),
+                "size_bytes": att_data.get("size_bytes"),
+                "download_link": att_data.get("download_link"),
+            }
+            attachments.append(attachment)
+
+        return {
+            "success": True,
+            "message": f"Found {len(attachments)} attachments",
+            "attachments": attachments,
+        }
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch incident attachments: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to fetch incident attachments: {str(e)}",
+            "attachments": [],
+        }
+
+
 def create_incident(
     config: ServerConfig,
     auth_manager: AuthManager,
