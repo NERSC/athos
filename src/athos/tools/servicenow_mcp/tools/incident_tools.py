@@ -6,6 +6,9 @@ This module provides tools for managing incidents in ServiceNow.
 
 import logging
 from typing import Optional
+from pathlib import Path
+from email.message import Message
+from email.utils import collapse_rfc2231_value
 
 import requests
 from pydantic import BaseModel, Field
@@ -14,6 +17,27 @@ from ..auth.auth_manager import AuthManager
 from ..utils.config import ServerConfig
 
 logger = logging.getLogger(__name__)
+
+
+def filename_from_content_disposition(cd_header: str, fallback: str) -> str:
+    """Parse Content-Disposition to extract a safe filename."""
+    if not cd_header:
+        return Path(fallback).name
+
+    msg = Message()
+    msg["Content-Disposition"] = cd_header
+
+    # Best effort: handles RFC 2231, 5987, and continuations
+    name = msg.get_filename()
+    if not name:
+        # Belt-and-suspenders: try direct param then collapse if needed
+        param = msg.get_param("filename*", header="content-disposition")
+        if not param:
+            param = msg.get_param("filename", header="content-disposition")
+        if param:
+            name = collapse_rfc2231_value(param)
+
+    return Path(name or fallback).name
 
 
 class CreateIncidentParams(BaseModel):
@@ -191,6 +215,159 @@ def view_incident_logs(
             "success": False,
             "message": f"Failed to fetch incident logs: {str(e)}",
             "logs": []
+        }
+
+
+class GetIncidentAttachmentsParams(BaseModel):
+    """Parameters for retrieving attachments for an incident."""
+
+    incident_id: str = Field(..., description="Incident ID or sys_id")
+    limit: int = Field(10, description="Maximum number of attachments to return")
+    offset: int = Field(0, description="Offset for pagination")
+
+
+class DownloadAttachmentParams(BaseModel):
+    """Parameters for downloading an attachment file."""
+
+    attachment_sys_id: str = Field(..., description="Sys ID of the attachment")
+    download_dir: str = Field(..., description="Directory to save the file")
+
+
+def get_incident_attachments(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: GetIncidentAttachmentsParams,
+) -> dict:
+    """Retrieve attachments for an incident in ServiceNow."""
+
+    incident_id = params.incident_id
+
+    # Determine sys_id from incident_id
+    if len(incident_id) == 32 and all(c in "0123456789abcdef" for c in incident_id):
+        sys_id = incident_id
+    else:
+        try:
+            query_url = f"{config.api_url}/table/incident"
+            query_params = {
+                "sysparm_query": f"number={incident_id}",
+                "sysparm_limit": 1,
+            }
+
+            response = requests.get(
+                query_url,
+                params=query_params,
+                headers=auth_manager.get_headers(),
+                timeout=config.timeout,
+            )
+            response.raise_for_status()
+
+            result = response.json().get("result", [])
+            if not result:
+                return {
+                    "success": False,
+                    "message": f"Incident not found: {incident_id}",
+                    "attachments": [],
+                }
+
+            sys_id = result[0].get("sys_id")
+
+        except requests.RequestException as e:
+            logger.error(f"Failed to find incident: {e}")
+            return {
+                "success": False,
+                "message": f"Failed to find incident: {str(e)}",
+                "attachments": [],
+            }
+
+    api_url = f"{config.api_url}/attachment"
+    query_params = {
+        "table_name": "incident",
+        "table_sys_id": sys_id,
+        "sysparm_limit": params.limit,
+        "sysparm_offset": params.offset,
+    }
+
+    try:
+        response = requests.get(
+            api_url,
+            params=query_params,
+            headers=auth_manager.get_headers(),
+            timeout=config.timeout,
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        attachments = []
+
+        for att_data in data.get("result", []):
+            attachment = {
+                "sys_id": att_data.get("sys_id"),
+                "file_name": att_data.get("file_name"),
+                "content_type": att_data.get("content_type"),
+                "size_bytes": att_data.get("size_bytes"),
+                "download_link": att_data.get("download_link"),
+            }
+            attachments.append(attachment)
+
+        return {
+            "success": True,
+            "message": f"Found {len(attachments)} attachments",
+            "attachments": attachments,
+        }
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to fetch incident attachments: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to fetch incident attachments: {str(e)}",
+            "attachments": [],
+        }
+
+
+def download_attachment(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: DownloadAttachmentParams,
+) -> dict:
+    """Download an attachment file from ServiceNow."""
+
+    api_url = f"{config.api_url}/attachment/{params.attachment_sys_id}/file"
+
+    try:
+        with requests.get(
+            api_url,
+            headers=auth_manager.get_headers(),
+            timeout=config.timeout,
+            stream=True,
+        ) as response:
+            response.raise_for_status()
+
+            content_disposition = response.headers.get("Content-Disposition", "")
+            filename = filename_from_content_disposition(
+                content_disposition, params.attachment_sys_id
+            )
+
+            download_path = Path(params.download_dir)
+            download_path.mkdir(parents=True, exist_ok=True)
+            file_path = download_path / filename
+
+            with open(file_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+
+        return {
+            "success": True,
+            "message": "Attachment downloaded",
+            "file_path": str(file_path),
+        }
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to download attachment: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to download attachment: {str(e)}",
+            "file_path": None,
         }
 
 
