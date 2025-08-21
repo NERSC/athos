@@ -7,6 +7,8 @@ This module provides tools for managing incidents in ServiceNow.
 import logging
 from typing import Optional
 from pathlib import Path
+from cgi import parse_header
+from urllib.parse import unquote
 
 import requests
 from pydantic import BaseModel, Field
@@ -311,24 +313,39 @@ def download_attachment(
     api_url = f"{config.api_url}/attachment/{params.attachment_sys_id}/file"
 
     try:
-        response = requests.get(
+        with requests.get(
             api_url,
             headers=auth_manager.get_headers(),
             timeout=config.timeout,
-        )
-        response.raise_for_status()
+            stream=True,
+        ) as response:
+            response.raise_for_status()
 
-        content_disposition = response.headers.get("Content-Disposition", "")
-        filename = params.attachment_sys_id
-        if "filename=" in content_disposition:
-            filename = content_disposition.split("filename=")[-1].strip('"')
+            content_disposition = response.headers.get("Content-Disposition", "")
+            filename = params.attachment_sys_id
 
-        download_path = Path(params.download_dir)
-        download_path.mkdir(parents=True, exist_ok=True)
-        file_path = download_path / filename
+            if content_disposition:
+                _, params_cd = parse_header(content_disposition)
+                filename_star = params_cd.get("filename*")
+                filename_plain = params_cd.get("filename")
 
-        with open(file_path, "wb") as f:
-            f.write(response.content)
+                if filename_star:
+                    try:
+                        encoding, _, encoded = filename_star.split("'", 2)
+                        filename = unquote(encoded, encoding or "utf-8")
+                    except ValueError:
+                        filename = unquote(filename_star)
+                elif filename_plain:
+                    filename = filename_plain
+
+            download_path = Path(params.download_dir)
+            download_path.mkdir(parents=True, exist_ok=True)
+            file_path = download_path / filename
+
+            with open(file_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
 
         return {
             "success": True,
