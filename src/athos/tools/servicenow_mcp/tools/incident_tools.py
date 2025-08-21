@@ -233,6 +233,59 @@ class DownloadAttachmentParams(BaseModel):
     download_dir: str = Field(..., description="Directory to save the file")
 
 
+def resolve_incident_sys_id(
+    config: ServerConfig, auth_manager: AuthManager, incident_id: str
+) -> dict:
+    """Resolve an incident identifier to its sys_id.
+
+    Args:
+        config: Server configuration.
+        auth_manager: Authentication manager.
+        incident_id: Incident number or sys_id.
+
+    Returns:
+        Dictionary with resolution result. On success, contains the sys_id.
+    """
+
+    # If it already looks like a sys_id (32 hex characters), return it directly
+    if (
+        len(incident_id) == 32
+        and all(c in "0123456789abcdef" for c in incident_id.lower())
+    ):
+        return {"success": True, "sys_id": incident_id}
+
+    try:
+        query_url = f"{config.api_url}/table/incident"
+        query_params = {
+            "sysparm_query": f"number={incident_id}",
+            "sysparm_limit": 1,
+        }
+
+        response = requests.get(
+            query_url,
+            params=query_params,
+            headers=auth_manager.get_headers(),
+            timeout=config.timeout,
+        )
+        response.raise_for_status()
+
+        result = response.json().get("result", [])
+        if not result:
+            return {
+                "success": False,
+                "message": f"Incident not found: {incident_id}",
+            }
+
+        return {"success": True, "sys_id": result[0].get("sys_id")}
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to find incident: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to find incident: {str(e)}",
+        }
+
+
 def get_incident_attachments(
     config: ServerConfig,
     auth_manager: AuthManager,
@@ -240,44 +293,14 @@ def get_incident_attachments(
 ) -> dict:
     """Retrieve attachments for an incident in ServiceNow."""
 
-    incident_id = params.incident_id
-
-    # Determine sys_id from incident_id
-    if len(incident_id) == 32 and all(c in "0123456789abcdef" for c in incident_id):
-        sys_id = incident_id
-    else:
-        try:
-            query_url = f"{config.api_url}/table/incident"
-            query_params = {
-                "sysparm_query": f"number={incident_id}",
-                "sysparm_limit": 1,
-            }
-
-            response = requests.get(
-                query_url,
-                params=query_params,
-                headers=auth_manager.get_headers(),
-                timeout=config.timeout,
-            )
-            response.raise_for_status()
-
-            result = response.json().get("result", [])
-            if not result:
-                return {
-                    "success": False,
-                    "message": f"Incident not found: {incident_id}",
-                    "attachments": [],
-                }
-
-            sys_id = result[0].get("sys_id")
-
-        except requests.RequestException as e:
-            logger.error(f"Failed to find incident: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to find incident: {str(e)}",
-                "attachments": [],
-            }
+    sys_id_result = resolve_incident_sys_id(config, auth_manager, params.incident_id)
+    if not sys_id_result["success"]:
+        return {
+            "success": False,
+            "message": sys_id_result["message"],
+            "attachments": [],
+        }
+    sys_id = sys_id_result["sys_id"]
 
     api_url = f"{config.api_url}/attachment"
     query_params = {
@@ -456,45 +479,11 @@ def update_incident(
     Returns:
         Dictionary with the updated incident details.
     """
-    # Determine if incident_id is a number or sys_id
-    incident_id = params.incident_id
-    if len(incident_id) == 32 and all(c in "0123456789abcdef" for c in incident_id):
-        # This is likely a sys_id
-        api_url = f"{config.api_url}/table/incident/{incident_id}"
-    else:
-        # This is likely an incident number
-        # First, we need to get the sys_id
-        try:
-            query_url = f"{config.api_url}/table/incident"
-            query_params = {
-                "sysparm_query": f"number={incident_id}",
-                "sysparm_limit": 1,
-            }
-
-            response = requests.get(
-                query_url,
-                params=query_params,
-                headers=auth_manager.get_headers(),
-                timeout=config.timeout,
-            )
-            response.raise_for_status()
-
-            result = response.json().get("result", [])
-            if not result:
-                return {
-                    "success": False,
-                    "message": f"Incident not found: {incident_id}",
-                }
-
-            incident_id = result[0].get("sys_id")
-            api_url = f"{config.api_url}/table/incident/{incident_id}"
-
-        except requests.RequestException as e:
-            logger.error(f"Failed to find incident: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to find incident: {str(e)}",
-            }
+    sys_id_result = resolve_incident_sys_id(config, auth_manager, params.incident_id)
+    if not sys_id_result["success"]:
+        return sys_id_result
+    incident_id = sys_id_result["sys_id"]
+    api_url = f"{config.api_url}/table/incident/{incident_id}"
 
     # Build request data
     data = {}
@@ -569,45 +558,11 @@ def add_comment(
     Returns:
         Dictionary with the result of the operation.
     """
-    # Determine if incident_id is a number or sys_id
-    incident_id = params.incident_id
-    if len(incident_id) == 32 and all(c in "0123456789abcdef" for c in incident_id):
-        # This is likely a sys_id
-        api_url = f"{config.api_url}/table/incident/{incident_id}"
-    else:
-        # This is likely an incident number
-        # First, we need to get the sys_id
-        try:
-            query_url = f"{config.api_url}/table/incident"
-            query_params = {
-                "sysparm_query": f"number={incident_id}",
-                "sysparm_limit": 1,
-            }
-
-            response = requests.get(
-                query_url,
-                params=query_params,
-                headers=auth_manager.get_headers(),
-                timeout=config.timeout,
-            )
-            response.raise_for_status()
-
-            result = response.json().get("result", [])
-            if not result:
-                return {
-                    "success": False,
-                    "message": f"Incident not found: {incident_id}",
-                }
-
-            incident_id = result[0].get("sys_id")
-            api_url = f"{config.api_url}/table/incident/{incident_id}"
-
-        except requests.RequestException as e:
-            logger.error(f"Failed to find incident: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to find incident: {str(e)}",
-            }
+    sys_id_result = resolve_incident_sys_id(config, auth_manager, params.incident_id)
+    if not sys_id_result["success"]:
+        return sys_id_result
+    incident_id = sys_id_result["sys_id"]
+    api_url = f"{config.api_url}/table/incident/{incident_id}"
 
     # Build request data
     data = {}
@@ -660,45 +615,11 @@ def resolve_incident(
     Returns:
         Dictionary with the result of the operation.
     """
-    # Determine if incident_id is a number or sys_id
-    incident_id = params.incident_id
-    if len(incident_id) == 32 and all(c in "0123456789abcdef" for c in incident_id):
-        # This is likely a sys_id
-        api_url = f"{config.api_url}/table/incident/{incident_id}"
-    else:
-        # This is likely an incident number
-        # First, we need to get the sys_id
-        try:
-            query_url = f"{config.api_url}/table/incident"
-            query_params = {
-                "sysparm_query": f"number={incident_id}",
-                "sysparm_limit": 1,
-            }
-
-            response = requests.get(
-                query_url,
-                params=query_params,
-                headers=auth_manager.get_headers(),
-                timeout=config.timeout,
-            )
-            response.raise_for_status()
-
-            result = response.json().get("result", [])
-            if not result:
-                return {
-                    "success": False,
-                    "message": f"Incident not found: {incident_id}",
-                }
-
-            incident_id = result[0].get("sys_id")
-            api_url = f"{config.api_url}/table/incident/{incident_id}"
-
-        except requests.RequestException as e:
-            logger.error(f"Failed to find incident: {e}")
-            return {
-                "success": False,
-                "message": f"Failed to find incident: {str(e)}",
-            }
+    sys_id_result = resolve_incident_sys_id(config, auth_manager, params.incident_id)
+    if not sys_id_result["success"]:
+        return sys_id_result
+    incident_id = sys_id_result["sys_id"]
+    api_url = f"{config.api_url}/table/incident/{incident_id}"
 
     # Build request data
     data = {
