@@ -27,12 +27,17 @@ def filename_from_content_disposition(cd_header: str, fallback: str) -> str:
     msg = Message()
     msg["Content-Disposition"] = cd_header
 
-    param = msg.get_param("filename", header="content-disposition")
-    if not param:
+    # Best effort: handles RFC 2231, 5987, and continuations
+    name = msg.get_filename()
+    if not name:
+        # Belt-and-suspenders: try direct param then collapse if needed
         param = msg.get_param("filename*", header="content-disposition")
+        if not param:
+            param = msg.get_param("filename", header="content-disposition")
+        if param:
+            name = collapse_rfc2231_value(param)
 
-    name = collapse_rfc2231_value(param) if param else fallback
-    return Path(name).name
+    return Path(name or fallback).name
 
 
 class CreateIncidentParams(BaseModel):
