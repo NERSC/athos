@@ -166,13 +166,14 @@ def create_config(args) -> ServerConfig:
             token_url = f"{instance_url}/oauth_token.do"
             logger.warning(f"OAuth token URL not provided, defaulting to: {token_url}")
 
-        # Create the specific config (without instance_url)
+        # Create the specific config including instance_url
         oauth_cfg = OAuthConfig(
             client_id=client_id,
             client_secret=client_secret,
             username=username,
             password=password,
             token_url=token_url,
+            instance_url=instance_url,
         )
         # Create the main AuthConfig wrapper
         final_auth_config = AuthConfig(type=auth_type, oauth=oauth_cfg)
