@@ -82,13 +82,10 @@ class AuthManager:
         # Determine token URL
         token_url = oauth_config.token_url
         if not token_url:
-            # Extract instance name from instance URL
-            instance_parts = oauth_config.instance_url.split(".")
-            if len(instance_parts) < 2:
-                raise ValueError(f"Invalid instance URL: {oauth_config.instance_url}")
-            
-            instance_name = instance_parts[0].split("//")[-1]
-            token_url = f"https://{instance_name}.service-now.com/oauth_token.do"
+            instance_url = oauth_config.instance_url
+            if not instance_url:
+                raise ValueError("Instance URL is required to construct token URL")
+            token_url = f"{instance_url.rstrip('/')}/oauth_token.do"
         
         # Request token
         data = {

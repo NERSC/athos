@@ -31,6 +31,7 @@ class OAuthConfig(BaseModel):
     username: str
     password: str
     token_url: Optional[str] = None
+    instance_url: Optional[str] = None
 
 
 class ApiKeyConfig(BaseModel):
