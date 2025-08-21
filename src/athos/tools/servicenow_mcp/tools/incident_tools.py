@@ -7,8 +7,8 @@ This module provides tools for managing incidents in ServiceNow.
 import logging
 from typing import Optional
 from pathlib import Path
-from cgi import parse_header
-from urllib.parse import unquote
+from email.message import Message
+from email.utils import collapse_rfc2231_value
 
 import requests
 from pydantic import BaseModel, Field
@@ -17,6 +17,22 @@ from ..auth.auth_manager import AuthManager
 from ..utils.config import ServerConfig
 
 logger = logging.getLogger(__name__)
+
+
+def filename_from_content_disposition(cd_header: str, fallback: str) -> str:
+    """Parse Content-Disposition to extract a safe filename."""
+    if not cd_header:
+        return Path(fallback).name
+
+    msg = Message()
+    msg["Content-Disposition"] = cd_header
+
+    param = msg.get_param("filename", header="content-disposition")
+    if not param:
+        param = msg.get_param("filename*", header="content-disposition")
+
+    name = collapse_rfc2231_value(param) if param else fallback
+    return Path(name).name
 
 
 class CreateIncidentParams(BaseModel):
@@ -322,21 +338,9 @@ def download_attachment(
             response.raise_for_status()
 
             content_disposition = response.headers.get("Content-Disposition", "")
-            filename = params.attachment_sys_id
-
-            if content_disposition:
-                _, params_cd = parse_header(content_disposition)
-                filename_star = params_cd.get("filename*")
-                filename_plain = params_cd.get("filename")
-
-                if filename_star:
-                    try:
-                        encoding, _, encoded = filename_star.split("'", 2)
-                        filename = unquote(encoded, encoding or "utf-8")
-                    except ValueError:
-                        filename = unquote(filename_star)
-                elif filename_plain:
-                    filename = filename_plain
+            filename = filename_from_content_disposition(
+                content_disposition, params.attachment_sys_id
+            )
 
             download_path = Path(params.download_dir)
             download_path.mkdir(parents=True, exist_ok=True)
