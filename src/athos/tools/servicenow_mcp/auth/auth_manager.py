@@ -4,6 +4,7 @@ Authentication manager for the ServiceNow MCP server.
 
 import base64
 import logging
+import time
 from typing import Dict, Optional
 
 import requests
@@ -32,6 +33,7 @@ class AuthManager:
         self.config = config
         self.token: Optional[str] = None
         self.token_type: Optional[str] = None
+        self.expires_at: Optional[float] = None
     
     def get_headers(self) -> Dict[str, str]:
         """
@@ -54,9 +56,11 @@ class AuthManager:
             headers["Authorization"] = f"Basic {encoded}"
         
         elif self.config.type == AuthType.OAUTH:
-            if not self.token:
-                self._get_oauth_token()
-            
+            if not self.token or (
+                self.expires_at is not None and time.time() >= self.expires_at
+            ):
+                self.refresh_token()
+
             headers["Authorization"] = f"{self.token_type} {self.token}"
         
         elif self.config.type == AuthType.API_KEY:
@@ -103,7 +107,11 @@ class AuthManager:
             token_data = response.json()
             self.token = token_data.get("access_token")
             self.token_type = token_data.get("token_type", "Bearer")
-            
+            expires_in = token_data.get("expires_in")
+            self.expires_at = (
+                time.time() + int(expires_in) if expires_in is not None else None
+            )
+
             if not self.token:
                 raise ValueError("No access token in response")
             
@@ -114,4 +122,4 @@ class AuthManager:
     def refresh_token(self):
         """Refresh the OAuth token if using OAuth authentication."""
         if self.config.type == AuthType.OAUTH:
-            self._get_oauth_token() 
+            self._get_oauth_token()
