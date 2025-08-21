@@ -52,11 +52,29 @@ async def main() -> None:
         print("Available tools:")
         for tool in tools:
             print(" * ", tool, "\n")
+        print()
 
-        # Retrieve recent incidents
-        incidents = await client.call_tool("list_incidents", {"limit": 1})
-        print("Recent incidents:", incidents)
+        # Retrieve specific incident information
+        incident_id = "INC0247762"
+        incident_params = dict(incident_number=incident_id)
+        incidents = await client.call_tool("list_incidents", incident_params)
+        print("Incident info:", incidents)
+        print()
 
+        # Retrieve attachments
+        incident_attachment_params = dict(incident_id=incident_id)
+        attachments = await client.call_tool("get_incident_attachments", incident_attachment_params)
+        print("Attachments:", attachments)
+        print()
+
+        # Download the attachment(s)
+        attachment_sys_id = attachments.structured_content['attachments'][0]['sys_id']
+        attachment_params = dict(attachment_sys_id=attachment_sys_id, download_dir="downloads")
+        result = await client.call_tool("download_attachment", attachment_params)
+        print(result)
+        print()
+
+    print("All done")
 
 if __name__ == "__main__":
     asyncio.run(main())
