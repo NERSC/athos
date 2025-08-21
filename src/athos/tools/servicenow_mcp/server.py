@@ -306,6 +306,27 @@ class ServiceNowMCPServer:
                 return self._handle_error(e)
 
         @self.mcp.tool()
+        async def download_attachment(
+            attachment_sys_id: str,
+            download_dir: str,
+        ) -> Dict[str, Any]:
+            """Download an attachment file from ServiceNow."""
+
+            params = incident_tools.DownloadAttachmentParams(
+                attachment_sys_id=attachment_sys_id,
+                download_dir=download_dir,
+            )
+            try:
+                return await asyncio.to_thread(
+                    incident_tools.download_attachment,
+                    self.config,
+                    self.auth,
+                    params,
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
+
+        @self.mcp.tool()
         async def get_user(
             user_id: Optional[str] = None,
             user_name: Optional[str] = None,

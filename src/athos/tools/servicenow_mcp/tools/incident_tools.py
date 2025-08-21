@@ -6,6 +6,7 @@ This module provides tools for managing incidents in ServiceNow.
 
 import logging
 from typing import Optional
+from pathlib import Path
 
 import requests
 from pydantic import BaseModel, Field
@@ -202,6 +203,13 @@ class GetIncidentAttachmentsParams(BaseModel):
     offset: int = Field(0, description="Offset for pagination")
 
 
+class DownloadAttachmentParams(BaseModel):
+    """Parameters for downloading an attachment file."""
+
+    attachment_sys_id: str = Field(..., description="Sys ID of the attachment")
+    download_dir: str = Field(..., description="Directory to save the file")
+
+
 def get_incident_attachments(
     config: ServerConfig,
     auth_manager: AuthManager,
@@ -290,6 +298,50 @@ def get_incident_attachments(
             "success": False,
             "message": f"Failed to fetch incident attachments: {str(e)}",
             "attachments": [],
+        }
+
+
+def download_attachment(
+    config: ServerConfig,
+    auth_manager: AuthManager,
+    params: DownloadAttachmentParams,
+) -> dict:
+    """Download an attachment file from ServiceNow."""
+
+    api_url = f"{config.api_url}/attachment/{params.attachment_sys_id}/file"
+
+    try:
+        response = requests.get(
+            api_url,
+            headers=auth_manager.get_headers(),
+            timeout=config.timeout,
+        )
+        response.raise_for_status()
+
+        content_disposition = response.headers.get("Content-Disposition", "")
+        filename = params.attachment_sys_id
+        if "filename=" in content_disposition:
+            filename = content_disposition.split("filename=")[-1].strip('"')
+
+        download_path = Path(params.download_dir)
+        download_path.mkdir(parents=True, exist_ok=True)
+        file_path = download_path / filename
+
+        with open(file_path, "wb") as f:
+            f.write(response.content)
+
+        return {
+            "success": True,
+            "message": "Attachment downloaded",
+            "file_path": str(file_path),
+        }
+
+    except requests.RequestException as e:
+        logger.error(f"Failed to download attachment: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to download attachment: {str(e)}",
+            "file_path": None,
         }
 
 

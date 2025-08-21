@@ -11,6 +11,7 @@ from .incident_tools import (
     update_incident,
     view_incident_logs,
     get_incident_attachments,
+    download_attachment,
 )
 from .user_tools import (
     get_user,
@@ -26,7 +27,8 @@ __all__ = [
     "list_incidents",
     "view_incident_logs",
     "get_incident_attachments",
-    
+    "download_attachment",
+
     # User lookup tools
     "get_user",
     "list_users",
