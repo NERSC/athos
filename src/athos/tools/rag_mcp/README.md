@@ -3,6 +3,8 @@
 This FastMCP server exposes a single `query` tool that searches the NERSC
 user documentation hosted at
 <https://gitlab.com/NERSC/nersc.gitlab.io>.
+If `ATHOS_WORKSPACE` is set, documentation will be cached in
+`$ATHOS_WORKSPACE/docs`; otherwise a package-local directory is used.
 
 On startup the server clones the repository (if needed), chunks all
 Markdown files and builds a BM25 index. Queries return the top-k chunks

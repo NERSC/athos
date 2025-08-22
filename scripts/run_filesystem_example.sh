@@ -29,8 +29,8 @@ fi
 echo "✅ MCP filesystem server is available"
 echo ""
 
-# Set demo directory (can be overridden by environment variable)
-DEMO_DIR=${ATHOS_DEMO_DIR:-"/tmp/athos_filesystem_demo"}
+# Set demo directory to workspace (can be overridden)
+DEMO_DIR=${ATHOS_WORKSPACE:-"/tmp/athos_workspace"}
 
 # Run the demo
 python -m athos.examples.filesystem_agent --config $PWD/config/config.yaml --demo-dir "$DEMO_DIR"

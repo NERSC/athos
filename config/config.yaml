@@ -1,6 +1,9 @@
 # ATHOS Configuration File
 # Example configuration for HPC operations toolkit
 
+# Root workspace shared by MCP servers and tools. Set ATHOS_WORKSPACE to override.
+workspace_dir: "${ATHOS_WORKSPACE:-/tmp/athos_workspace}"
+
 # Model instances that can be used by agents
 models:
   # # Primary model for general tasks
@@ -84,7 +87,7 @@ mcp_servers:
   filesystem_mcp:
     mcp_type: "mcp_stdio"
     command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
 
   servicenow_mcp:
     mcp_type: "mcp_stdio"
@@ -106,7 +109,7 @@ mcp_servers:
     command: "rag-mcp"
     args: [
       "--repo-url", "https://gitlab.com/NERSC/nersc.gitlab.io.git",
-      "--docs-path", "/tmp/nersc_docs",
+      "--docs-path", "${ATHOS_WORKSPACE}/docs",
       "--chunk-size", "200",
       "--overlap", "50",
       "--query-name", "query_docs",
@@ -118,7 +121,7 @@ mcp_servers:
     command: "rag-mcp"
     args: [
       #"--repo-url", "https://gitlab.nersc.gov/nersc/consulting/consulting-documentation.git",
-      "--docs-path", "$SCRATCH/consulting-documentation-main",
+      "--docs-path", "${ATHOS_WORKSPACE}/consulting_docs",
       "--chunk-size", "200",
       "--overlap", "50",
       "--query-name", "query_consulting_docs",

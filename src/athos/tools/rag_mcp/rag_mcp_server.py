@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -22,7 +23,7 @@ class RAGMCPServer:
     def __init__(
         self,
         repo_url: str | None = DEFAULT_REPO_URL,
-        docs_path: str | Path | None = DEFAULT_LOCAL_PATH,
+        docs_path: str | Path | None = None,
         *,
         chunk_size: int = 200,
         overlap: int = 50,
@@ -32,7 +33,11 @@ class RAGMCPServer:
         self.mcp = FastMCP("RAG")
         self.rag_index: Optional[RAGBM25] = None
         self.repo_url = repo_url
-        self.docs_path = Path(docs_path) if docs_path is not None else None
+        if docs_path is not None:
+            self.docs_path = Path(docs_path)
+        else:
+            workspace = Path(os.getenv("ATHOS_WORKSPACE", DEFAULT_LOCAL_PATH.parent))
+            self.docs_path = workspace / "docs"
         self.chunk_size = chunk_size
         self.overlap = overlap
         self.query_name = query_name

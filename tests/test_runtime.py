@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 def test_build_config_and_flow(tmp_path, monkeypatch):
     cfg_yaml = """
+workspace_dir: "/tmp"
 models:
   test_model:
     model_id: "openai/gpt4"
@@ -29,6 +30,7 @@ execution_flows:
 
 def test_agent_flow_closes_mcp(tmp_path, monkeypatch):
     cfg_yaml = """
+workspace_dir: "/tmp"
 models:
   test_model:
     model_id: "openai/gpt4"

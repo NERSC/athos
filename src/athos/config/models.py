@@ -149,6 +149,13 @@ class AthosConfig(BaseModel):
     execution_flows: Dict[str, BaseFlowConfig] = Field(default_factory=dict, description="Execution flow configurations")
     hpc_cluster_config: Optional[Dict[str, Any]] = Field(default=None, description="HPC cluster configuration")
     logging_config: Optional[Dict[str, Any]] = Field(default=None, description="Logging configuration")
+    workspace_dir: str = Field(..., description="Root directory shared by tools/MCP servers")
+
+    @field_validator("workspace_dir", mode="before")
+    @classmethod
+    def expand_workspace_env(cls, v: str) -> str:
+        """Expand environment variables in workspace directory path."""
+        return os.path.expandvars(v)
 
     @model_validator(mode='before')
     @classmethod

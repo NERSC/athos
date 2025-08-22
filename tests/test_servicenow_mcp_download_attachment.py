@@ -41,8 +41,9 @@ def test_download_attachment(monkeypatch, tmp_path, content_disposition, expecte
     mock_get = MagicMock(return_value=mock_response)
     monkeypatch.setattr(incident_tools.requests, "get", mock_get)
 
+    monkeypatch.setenv("ATHOS_WORKSPACE", str(tmp_path))
     params = DownloadAttachmentParams(
-        attachment_sys_id="att1", download_dir=str(tmp_path)
+        attachment_sys_id="att1"
     )
     result = download_attachment(config, auth_manager, params)
 
@@ -55,4 +56,5 @@ def test_download_attachment(monkeypatch, tmp_path, content_disposition, expecte
     assert file_path.exists()
     assert file_path.read_bytes() == binary_data
     assert file_path.name == expected
+    assert file_path.parent == tmp_path / "attachments"
 

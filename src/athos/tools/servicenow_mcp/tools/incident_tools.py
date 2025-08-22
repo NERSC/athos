@@ -5,6 +5,7 @@ This module provides tools for managing incidents in ServiceNow.
 """
 
 import logging
+import os
 from typing import Optional
 from pathlib import Path
 from email.message import Message
@@ -230,7 +231,9 @@ class DownloadAttachmentParams(BaseModel):
     """Parameters for downloading an attachment file."""
 
     attachment_sys_id: str = Field(..., description="Sys ID of the attachment")
-    download_dir: str = Field(..., description="Directory to save the file")
+    download_dir: Optional[str] = Field(
+        None, description="Directory to save the file"
+    )
 
 
 def resolve_incident_sys_id(
@@ -356,6 +359,11 @@ def download_attachment(
 
     api_url = f"{config.api_url}/attachment/{params.attachment_sys_id}/file"
 
+    download_dir = params.download_dir
+    if download_dir is None:
+        workspace = Path(os.getenv("ATHOS_WORKSPACE", "/tmp/athos_workspace"))
+        download_dir = str(workspace / "attachments")
+
     try:
         with requests.get(
             api_url,
@@ -370,7 +378,7 @@ def download_attachment(
                 content_disposition, params.attachment_sys_id
             )
 
-            download_path = Path(params.download_dir)
+            download_path = Path(download_dir)
             download_path.mkdir(parents=True, exist_ok=True)
             file_path = download_path / filename
 

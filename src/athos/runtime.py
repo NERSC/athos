@@ -7,6 +7,7 @@ from athos.config import AthosConfig, ConfigLoader
 from athos.logging_utils import configure_logging
 from athos.flows import BaseFlow
 from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
+from athos.utils.workspace import get_workspace
 import athos.flows.builtins  # noqa: F401 - register built-in flows
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,11 @@ def create_flows(config: AthosConfig) -> Dict[str, BaseFlow]:
 def build_config(config_path: str) -> AthosConfig:
     """Load configuration from disk and apply logging configuration."""
     config = ConfigLoader.load_config(config_path)
+    workspace = get_workspace(config)
+    try:
+        object.__setattr__(config, "workspace_path", workspace)
+    except Exception:
+        pass
     if config.logging_config is not None:
         configure_logging(config.logging_config)
     return config
