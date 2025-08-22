@@ -1,6 +1,7 @@
 import yaml
 from athos.runtime import build_config, build_flow
 from athos.flows import ChatbotFlow
+from athos.config import AthosConfig
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -53,3 +54,10 @@ execution_flows:
     flow = build_flow("agent", cfg)
     flow.close()
     dummy_client.disconnect.assert_called_once()
+
+
+def test_workspace_dir_default_expansion(monkeypatch):
+    monkeypatch.delenv("ATHOS_WORKSPACE", raising=False)
+    cfg_yaml = 'workspace_dir: "${ATHOS_WORKSPACE:-/tmp/athos_workspace}"\n'
+    cfg = AthosConfig.model_validate(yaml.safe_load(cfg_yaml))
+    assert cfg.workspace_dir == "/tmp/athos_workspace"
