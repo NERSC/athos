@@ -120,7 +120,7 @@ mcp_servers:
     mcp_type: "mcp_stdio"
     command: "rag-mcp"
     args: [
-      #"--repo-url", "https://gitlab.nersc.gov/nersc/consulting/consulting-documentation.git",
+      "--repo-url", "https://gitlab.nersc.gov/nersc/consulting/consulting-documentation.git",
       "--docs-path", "${ATHOS_WORKSPACE}/consulting_docs",
       "--chunk-size", "200",
       "--overlap", "50",
@@ -243,6 +243,7 @@ execution_flows:
     agent_type: "tool_calling"
     model: "gpt_4o"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
+    verbosity_level: 2  # 0: ERROR, 1: INFO, 2: DEBUG
 
   # Agent that can interact with servicenow and read from docs
   hpc_consultant:
