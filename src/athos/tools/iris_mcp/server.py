@@ -297,6 +297,43 @@ async def get_project_quotas() -> str:
     except Exception as e:
         return f"Error retrieving project quotas: {str(e)}"
 
+
+@mcp.tool()
+async def get_project_info(pname: str) -> str:
+    """Retrieve detailed information about a project."""
+
+    query = """
+    query GetProjectInfo($pname: String!) {
+        systemInfo {
+            projects(name: $pname) {
+                id
+                name
+                status
+                quotas {
+                    store
+                    inode
+                }
+                projectUsers {
+                    role
+                    user {
+                        uid
+                        name
+                        email
+                    }
+                }
+            }
+        }
+    }
+    """
+
+    variables = {"pname": pname}
+
+    try:
+        result = await iris_client.execute_query(query, variables)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error retrieving project info: {str(e)}"
+
 @mcp.tool()
 async def get_storage_archive_user(email: Optional[str] = None, uid: Optional[int] = None) -> str:
     """
