@@ -38,6 +38,7 @@ athos = "athos.main:cli"
 servicenow-mcp = "athos.tools.servicenow_mcp.cli:main"
 nersc-sfapi-mcp = "athos.tools.sfapi_mcp.server:cli"
 rag-mcp = "athos.tools.rag_mcp.rag_mcp_server:cli"
+iris-mcp = "athos.tools.iris_mcp.server:cli"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

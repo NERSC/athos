@@ -1,13 +1,22 @@
 #!/usr/bin/env python3
 """
 Iris GraphQL MCP Tool
-A FastMCP-based tool for interacting with the Iris GraphQL API
+A FastMCP-based tool for interacting with the Iris GraphQL API.
+
+This module exposes a FastMCP server with a collection of tools that talk to
+the Iris GraphQL API.  The code was originally imported from another project
+and has been adapted for use within ATHOS.  To match the behaviour of the other
+MCP servers in this repository, a small command line interface is provided at
+the end of the module.
 """
 
+import argparse
 import json
 import logging
+import os
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime
+
 import httpx
 from fastmcp import FastMCP
 
@@ -553,6 +562,38 @@ async def execute_custom_query(query: str, variables: Optional[str] = None) -> s
     except Exception as e:
         return f"Error executing custom query: {str(e)}"
 
-if __name__ == "__main__":
-    # Run the MCP server
+
+def load_config(base_url_arg: Optional[str] = None) -> Dict[str, str]:
+    """Load server configuration from arguments or environment variables."""
+
+    base_url = base_url_arg or os.getenv("IRIS_BASE_URL") or "https://iris-stage.nersc.gov"
+    return {"base_url": base_url}
+
+
+def run_server(base_url: str) -> None:
+    """Configure the client and start the MCP server."""
+
+    global iris_client
+    iris_client = IrisGraphQLClient(base_url)
     mcp.run()
+
+
+def main() -> None:
+    """Main entry point for the ``iris-mcp`` console script."""
+
+    parser = argparse.ArgumentParser(description="Iris GraphQL MCP server")
+    parser.add_argument("--base-url", help="Base URL for the Iris service", default=None)
+    args = parser.parse_args()
+
+    config = load_config(args.base_url)
+    run_server(config["base_url"])
+
+
+def cli() -> None:
+    """Console script entry point."""
+
+    main()
+
+
+if __name__ == "__main__":
+    cli()
