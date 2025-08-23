@@ -77,6 +77,12 @@ mcp_servers:
       NERSC_CLIENT_ID: "${NERSC_CLIENT_ID}"
       NERSC_PRIVATE_KEY_PATH: "${NERSC_PRIVATE_KEY_PATH}"
 
+  iris_mcp:
+    mcp_type: "mcp_stdio"
+    command: "iris-mcp"
+    env:
+      IRIS_BASE_URL: "${IRIS_BASE_URL}"
+
   docs_rag_mcp:
     mcp_type: "mcp_stdio"
     command: "rag-mcp"
