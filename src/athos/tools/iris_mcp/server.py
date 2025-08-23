@@ -183,7 +183,7 @@ async def get_directories_with_allocations() -> str:
     except Exception as e:
         return f"Error retrieving directories with allocations: {str(e)}"
 
-@mcp.tool()
+@mcp.tool(enabled=False)
 async def get_storage_changes(start_date: str, end_date: str) -> str:
     """
     Detect new projects and users by querying storage changes in a date range.
@@ -404,7 +404,7 @@ async def get_projdir_users(pname: str) -> str:
     except Exception as e:
         return f"Error retrieving projdir users: {str(e)}"
 
-@mcp.tool()
+@mcp.tool(enabled=False)
 async def get_pending_projdirs() -> str:
     """
     View pending project directory changes that need to be acknowledged.
@@ -431,7 +431,7 @@ async def get_pending_projdirs() -> str:
     except Exception as e:
         return f"Error retrieving pending projdirs: {str(e)}"
 
-@mcp.tool()
+@mcp.tool(enabled=False)
 async def upload_slurm_usage(jobs_data: str) -> str:
     """
     Upload Slurm job usage data to the system.
@@ -468,7 +468,7 @@ async def upload_slurm_usage(jobs_data: str) -> str:
     except Exception as e:
         return f"Error uploading Slurm usage: {str(e)}"
 
-@mcp.tool()
+@mcp.tool(enabled=False)
 async def upload_storage_usage(paths_data: str) -> str:
     """
     Upload storage usage data to the system.
@@ -505,7 +505,7 @@ async def upload_storage_usage(paths_data: str) -> str:
     except Exception as e:
         return f"Error uploading storage usage: {str(e)}"
 
-@mcp.tool()
+@mcp.tool(enabled=False)
 async def acknowledge_pending_projdirs(pnames: List[str]) -> str:
     """
     Acknowledge pending project directory changes.
@@ -591,7 +591,6 @@ def main() -> None:
 
 def cli() -> None:
     """Console script entry point."""
-
     main()
 
 
