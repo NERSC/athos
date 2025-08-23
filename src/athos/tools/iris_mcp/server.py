@@ -66,21 +66,26 @@ class IrisGraphQLClient:
 iris_client = IrisGraphQLClient()
 
 @mcp.tool()
-async def get_users(uid: Optional[int] = None, year: Optional[int] = None) -> str:
+async def get_users(
+    uid: Optional[int] = None,
+    year: Optional[int] = None,
+    username: Optional[str] = None,
+) -> str:
     """
     Retrieve users from the Iris system.
     
     Args:
         uid: Optional user ID to filter by
         year: Optional year to query historical data
+        username: Optional user name to filter by
     
     Returns:
         JSON string containing user data
     """
     query = """
-    query GetUsers($uid: Int, $year: Int) {
+    query GetUsers($uid: Int, $year: Int, $username: String) {
         systemInfo {
-            users(uid: $uid, year: $year) {
+            users(uid: $uid, year: $year, name: $username) {
                 uid
                 email
                 name
@@ -88,12 +93,14 @@ async def get_users(uid: Optional[int] = None, year: Optional[int] = None) -> st
         }
     }
     """
-    
+
     variables = {}
     if uid is not None:
         variables["uid"] = uid
     if year is not None:
         variables["year"] = year
+    if username is not None:
+        variables["username"] = username
     
     try:
         result = await iris_client.execute_query(query, variables)
