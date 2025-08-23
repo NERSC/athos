@@ -1,12 +1,14 @@
 import yaml
 from athos.runtime import build_config, build_flow
 from athos.flows import ChatbotFlow
+from athos.config import AthosConfig
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 
 def test_build_config_and_flow(tmp_path, monkeypatch):
     cfg_yaml = """
+workspace_dir: "/tmp"
 models:
   test_model:
     model_id: "openai/gpt4"
@@ -29,6 +31,7 @@ execution_flows:
 
 def test_agent_flow_closes_mcp(tmp_path, monkeypatch):
     cfg_yaml = """
+workspace_dir: "/tmp"
 models:
   test_model:
     model_id: "openai/gpt4"
@@ -51,3 +54,10 @@ execution_flows:
     flow = build_flow("agent", cfg)
     flow.close()
     dummy_client.disconnect.assert_called_once()
+
+
+def test_workspace_dir_default_expansion(monkeypatch):
+    monkeypatch.delenv("ATHOS_WORKSPACE", raising=False)
+    cfg_yaml = 'workspace_dir: "${ATHOS_WORKSPACE:-/tmp/athos_workspace}"\n'
+    cfg = AthosConfig.model_validate(yaml.safe_load(cfg_yaml))
+    assert cfg.workspace_dir == "/tmp/athos_workspace"

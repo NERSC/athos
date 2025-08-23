@@ -5,6 +5,22 @@ from typing import Dict, List, Any, Optional, Union, Annotated, Type
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, SecretStr
 from typing_extensions import Literal
 
+
+DEFAULT_ENV_VAR_PATTERN = re.compile(r"\$\{([^}:\s]+):-([^}]+)\}")
+
+
+def expand_env(value: Optional[str]) -> Optional[str]:
+    """Expand environment variables including default syntax."""
+    if value is None:
+        return None
+
+    def repl(match: re.Match) -> str:
+        var, default = match.group(1), match.group(2)
+        return os.environ.get(var, default)
+
+    return os.path.expandvars(DEFAULT_ENV_VAR_PATTERN.sub(repl, value))
+
+
 # ExecutionFlowType enum removed - flow types are now dynamically registered
 
 
@@ -33,7 +49,7 @@ class ModelConfig(BaseModel):
     @classmethod
     def expand_env_vars(cls, v: Optional[str]) -> Optional[str]:
         """Expand environment variables for API configuration fields."""
-        return os.path.expandvars(v) if v else None
+        return expand_env(v)
 
     @field_validator('api_base')
     @classmethod
@@ -60,7 +76,7 @@ class MCPServerConfig(BaseModel):
     @classmethod
     def expand_url_env_vars(cls, v: Optional[str]) -> Optional[str]:
         """Expand environment variables in URL field."""
-        return os.path.expandvars(v) if v else None
+        return expand_env(v)
 
     @model_validator(mode='before')
     @classmethod
@@ -70,21 +86,21 @@ class MCPServerConfig(BaseModel):
             # Expand environment variables in env dictionary values
             if 'env' in data and isinstance(data['env'], dict):
                 data['env'] = {
-                    k: os.path.expandvars(v) if isinstance(v, str) else v
+                    k: expand_env(v) if isinstance(v, str) else v
                     for k, v in data['env'].items()
                 }
 
             # Expand environment variables in headers dictionary values
             if 'headers' in data and isinstance(data['headers'], dict):
                 data['headers'] = {
-                    k: os.path.expandvars(v) if isinstance(v, str) else v
+                    k: expand_env(v) if isinstance(v, str) else v
                     for k, v in data['headers'].items()
                 }
 
             # Expand environment variables in args list values
             if 'args' in data and isinstance(data['args'], list):
                 data['args'] = [
-                    os.path.expandvars(v) if isinstance(v, str) else v
+                    expand_env(v) if isinstance(v, str) else v
                     for v in data['args']
                 ]
 
@@ -149,6 +165,13 @@ class AthosConfig(BaseModel):
     execution_flows: Dict[str, BaseFlowConfig] = Field(default_factory=dict, description="Execution flow configurations")
     hpc_cluster_config: Optional[Dict[str, Any]] = Field(default=None, description="HPC cluster configuration")
     logging_config: Optional[Dict[str, Any]] = Field(default=None, description="Logging configuration")
+    workspace_dir: str = Field(..., description="Root directory shared by tools/MCP servers")
+
+    @field_validator("workspace_dir", mode="before")
+    @classmethod
+    def expand_workspace_env(cls, v: str) -> str:
+        """Expand environment variables in workspace directory path."""
+        return expand_env(v)
 
     @model_validator(mode='before')
     @classmethod

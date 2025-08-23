@@ -308,7 +308,7 @@ class ServiceNowMCPServer:
         @self.mcp.tool()
         async def download_attachment(
             attachment_sys_id: str,
-            download_dir: str,
+            download_dir: Optional[str] = None,
         ) -> Dict[str, Any]:
             """Download an attachment file from ServiceNow."""
 

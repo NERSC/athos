@@ -135,10 +135,13 @@ async def demonstrate_file_exploration_task(flow):
     return True
 
 
-def setup_demo_workspace(demo_dir: str = "./athos_filesystem_demo"):
+def setup_demo_workspace(demo_dir: str | None = None):
     """Set up a clean workspace for the demo"""
     print("🔧 Setting up demo workspace...")
-    
+
+    if demo_dir is None:
+        demo_dir = os.getenv("ATHOS_WORKSPACE", "./athos_filesystem_demo")
+
     # Create a working directory for the demo
     work_dir = Path(demo_dir)
     work_dir.mkdir(exist_ok=True)
@@ -172,8 +175,11 @@ async def main():
                         help="Path to configuration YAML file")
     parser.add_argument("--flow", default="filesystem_agent",
                         help="Name of the filesystem flow to use")
-    parser.add_argument("--demo-dir", default="./athos_filesystem_demo",
-                        help="Directory to use for demo files (default: ./athos_filesystem_demo)")
+    parser.add_argument(
+        "--demo-dir",
+        default=os.getenv("ATHOS_WORKSPACE", "./athos_filesystem_demo"),
+        help="Directory to use for demo files",
+    )
     args = parser.parse_args()
     
     # Check for required environment variables

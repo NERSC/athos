@@ -21,7 +21,13 @@ def test_create_agent_flow_passes_instructions(monkeypatch):
     monkeypatch.setattr("athos.flows.agent.CodeAgent.__init__", dummy_agent_init)
 
     cfg = AgentFlowConfig(type="agent", model="m1", instructions=instructions)
-    full_cfg = AthosConfig(models={"m1": ModelConfig(model_id="id")}, tools={}, mcp_servers={}, execution_flows={})
+    full_cfg = AthosConfig(
+        models={"m1": ModelConfig(model_id="id")},
+        tools={},
+        mcp_servers={},
+        execution_flows={},
+        workspace_dir="/tmp",
+    )
 
     flow = create_agent_flow(cfg, full_cfg)
     assert isinstance(flow, AgentFlow)
