@@ -5,4 +5,4 @@ python evals/run_evaluations.py \
   --flow docs_rag_agent \
   --cases-dir evals/test_cases \
   --qa-file evals/simple_qa.jsonl \
-  --output eval_results.json
+  --output logs/eval_results.json
