@@ -33,7 +33,7 @@ async def main() -> None:
             print(" * ", tool, "\n")
 
         # Call a simple tool to verify connectivity
-        users = await client.call_tool("get_users", {})
+        users = await client.call_tool("get_users", {"username": "sfarrell"})
         print("Users:", users)
 
 
