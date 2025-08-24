@@ -1,5 +1,4 @@
 import json
-
 import pytest
 
 from athos.tools.iris_mcp import server as iris_server
@@ -31,3 +30,37 @@ async def test_get_users(monkeypatch):
     result = await tool.run({"username": "User"})
     data = json.loads(result.content[0].text)
     assert data["data"]["systemInfo"]["users"][0]["uid"] == 1
+
+
+@pytest.mark.asyncio
+async def test_get_project_info(monkeypatch):
+    async def fake_execute(query, variables=None):
+        assert variables == {"pname": "m1234"}
+        return {
+            "data": {
+                "systemInfo": {
+                    "projects": [
+                        {
+                            "id": 42,
+                            "status": "active",
+                            "quotas": [{"store": "scratch", "inode": 100}],
+                            "projectUsers": [
+                                {
+                                    "role": "pi",
+                                    "user": {"uid": 1, "name": "User", "email": "u@e"},
+                                }
+                            ],
+                        }
+                    ]
+                }
+            }
+        }
+
+    monkeypatch.setattr(iris_server.iris_client, "execute_query", fake_execute)
+
+    tool = await iris_server.mcp.get_tool("get_project_info")
+    result = await tool.run({"pname": "m1234"})
+    data = json.loads(result.content[0].text)
+    project = data["data"]["systemInfo"]["projects"][0]
+    assert project["id"] == 42
+    assert project["projectUsers"][0]["user"]["uid"] == 1
