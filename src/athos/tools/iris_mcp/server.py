@@ -30,7 +30,7 @@ mcp = FastMCP("Iris GraphQL API")
 class IrisGraphQLClient:
     """Client for interacting with Iris GraphQL API"""
     
-    def __init__(self, base_url: str = "https://iris-stage.nersc.gov"):
+    def __init__(self, base_url: str = "https://iris.nersc.gov"):
         self.base_url = base_url
         self.graphql_endpoint = f"{base_url}/graphql"
         self.headers = {
@@ -610,7 +610,7 @@ async def execute_custom_query(query: str, variables: Optional[str] = None) -> s
 def load_config(base_url_arg: Optional[str] = None) -> Dict[str, str]:
     """Load server configuration from arguments or environment variables."""
 
-    base_url = base_url_arg or os.getenv("IRIS_BASE_URL") or "https://iris-stage.nersc.gov"
+    base_url = base_url_arg or os.getenv("IRIS_BASE_URL") or "https://iris.nersc.gov"
     return {"base_url": base_url}
 
 
