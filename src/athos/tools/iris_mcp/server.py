@@ -308,23 +308,19 @@ async def get_project_info(pname: str) -> str:
             projects(name: $pname) {
                 id
                 name
-                status
-                quotas {
-                    store
-                    inode
-                }
-                projectUsers {
-                    role
-                    user {
-                        uid
-                        name
-                        email
-                    }
-                }
             }
         }
     }
     """
+    # projectUsers {
+    #     role
+    #     user {
+    #         uid
+    #         name
+    #         email
+            # status
+    #     }
+    # }
 
     variables = {"pname": pname}
 

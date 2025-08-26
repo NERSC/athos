@@ -32,9 +32,14 @@ async def main() -> None:
         for tool in tools:
             print(" * ", tool, "\n")
 
-        # Call a simple tool to verify connectivity
+        # Get user info by username
         users = await client.call_tool("get_users", {"username": "sfarrell"})
         print("Users:", users)
+        print()
+
+        # Get project info by name
+        project = await client.call_tool("get_project_info", {"pname": "dasrepo"})
+        print("Project:", project)
 
 
 if __name__ == "__main__":
