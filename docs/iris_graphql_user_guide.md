@@ -11,9 +11,12 @@ This guide provides comprehensive documentation for the Iris GraphQL API, specif
 3. [Users Sub-field](#users-sub-field)
 4. [Projects Sub-field](#projects-sub-field)
 5. [ComputeAllocations Sub-field](#computeallocations-sub-field)
-6. [Example Queries](#example-queries)
-7. [Common Arguments](#common-arguments)
-8. [Best Practices](#best-practices)
+6. [UserQuotas Sub-field](#userquotas-sub-field)
+7. [ProjectQuotas Sub-field](#projectquotas-sub-field)
+8. [Example Queries](#example-queries)
+9. [Common Arguments](#common-arguments)
+10. [Best Practices](#best-practices)
+11. [Quota Management Best Practices](#quota-management-best-practices)
 
 ## Root Query Structure
 
@@ -563,6 +566,542 @@ The API may return errors for various reasons. Always check for errors in your r
       "path": ["systemInfo", "users"]
     }
   ]
+}
+```
+
+
+
+## UserQuotas Sub-field
+
+The `userQuotas` sub-field provides access to user storage quota information, including both home directory and scratch space quotas.
+
+### Common Arguments
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `year` | Int | null | Filter by specific year |
+| `first` | Int | 100 | Limit results (pagination) |
+| `last` | Int | null | Last N results (pagination) |
+| `before` | String | null | Pagination cursor |
+| `after` | String | null | Pagination cursor |
+
+### Key UserQuota Fields
+
+The UserQuota type contains information about storage quotas assigned to users:
+
+#### Basic Information
+- `id` (ID!) - Unique identifier for the user quota
+- `userId` (Int) - The ID of the user this quota belongs to
+- `homeQuotaId` (Int) - Reference ID for the home directory quota
+- `scratchQuotaId` (Int) - Reference ID for the scratch space quota
+
+#### Timestamps
+- `createdAt` (DateTime) - When the quota was created
+- `updatedAt` (DateTime) - When the quota was last updated
+
+#### Associated Data
+- `user` (User) - The user this quota belongs to
+- `homeQuota` (Quota) - Detailed home directory quota information
+- `scratchQuota` (Quota) - Detailed scratch space quota information
+
+### Quota Type Fields
+
+The associated `Quota` objects contain the actual quota details:
+
+#### Basic Quota Information
+- `id` (ID!) - Unique identifier for the quota
+- `type` (String!) - Type of quota (e.g., "home", "scratch", "project")
+- `store` (Float) - Storage quota limit in appropriate units
+- `inode` (Float) - Inode (file count) quota limit
+- `prevStore` (Float) - Previous storage quota limit
+- `prevInode` (Float) - Previous inode quota limit
+- `end` (String) - Quota expiration date/time
+
+#### Timestamps
+- `createdAt` (DateTime) - When the quota was created
+- `updatedAt` (DateTime) - When the quota was last updated
+
+#### Relationships
+- `userHomeQuotas` ([UserQuota]) - User quotas using this as home quota
+- `userScratchQuotas` ([UserQuota]) - User quotas using this as scratch quota
+- `projectQuotas` ([ProjectQuota]) - Project quotas using this quota
+- `projectPaidQuotas` ([ProjectQuota]) - Project paid quotas using this quota
+- `projectTmpQuotas` ([ProjectQuota]) - Project temporary quotas using this quota
+
+### Example UserQuotas Queries
+
+#### 1. Basic User Quotas Query
+
+```graphql
+query GetUserQuotas {
+  systemInfo {
+    userQuotas(first: 10) {
+      id
+      userId
+      user {
+        name
+        email
+      }
+      homeQuota {
+        id
+        type
+        store
+        inode
+        end
+      }
+      scratchQuota {
+        id
+        type
+        store
+        inode
+        end
+      }
+      createdAt
+      updatedAt
+    }
+  }
+}
+```
+
+#### 2. User Quotas for Specific Year
+
+```graphql
+query GetUserQuotasForYear($year: Int) {
+  systemInfo {
+    userQuotas(year: $year, first: 50) {
+      id
+      user {
+        name
+        uid
+        email
+      }
+      homeQuota {
+        store
+        inode
+        prevStore
+        prevInode
+        end
+      }
+      scratchQuota {
+        store
+        inode
+        prevStore
+        prevInode
+        end
+      }
+    }
+  }
+}
+```
+
+#### 3. Detailed User Quota Information
+
+```graphql
+query GetDetailedUserQuotas {
+  systemInfo {
+    userQuotas(first: 5) {
+      id
+      user {
+        name
+        email
+        uid
+        firstname
+        lastname
+      }
+      homeQuota {
+        id
+        type
+        store
+        inode
+        prevStore
+        prevInode
+        end
+        createdAt
+        updatedAt
+      }
+      scratchQuota {
+        id
+        type
+        store
+        inode
+        prevStore
+        prevInode
+        end
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}
+```
+
+## ProjectQuotas Sub-field
+
+The `projectQuotas` sub-field provides access to project storage quota information, including regular, paid, and temporary quota allocations.
+
+### Common Arguments
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `year` | Int | null | Filter by specific year |
+| `first` | Int | 100 | Limit results (pagination) |
+| `last` | Int | null | Last N results (pagination) |
+| `before` | String | null | Pagination cursor |
+| `after` | String | null | Pagination cursor |
+
+### Key ProjectQuota Fields
+
+The ProjectQuota type contains information about storage quotas assigned to projects:
+
+#### Basic Information
+- `id` (ID!) - Unique identifier for the project quota
+- `userId` (Int) - ID of the user associated with this quota
+- `groupId` (Int) - ID of the group associated with this quota
+- `projectId` (Int) - ID of the project this quota belongs to
+- `pname` (String) - Project name
+- `status` (String) - Current status of the project quota
+- `oldPname` (String) - Previous project name (if renamed)
+
+#### Quota References
+- `quotaId` (Int) - Reference ID for the main project quota
+- `paidQuotaId` (Int) - Reference ID for paid storage quota
+- `tmpQuotaId` (Int) - Reference ID for temporary storage quota
+- `projectQuotaId` (Int) - Additional project quota reference
+
+#### Status and Timestamps
+- `createStatus` (String) - Status of quota creation process
+- `createStatusAt` (DateTime) - When the creation status was last updated
+- `createdAt` (DateTime) - When the project quota was created
+- `updatedAt` (DateTime) - When the project quota was last updated
+
+#### Associated Data
+- `user` (User) - The user associated with this project quota
+- `group` (Group) - The group associated with this project quota
+- `project` (Project) - The project this quota belongs to
+- `quota` (Quota) - Main project quota details
+- `paidQuota` (Quota) - Paid storage quota details
+- `tmpQuota` (Quota) - Temporary storage quota details
+
+### Example ProjectQuotas Queries
+
+#### 1. Basic Project Quotas Query
+
+```graphql
+query GetProjectQuotas {
+  systemInfo {
+    projectQuotas(first: 10) {
+      id
+      pname
+      status
+      createStatus
+      project {
+        code
+        label
+      }
+      user {
+        name
+        email
+      }
+      quota {
+        type
+        store
+        inode
+        end
+      }
+      createdAt
+      updatedAt
+    }
+  }
+}
+```
+
+#### 2. Project Quotas with All Quota Types
+
+```graphql
+query GetProjectQuotasDetailed {
+  systemInfo {
+    projectQuotas(first: 5) {
+      id
+      pname
+      status
+      createStatus
+      project {
+        code
+        label
+        description
+      }
+      user {
+        name
+        email
+      }
+      group {
+        name
+      }
+      quota {
+        id
+        type
+        store
+        inode
+        prevStore
+        prevInode
+        end
+      }
+      paidQuota {
+        id
+        type
+        store
+        inode
+        prevStore
+        prevInode
+        end
+      }
+      tmpQuota {
+        id
+        type
+        store
+        inode
+        prevStore
+        prevInode
+        end
+      }
+    }
+  }
+}
+```
+
+#### 3. Project Quotas for Specific Year
+
+```graphql
+query GetProjectQuotasForYear($year: Int) {
+  systemInfo {
+    projectQuotas(year: $year, first: 25) {
+      id
+      pname
+      status
+      createStatus
+      createStatusAt
+      project {
+        code
+        label
+        repoName
+      }
+      quota {
+        store
+        inode
+        end
+      }
+      paidQuota {
+        store
+        inode
+        end
+      }
+      tmpQuota {
+        store
+        inode
+        end
+      }
+    }
+  }
+}
+```
+
+#### 4. Project Quota Status Overview
+
+```graphql
+query GetProjectQuotaStatus {
+  systemInfo {
+    projectQuotas(first: 20) {
+      id
+      pname
+      status
+      createStatus
+      createStatusAt
+      oldPname
+      project {
+        code
+        label
+        repoName
+        description
+      }
+      createdAt
+      updatedAt
+    }
+  }
+}
+```
+
+### Combined Quota Queries
+
+#### 1. User and Project Quotas Overview
+
+```graphql
+query GetAllQuotasOverview {
+  systemInfo {
+    userQuotas(first: 5) {
+      id
+      user {
+        name
+        email
+      }
+      homeQuota {
+        store
+        inode
+      }
+      scratchQuota {
+        store
+        inode
+      }
+    }
+    projectQuotas(first: 5) {
+      id
+      pname
+      status
+      project {
+        code
+        label
+      }
+      quota {
+        store
+        inode
+      }
+    }
+  }
+}
+```
+
+#### 2. Quota Usage Analysis
+
+```graphql
+query GetQuotaUsageAnalysis {
+  systemInfo {
+    userQuotas(first: 10) {
+      user {
+        name
+        uid
+      }
+      homeQuota {
+        type
+        store
+        prevStore
+        inode
+        prevInode
+        updatedAt
+      }
+      scratchQuota {
+        type
+        store
+        prevStore
+        inode
+        prevInode
+        updatedAt
+      }
+    }
+    projectQuotas(first: 10) {
+      pname
+      status
+      project {
+        code
+      }
+      quota {
+        type
+        store
+        prevStore
+        inode
+        prevInode
+        updatedAt
+      }
+      paidQuota {
+        store
+        inode
+        updatedAt
+      }
+    }
+  }
+}
+```
+
+## Quota Management Best Practices
+
+### 1. Monitor Quota Usage
+Regularly check quota usage by comparing current and previous values:
+
+```graphql
+query MonitorQuotaUsage {
+  systemInfo {
+    userQuotas(first: 100) {
+      user {
+        name
+      }
+      homeQuota {
+        store
+        prevStore
+        inode
+        prevInode
+      }
+    }
+  }
+}
+```
+
+### 2. Track Quota Changes
+Use the `updatedAt` field to track recent quota modifications:
+
+```graphql
+query RecentQuotaChanges {
+  systemInfo {
+    projectQuotas(first: 50) {
+      pname
+      status
+      quota {
+        store
+        prevStore
+        updatedAt
+      }
+      updatedAt
+    }
+  }
+}
+```
+
+### 3. Filter by Year for Historical Data
+Use the `year` parameter to analyze quota trends:
+
+```graphql
+query HistoricalQuotas($year: Int) {
+  systemInfo {
+    userQuotas(year: $year) {
+      user {
+        name
+      }
+      homeQuota {
+        store
+        inode
+      }
+    }
+    projectQuotas(year: $year) {
+      pname
+      quota {
+        store
+        inode
+      }
+    }
+  }
+}
+```
+
+### 4. Paginate Large Quota Datasets
+Always use pagination when querying large numbers of quotas:
+
+```graphql
+query PaginatedQuotas($after: String) {
+  systemInfo {
+    userQuotas(first: 50, after: $after) {
+      # quota fields
+    }
+    projectQuotas(first: 50, after: $after) {
+      # quota fields
+    }
+  }
 }
 ```
 
