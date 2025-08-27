@@ -355,222 +355,6 @@ query GetProjectAllocations($projectRepo: String) {
 }
 ```
 
-## Example Queries
-
-### 1. Basic System Information
-
-```graphql
-query BasicSystemInfo {
-  systemInfo {
-    id
-    users(first: 5) {
-      name
-      email
-      uid
-    }
-    projects(first: 5) {
-      code
-      label
-      description
-    }
-  }
-}
-```
-
-### 2. User Details with Projects
-
-```graphql
-query UserWithProjects($userName: String) {
-  systemInfo {
-    users(name: $userName, first: 1) {
-      id
-      name
-      email
-      firstname
-      lastname
-      userType
-      accountState
-      projects {
-        code
-        label
-        description
-        repoName
-      }
-      allocations {
-        repoName
-        currentAlloc
-        usedAlloc
-      }
-    }
-  }
-}
-```
-
-### 3. Project with Resource Usage
-
-```graphql
-query ProjectResourceUsage($projectCode: String) {
-  systemInfo {
-    projects(repoName: $projectCode, first: 1) {
-      id
-      code
-      label
-      description
-      mppReq
-      gpuReq
-      hpssReq
-      users {
-        name
-        email
-      }
-      computeAllocations {
-        id
-        repoName
-        currentAlloc
-        usedAlloc
-        percentUsed
-        year
-        compute {
-          name
-          description
-        }
-      }
-      recentMppUsage {
-        date
-        totalCoreHours
-      }
-    }
-  }
-}
-```
-
-### 4. Pagination Example
-
-```graphql
-query PaginatedUsers($after: String) {
-  systemInfo {
-    users(first: 10, after: $after) {
-      id
-      name
-      email
-      createdAt
-    }
-  }
-}
-```
-
-## Common Arguments
-
-Most list fields in the SystemInfo type support the following common arguments:
-
-### Filtering Arguments
-- `since` (String) - Filter entities created since a specific date
-- `year` (Int) - Filter by a specific year
-- Entity-specific filters (e.g., `name`, `email`, `uid` for users)
-
-### Pagination Arguments
-- `first` (Int) - Number of items to return (default: 100)
-- `last` (Int) - Return last N items
-- `before` (String) - Return items before this cursor
-- `after` (String) - Return items after this cursor
-
-## Best Practices
-
-### 1. Use Pagination
-Always use pagination for large datasets to avoid performance issues:
-
-```graphql
-query {
-  systemInfo {
-    users(first: 50) {
-      # fields
-    }
-  }
-}
-```
-
-### 2. Request Only Needed Fields
-Be specific about which fields you need to minimize data transfer:
-
-```graphql
-query {
-  systemInfo {
-    users(first: 10) {
-      name
-      email
-      # Only request fields you actually need
-    }
-  }
-}
-```
-
-### 3. Use Variables for Dynamic Queries
-Use GraphQL variables for dynamic filtering:
-
-```graphql
-query GetUserByName($userName: String) {
-  systemInfo {
-    users(name: $userName, first: 1) {
-      id
-      name
-      email
-    }
-  }
-}
-```
-
-### 4. Handle Nested Relationships Carefully
-Be mindful of deeply nested queries that could impact performance:
-
-```graphql
-query {
-  systemInfo {
-    projects(first: 5) {
-      code
-      users(first: 10) {  # Nested pagination
-        name
-        projects(first: 5) {  # Avoid deep nesting when possible
-          code
-        }
-      }
-    }
-  }
-}
-```
-
-### 5. Use Appropriate Filters
-Apply filters to reduce the dataset at the query level:
-
-```graphql
-query {
-  systemInfo {
-    users(year: 2024, first: 100) {  # Filter by year
-      name
-      email
-    }
-  }
-}
-```
-
-## Error Handling
-
-The API may return errors for various reasons. Always check for errors in your response:
-
-```json
-{
-  "data": { ... },
-  "errors": [
-    {
-      "message": "Error description",
-      "locations": [{"line": 2, "column": 3}],
-      "path": ["systemInfo", "users"]
-    }
-  ]
-}
-```
-
-
-
 ## UserQuotas Sub-field
 
 The `userQuotas` sub-field provides access to user storage quota information, including both home directory and scratch space quotas.
@@ -1017,6 +801,220 @@ query GetQuotaUsageAnalysis {
       }
     }
   }
+}
+```
+
+## Example Queries
+
+### 1. Basic System Information
+
+```graphql
+query BasicSystemInfo {
+  systemInfo {
+    id
+    users(first: 5) {
+      name
+      email
+      uid
+    }
+    projects(first: 5) {
+      code
+      label
+      description
+    }
+  }
+}
+```
+
+### 2. User Details with Projects
+
+```graphql
+query UserWithProjects($userName: String) {
+  systemInfo {
+    users(name: $userName, first: 1) {
+      id
+      name
+      email
+      firstname
+      lastname
+      userType
+      accountState
+      projects {
+        code
+        label
+        description
+        repoName
+      }
+      allocations {
+        repoName
+        currentAlloc
+        usedAlloc
+      }
+    }
+  }
+}
+```
+
+### 3. Project with Resource Usage
+
+```graphql
+query ProjectResourceUsage($projectCode: String) {
+  systemInfo {
+    projects(repoName: $projectCode, first: 1) {
+      id
+      code
+      label
+      description
+      mppReq
+      gpuReq
+      hpssReq
+      users {
+        name
+        email
+      }
+      computeAllocations {
+        id
+        repoName
+        currentAlloc
+        usedAlloc
+        percentUsed
+        year
+        compute {
+          name
+          description
+        }
+      }
+      recentMppUsage {
+        date
+        totalCoreHours
+      }
+    }
+  }
+}
+```
+
+### 4. Pagination Example
+
+```graphql
+query PaginatedUsers($after: String) {
+  systemInfo {
+    users(first: 10, after: $after) {
+      id
+      name
+      email
+      createdAt
+    }
+  }
+}
+```
+
+## Common Arguments
+
+Most list fields in the SystemInfo type support the following common arguments:
+
+### Filtering Arguments
+- `since` (String) - Filter entities created since a specific date
+- `year` (Int) - Filter by a specific year
+- Entity-specific filters (e.g., `name`, `email`, `uid` for users)
+
+### Pagination Arguments
+- `first` (Int) - Number of items to return (default: 100)
+- `last` (Int) - Return last N items
+- `before` (String) - Return items before this cursor
+- `after` (String) - Return items after this cursor
+
+## Best Practices
+
+### 1. Use Pagination
+Always use pagination for large datasets to avoid performance issues:
+
+```graphql
+query {
+  systemInfo {
+    users(first: 50) {
+      # fields
+    }
+  }
+}
+```
+
+### 2. Request Only Needed Fields
+Be specific about which fields you need to minimize data transfer:
+
+```graphql
+query {
+  systemInfo {
+    users(first: 10) {
+      name
+      email
+      # Only request fields you actually need
+    }
+  }
+}
+```
+
+### 3. Use Variables for Dynamic Queries
+Use GraphQL variables for dynamic filtering:
+
+```graphql
+query GetUserByName($userName: String) {
+  systemInfo {
+    users(name: $userName, first: 1) {
+      id
+      name
+      email
+    }
+  }
+}
+```
+
+### 4. Handle Nested Relationships Carefully
+Be mindful of deeply nested queries that could impact performance:
+
+```graphql
+query {
+  systemInfo {
+    projects(first: 5) {
+      code
+      users(first: 10) {  # Nested pagination
+        name
+        projects(first: 5) {  # Avoid deep nesting when possible
+          code
+        }
+      }
+    }
+  }
+}
+```
+
+### 5. Use Appropriate Filters
+Apply filters to reduce the dataset at the query level:
+
+```graphql
+query {
+  systemInfo {
+    users(year: 2024, first: 100) {  # Filter by year
+      name
+      email
+    }
+  }
+}
+```
+
+## Error Handling
+
+The API may return errors for various reasons. Always check for errors in your response:
+
+```json
+{
+  "data": { ... },
+  "errors": [
+    {
+      "message": "Error description",
+      "locations": [{"line": 2, "column": 3}],
+      "path": ["systemInfo", "users"]
+    }
+  ]
 }
 ```
 
