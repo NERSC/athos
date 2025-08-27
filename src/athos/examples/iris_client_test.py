@@ -34,12 +34,12 @@ async def main() -> None:
 
         # Get user info by username
         users = await client.call_tool("get_users", {"username": "sfarrell"})
-        print("Users:", users)
+        print("Users:", users.content[0].text)
         print()
 
         # Get project info by name
-        project = await client.call_tool("get_project_info", {"pname": "dasrepo"})
-        print("Project:", project)
+        project = await client.call_tool("get_project_info", {"name": "m4291"})
+        print("Project:", project.content[0].text)
 
 
 if __name__ == "__main__":
