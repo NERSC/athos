@@ -305,9 +305,9 @@ async def get_project_info(pname: str) -> str:
     query = """
     query GetProjectInfo($pname: String!) {
         systemInfo {
-            projects(name: $pname) {
+            projects(repoName: $pname) {
                 id
-                name
+                repoName
             }
         }
     }
