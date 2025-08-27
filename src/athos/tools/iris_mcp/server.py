@@ -155,30 +155,35 @@ async def get_user_allocations(uid: Optional[int] = None, year: Optional[int] = 
         return f"Error retrieving user allocations: {str(e)}"
 
 @mcp.tool()
-async def get_project_info(pname: str) -> str:
+async def get_project_info(name: str) -> str:
     """Retrieve detailed information about a project."""
 
     query = """
-    query GetProjectInfo($pname: String!) {
+    query GetProjectInfo($name: String!) {
         systemInfo {
-            projects(repoName: $pname) {
+            projects(repoName: $name, first: 1) {
                 id
+                code
+                description
+                label
                 repoName
+                computeAllocations {
+                    id
+                }
+                projectQuotas {
+                    id
+                }
+                projectUsers {
+                    user {
+                        name
+                    }
+                    role
+                }
             }
         }
     }
     """
-    # projectUsers {
-    #     role
-    #     user {
-    #         uid
-    #         name
-    #         email
-            # status
-    #     }
-    # }
-
-    variables = {"pname": pname}
+    variables = {"name": name}
 
     try:
         result = await iris_client.execute_query(query, variables)
