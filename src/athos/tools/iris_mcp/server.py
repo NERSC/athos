@@ -14,8 +14,7 @@ import argparse
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Union
-from datetime import datetime
+from typing import Any, Dict, Optional
 
 import httpx
 from fastmcp import FastMCP
@@ -66,49 +65,6 @@ class IrisGraphQLClient:
 iris_client = IrisGraphQLClient()
 
 @mcp.tool()
-async def get_users(
-    uid: Optional[int] = None,
-    year: Optional[int] = None,
-    username: Optional[str] = None,
-) -> str:
-    """
-    Retrieve users from the Iris system.
-    
-    Args:
-        uid: Optional user ID to filter by
-        year: Optional year to query historical data
-        username: Optional user name to filter by
-    
-    Returns:
-        JSON string containing user data
-    """
-    query = """
-    query GetUsers($uid: Int, $year: Int, $username: String) {
-        systemInfo {
-            users(uid: $uid, year: $year, name: $username) {
-                uid
-                email
-                name
-            }
-        }
-    }
-    """
-
-    variables = {}
-    if uid is not None:
-        variables["uid"] = uid
-    if year is not None:
-        variables["year"] = year
-    if username is not None:
-        variables["username"] = username
-    
-    try:
-        result = await iris_client.execute_query(query, variables)
-        return json.dumps(result, indent=2)
-    except Exception as e:
-        return f"Error retrieving users: {str(e)}"
-
-@mcp.tool()
 async def get_user_allocations(uid: Optional[int] = None, year: Optional[int] = None) -> str:
     """
     Get users with their compute allocations per project.
@@ -155,13 +111,13 @@ async def get_user_allocations(uid: Optional[int] = None, year: Optional[int] = 
         return f"Error retrieving user allocations: {str(e)}"
 
 @mcp.tool()
-async def get_project_info(name: str) -> str:
+async def get_project_info(pname: str) -> str:
     """Retrieve detailed information about a project."""
 
     query = """
-    query GetProjectInfo($name: String!) {
+    query GetProjectInfo($pname: String!) {
         systemInfo {
-            projects(repoName: $name, first: 1) {
+            projects(repoName: $pname, first: 1) {
                 id
                 code
                 description
@@ -183,7 +139,7 @@ async def get_project_info(name: str) -> str:
         }
     }
     """
-    variables = {"name": name}
+    variables = {"pname": pname}
 
     try:
         result = await iris_client.execute_query(query, variables)
@@ -191,396 +147,196 @@ async def get_project_info(name: str) -> str:
     except Exception as e:
         return f"Error retrieving project info: {str(e)}"
 
-# @mcp.tool()
-# async def get_directories_with_allocations() -> str:
-#     """
-#     Download every directory along with allocations, including the user's name.
-    
-#     Returns:
-#         JSON string containing directory and allocation data
-#     """
-#     query = """
-#     query GetDirectoriesWithAllocations {
-#         systemInfo {
-#             fileSystems {
-#                 id
-#                 name
-#                 updatedAt
-#                 directories {
-#                     path
-#                     dirType
-#                     directoryAllocations {
-#                         user {
-#                             name
-#                         }
-#                         spaceQuota
-#                     }
-#                 }
-#             }
-#         }
-#     }
-#     """
-    
-#     try:
-#         result = await iris_client.execute_query(query)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving directories with allocations: {str(e)}"
 
-# @mcp.tool(enabled=False)
-# async def get_storage_changes(start_date: str, end_date: str) -> str:
-#     """
-#     Detect new projects and users by querying storage changes in a date range.
-    
-#     Args:
-#         start_date: Start date in YYYY-MM-DD format
-#         end_date: End date in YYYY-MM-DD format
-    
-#     Returns:
-#         JSON string containing storage changes
-#     """
-#     query = """
-#     query GetStorageChanges($start: String!, $end: String!) {
-#         changes {
-#             storageChanges(start: $start, end: $end) {
-#                 ts
-#                 uid
-#                 gid
-#                 pname
-#                 status
-#                 userName
-#                 store
-#                 inode
-#                 action
-#             }
-#         }
-#     }
-#     """
-    
-#     variables = {
-#         "start": start_date,
-#         "end": end_date
-#     }
-    
-#     try:
-#         result = await iris_client.execute_query(query, variables)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving storage changes: {str(e)}"
+@mcp.tool()
+async def get_user_info(
+    username: Optional[str] = None, uid: Optional[int] = None
+) -> str:
+    """Retrieve detailed information about a user."""
 
-# @mcp.tool()
-# async def get_user_quotas() -> str:
-#     """
-#     Get all user quotas (home and scratch).
-    
-#     Returns:
-#         JSON string containing user quota data
-#     """
-#     query = """
-#     query GetUserQuotas {
-#         systemInfo {
-#             userQuotas {
-#                 user {
-#                     uid
-#                     name
-#                 }
-#                 homeQuota {
-#                     store
-#                     inode
-#                 }
-#                 scratchQuota {
-#                     store
-#                     inode
-#                 }
-#             }
-#         }
-#     }
-#     """
-    
-#     try:
-#         result = await iris_client.execute_query(query)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving user quotas: {str(e)}"
+    if username is None and uid is None:
+        return "Error: either username or uid must be provided"
 
-# @mcp.tool()
-# async def get_project_quotas() -> str:
-#     """
-#     Get all project quotas.
-    
-#     Returns:
-#         JSON string containing project quota data
-#     """
-#     query = """
-#     query GetProjectQuotas {
-#         systemInfo {
-#             projectQuotas {
-#                 userId
-#                 groupId
-#                 pname
-#                 status
-#                 quota {
-#                     store
-#                     inode
-#                 }
-#             }
-#         }
-#     }
-#     """
-    
-#     try:
-#         result = await iris_client.execute_query(query)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving project quotas: {str(e)}"
+    query = """
+    query GetUserInfo($username: String, $uid: Int) {
+        systemInfo {
+            users(name: $username, uid: $uid) {
+                id
+                name
+                email
+                uid
+                projects {
+                    code
+                    label
+                }
+                groups {
+                    name
+                }
+            }
+        }
+    }
+    """
+
+    variables = {}
+    if username is not None:
+        variables["username"] = username
+    if uid is not None:
+        variables["uid"] = uid
+
+    try:
+        result = await iris_client.execute_query(query, variables)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error retrieving user info: {str(e)}"
 
 
-# @mcp.tool()
-# async def get_storage_archive_user(email: Optional[str] = None, uid: Optional[int] = None) -> str:
-#     """
-#     Query storage archive for user information including groups and project roles.
-    
-#     Args:
-#         email: User email to search for
-#         uid: User ID to search for
-    
-#     Returns:
-#         JSON string containing user information from storage archive
-#     """
-#     query = """
-#     query GetStorageArchiveUser($email: String, $uid: Int) {
-#         storageArchive {
-#             users(email: $email, uid: $uid) {
-#                 id
-#                 name
-#                 email
-#                 groupUsers {
-#                     group {
-#                         name
-#                         type
-#                     }
-#                 }
-#                 projectUsers {
-#                     projectId
-#                     role
-#                 }
-#             }
-#         }
-#     }
-#     """
-    
-#     variables = {}
-#     if email:
-#         variables["email"] = email
-#     if uid is not None:
-#         variables["uid"] = uid
-    
-#     try:
-#         result = await iris_client.execute_query(query, variables)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving storage archive user: {str(e)}"
+@mcp.tool()
+async def get_compute_allocations(
+    repo_name: Optional[str] = None, year: Optional[int] = None
+) -> str:
+    """Retrieve compute allocation information."""
 
-# @mcp.tool()
-# async def get_storage_archive_group(gid: int) -> str:
-#     """
-#     Query storage archive for group information by GID.
-    
-#     Args:
-#         gid: Group ID to search for
-    
-#     Returns:
-#         JSON string containing group information
-#     """
-#     query = """
-#     query GetStorageArchiveGroup($gid: Int!) {
-#         storageArchive {
-#             groups(gid: $gid) {
-#                 name
-#                 type
-#             }
-#         }
-#     }
-#     """
-    
-#     variables = {"gid": gid}
-    
-#     try:
-#         result = await iris_client.execute_query(query, variables)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving storage archive group: {str(e)}"
+    query = """
+    query GetComputeAllocations($repoName: String, $year: Int) {
+        systemInfo {
+            computeAllocations(repoName: $repoName, year: $year) {
+                id
+                repoName
+                currentAlloc
+                usedAlloc
+                percentUsed
+                year
+                project {
+                    code
+                    label
+                }
+                compute {
+                    name
+                }
+            }
+        }
+    }
+    """
 
-# @mcp.tool()
-# async def get_projdir_users(pname: str) -> str:
-#     """
-#     Get users who can access a specific project directory.
-    
-#     Args:
-#         pname: Project name/directory name
-    
-#     Returns:
-#         JSON string containing users with access to the project directory
-#     """
-#     query = """
-#     query GetProjdirUsers($pname: String!) {
-#         storageArchive {
-#             projdirs(pname: $pname) {
-#                 pname
-#                 project {
-#                     projectUsers {
-#                         userId
-#                         user {
-#                             name
-#                             email
-#                         }
-#                     }
-#                 }
-#             }
-#         }
-#     }
-#     """
-    
-#     variables = {"pname": pname}
-    
-#     try:
-#         result = await iris_client.execute_query(query, variables)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving projdir users: {str(e)}"
+    variables = {}
+    if repo_name is not None:
+        variables["repoName"] = repo_name
+    if year is not None:
+        variables["year"] = year
 
-# @mcp.tool(enabled=False)
-# async def get_pending_projdirs() -> str:
-#     """
-#     View pending project directory changes that need to be acknowledged.
-    
-#     Returns:
-#         JSON string containing pending projdir changes
-#     """
-#     query = """
-#     query GetPendingProjdirs {
-#         pendingProjdirs {
-#             projdirs {
-#                 pname
-#                 createStatus
-#                 createStatusAt
-#                 oldPname
-#             }
-#         }
-#     }
-#     """
-    
-#     try:
-#         result = await iris_client.execute_query(query)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error retrieving pending projdirs: {str(e)}"
+    try:
+        result = await iris_client.execute_query(query, variables)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error retrieving compute allocations: {str(e)}"
 
-# @mcp.tool(enabled=False)
-# async def upload_slurm_usage(jobs_data: str) -> str:
-#     """
-#     Upload Slurm job usage data to the system.
-    
-#     Args:
-#         jobs_data: JSON string containing job data array
-    
-#     Returns:
-#         JSON string with upload status
-#     """
-#     try:
-#         jobs = json.loads(jobs_data)
-#     except json.JSONDecodeError as e:
-#         return f"Error parsing jobs data: {str(e)}"
-    
-#     mutation = """
-#     mutation ComputeUsageMutation($computeUsageInput: ComputeUsageInput!) {
-#         computeUsage(input: $computeUsageInput) {
-#             status
-#             error
-#         }
-#     }
-#     """
-    
-#     variables = {
-#         "computeUsageInput": {
-#             "jobs": jobs
-#         }
-#     }
-    
-#     try:
-#         result = await iris_client.execute_query(mutation, variables)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error uploading Slurm usage: {str(e)}"
 
-# @mcp.tool(enabled=False)
-# async def upload_storage_usage(paths_data: str) -> str:
-#     """
-#     Upload storage usage data to the system.
-    
-#     Args:
-#         paths_data: JSON string containing storage usage data array
-    
-#     Returns:
-#         JSON string with upload status
-#     """
-#     try:
-#         paths = json.loads(paths_data)
-#     except json.JSONDecodeError as e:
-#         return f"Error parsing paths data: {str(e)}"
-    
-#     mutation = """
-#     mutation StorageUsageMutation($storageUsageInput: StorageUsageInput!) {
-#         storageUsage(input: $storageUsageInput) {
-#             status
-#             error
-#         }
-#     }
-#     """
-    
-#     variables = {
-#         "storageUsageInput": {
-#             "paths": paths
-#         }
-#     }
-    
-#     try:
-#         result = await iris_client.execute_query(mutation, variables)
-#         return json.dumps(result, indent=2)
-#     except Exception as e:
-#         return f"Error uploading storage usage: {str(e)}"
+@mcp.tool()
+async def get_user_quotas(
+    uid: Optional[int] = None, year: Optional[int] = None
+) -> str:
+    """Retrieve quota information for users."""
 
-#@mcp.tool(enabled=False)
-#async def acknowledge_pending_projdirs(pnames: List[str]) -> str:
-#    """
-#    Acknowledge pending project directory changes.
-#    
-#    Args:
-#        pnames: List of project names to acknowledge
-#    
-#    Returns:
-#        JSON string with acknowledgment status
-#    """
-#    mutation = """
-#    mutation AckPendingProjdirs($input: AckPendingProjdirsInput!) {
-#        ackPendingProjdirs(input: $input) {
-#            status
-#            error
-#        }
-#    }
-#    """
-#    
-#    variables = {
-#        "input": {
-#            "pnames": pnames
-#        }
-#    }
-#    
-#    try:
-#        result = await iris_client.execute_query(mutation, variables)
-#        return json.dumps(result, indent=2)
-#    except Exception as e:
-#        return f"Error acknowledging pending projdirs: {str(e)}"
+    query = """
+    query GetUserQuotas($uid: Int, $year: Int) {
+        systemInfo {
+            userQuotas(uid: $uid, year: $year) {
+                id
+                user {
+                    name
+                    uid
+                    email
+                }
+                homeQuota {
+                    id
+                    type
+                    store
+                    inode
+                    end
+                }
+                scratchQuota {
+                    id
+                    type
+                    store
+                    inode
+                    end
+                }
+                createdAt
+                updatedAt
+            }
+        }
+    }
+    """
+
+    variables = {}
+    if uid is not None:
+        variables["uid"] = uid
+    if year is not None:
+        variables["year"] = year
+
+    try:
+        result = await iris_client.execute_query(query, variables)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error retrieving user quotas: {str(e)}"
+
+
+@mcp.tool()
+async def get_project_quotas(
+    repo_name: Optional[str] = None, year: Optional[int] = None
+) -> str:
+    """Retrieve quota information for projects."""
+
+    query = """
+    query GetProjectQuotas($repoName: String, $year: Int) {
+        systemInfo {
+            projectQuotas(repoName: $repoName, year: $year) {
+                id
+                pname
+                status
+                project {
+                    code
+                    label
+                }
+                user {
+                    name
+                }
+                quota {
+                    type
+                    store
+                    inode
+                    end
+                }
+                paidQuota {
+                    type
+                    store
+                    inode
+                    end
+                }
+                tmpQuota {
+                    type
+                    store
+                    inode
+                    end
+                }
+                createdAt
+                updatedAt
+            }
+        }
+    }
+    """
+
+    variables = {}
+    if repo_name is not None:
+        variables["repoName"] = repo_name
+    if year is not None:
+        variables["year"] = year
+
+    try:
+        result = await iris_client.execute_query(query, variables)
+        return json.dumps(result, indent=2)
+    except Exception as e:
+        return f"Error retrieving project quotas: {str(e)}"
 
 @mcp.tool()
 async def execute_custom_query(query: str, variables: Optional[str] = None) -> str:

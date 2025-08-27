@@ -11,14 +11,21 @@ def test_load_config_env(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_users(monkeypatch):
+async def test_get_user_info(monkeypatch):
     async def fake_execute(query, variables=None):
         assert variables == {"username": "User"}
         return {
             "data": {
                 "systemInfo": {
                     "users": [
-                        {"uid": 1, "email": "user@example.com", "name": "User"}
+                        {
+                            "id": 1,
+                            "uid": 1,
+                            "email": "user@example.com",
+                            "name": "User",
+                            "projects": [],
+                            "groups": [],
+                        }
                     ]
                 }
             }
@@ -26,7 +33,7 @@ async def test_get_users(monkeypatch):
 
     monkeypatch.setattr(iris_server.iris_client, "execute_query", fake_execute)
 
-    tool = await iris_server.mcp.get_tool("get_users")
+    tool = await iris_server.mcp.get_tool("get_user_info")
     result = await tool.run({"username": "User"})
     data = json.loads(result.content[0].text)
     assert data["data"]["systemInfo"]["users"][0]["uid"] == 1
