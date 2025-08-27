@@ -2,7 +2,7 @@
 
 ## Overview
 
-This guide provides comprehensive documentation for the Iris GraphQL API, specifically focusing on the `systemInfo` root field and its `projects` and `users` sub-fields. The information in this guide was generated using GraphQL introspection queries.
+This guide provides comprehensive documentation for the Iris GraphQL API, specifically focusing on the `systemInfo` root field and its `projects`, `users`, and `computeAllocations` sub-fields. The information in this guide was generated using GraphQL introspection queries.
 
 ## Table of Contents
 
@@ -10,9 +10,10 @@ This guide provides comprehensive documentation for the Iris GraphQL API, specif
 2. [SystemInfo Root Field](#systeminfo-root-field)
 3. [Users Sub-field](#users-sub-field)
 4. [Projects Sub-field](#projects-sub-field)
-5. [Example Queries](#example-queries)
-6. [Common Arguments](#common-arguments)
-7. [Best Practices](#best-practices)
+5. [ComputeAllocations Sub-field](#computeallocations-sub-field)
+6. [Example Queries](#example-queries)
+7. [Common Arguments](#common-arguments)
+8. [Best Practices](#best-practices)
 
 ## Root Query Structure
 
@@ -237,10 +238,115 @@ query GetProjects {
         role
       }
       computeAllocations {
+        id
         repoName
-        allocationHours
-        usedHours
+        currentAlloc
+        usedAlloc
+        repoStatus
       }
+    }
+  }
+}
+```
+
+## ComputeAllocations Sub-field
+
+The `computeAllocations` sub-field provides access to compute resource allocation information for projects and users.
+
+### Common Arguments
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `id` | Int | null | Filter by allocation ID |
+| `repoName` | String | null | Filter by repository name |
+| `since` | String | null | Filter allocations created since this date |
+| `year` | Int | null | Filter by specific year |
+| `before` | String | null | Pagination cursor |
+| `after` | String | null | Pagination cursor |
+| `first` | Int | 100 | Limit results (pagination) |
+| `last` | Int | null | Last N results (pagination) |
+
+### Key ComputeAllocation Fields
+
+The ComputeAllocation type contains comprehensive allocation information:
+
+#### Basic Information
+- `id` (ID!) - Unique identifier
+- `repoName` (String) - Repository/project name
+- `repoStatus` (String) - Repository status
+- `year` (Int) - Allocation year
+- `quarter` (String) - Allocation quarter
+
+#### Allocation Amounts
+- `currentAlloc` (Float) - Current allocation amount
+- `usedAlloc` (Float) - Used allocation amount
+- `initialAlloc` (Float) - Initial allocation amount
+- `finalAward` (Int) - Final awarded amount
+- `remainingAlloc` (Float) - Remaining allocation
+
+#### Usage Information
+- `usedRaw` (Float) - Raw usage hours
+- `usedMachine` (Float) - Machine usage hours
+- `usedGpu` (Float) - GPU usage hours
+- `percentUsed` (Float) - Percentage of allocation used
+
+#### Dates and Status
+- `startDate` (DateTime) - Allocation start date
+- `endDate` (DateTime) - Allocation end date
+- `createdAt` (DateTime) - Creation timestamp
+- `updatedAt` (DateTime) - Last update timestamp
+
+#### Associated Data
+- `project` (Project) - Associated project
+- `user` (User) - Associated user (for user allocations)
+- `compute` (Compute) - Compute resource information
+
+### Example ComputeAllocations Query
+
+```graphql
+query GetComputeAllocations {
+  systemInfo {
+    computeAllocations(first: 10, year: 2024) {
+      id
+      repoName
+      repoStatus
+      currentAlloc
+      usedAlloc
+      initialAlloc
+      percentUsed
+      year
+      quarter
+      startDate
+      endDate
+      project {
+        code
+        label
+      }
+      compute {
+        name
+        description
+      }
+    }
+  }
+}
+```
+
+### ComputeAllocations by Project
+
+```graphql
+query GetProjectAllocations($projectRepo: String) {
+  systemInfo {
+    computeAllocations(repoName: $projectRepo, first: 5) {
+      id
+      currentAlloc
+      usedAlloc
+      remainingAlloc
+      percentUsed
+      year
+      quarter
+      usedRaw
+      usedMachine
+      usedGpu
     }
   }
 }
@@ -289,7 +395,8 @@ query UserWithProjects($userName: String) {
       }
       allocations {
         repoName
-        allocationHours
+        currentAlloc
+        usedAlloc
       }
     }
   }
@@ -314,11 +421,15 @@ query ProjectResourceUsage($projectCode: String) {
         email
       }
       computeAllocations {
+        id
         repoName
-        allocationHours
-        usedHours
+        currentAlloc
+        usedAlloc
+        percentUsed
+        year
         compute {
           name
+          description
         }
       }
       recentMppUsage {
