@@ -38,8 +38,16 @@ async def main() -> None:
         print()
 
         # Get project info by repository name
-        project = await client.call_tool("get_project_info", {"pname": "m4291"})
+        project = await client.call_tool("get_project_info", {"pname": "dasrepo"})
         print("Project:", project.content[0].text)
+
+        # Get compute allocation by repository name
+        compute_allocations_params = dict(
+            repo_name="dasrepo_g",
+            # year=2023,
+        )
+        compute_allocations = await client.call_tool("get_compute_allocations", compute_allocations_params)
+        print("Allocations:", compute_allocations.content[0].text)
 
 
 if __name__ == "__main__":
