@@ -118,22 +118,42 @@ async def get_project_info(pname: str) -> str:
     query GetProjectInfo($pname: String!) {
         systemInfo {
             projects(repoName: $pname, first: 1) {
-                id
                 code
                 description
-                label
                 repoName
+                projectGoals
+                program { name }
+                organization { code }
                 computeAllocations {
-                    id
+                    repoName
+                    currentAlloc
+                    usedAlloc
+                    initialAlloc
                 }
                 projectQuotas {
-                    id
+                    userId
+                    groupId
+                    projectId
+                    pname
+                    # status
+                    quota {
+                        store
+                        inode
+                    }
+                }
+                projdirs {
+                    pname
+                    fileSystemName
+                    fileCount
+                    bytesUsed
                 }
                 projectUsers {
                     user {
                         name
                     }
-                    role
+                    simRole {
+                        name
+                    }
                 }
             }
         }
@@ -166,8 +186,8 @@ async def get_user_info(
                 email
                 uid
                 projects {
+                    repoName
                     code
-                    label
                 }
                 groups {
                     name
@@ -192,27 +212,26 @@ async def get_user_info(
 
 @mcp.tool()
 async def get_compute_allocations(
-    repo_name: Optional[str] = None, year: Optional[int] = None
+    repo_name: Optional[str] = None,
+    year: Optional[int] = None
 ) -> str:
-    """Retrieve compute allocation information."""
+    """Retrieve compute allocation information.
+
+    Args:
+    - repo_name: name of the allocation, e.g. m1234_g project m1234's gpu allocation.
+    - year: leave as None for current year.
+    """
 
     query = """
     query GetComputeAllocations($repoName: String, $year: Int) {
         systemInfo {
             computeAllocations(repoName: $repoName, year: $year) {
-                id
                 repoName
+                initialRequest
+                finalAward
+                initialAlloc
                 currentAlloc
                 usedAlloc
-                percentUsed
-                year
-                project {
-                    code
-                    label
-                }
-                compute {
-                    name
-                }
             }
         }
     }
