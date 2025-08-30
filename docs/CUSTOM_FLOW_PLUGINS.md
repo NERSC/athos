@@ -130,7 +130,7 @@ register_custom_flow()
 Once registered, custom flows can be used in YAML configuration:
 
 ```yaml
-execution_flows:
+flows:
   my_custom_flow:
     type: "custom"  # Must match the registered type
     model: "gpt_4o"

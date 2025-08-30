@@ -3,7 +3,7 @@ from typing import Any
 
 
 class BaseFlow(ABC):
-    """Base class for all execution flows."""
+    """Base class for all flows."""
 
     @abstractmethod
     async def execute(self, input_data: str) -> Any:

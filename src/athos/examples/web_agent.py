@@ -19,13 +19,13 @@ async def main():
 
     # Print some info about available flows
     print("Available flows:")
-    for name in cfg.execution_flows:
+    for name in cfg.flows:
         print(f"- {name}")
 
     # Construct web_agent flow
     flow_name = "web_agent"
     print(f"Constructing flow {flow_name}")
-    pprint.pprint(cfg.execution_flows[flow_name])
+    pprint.pprint(cfg.flows[flow_name])
     flow = build_flow(flow_name, cfg)
 
     # Run queries

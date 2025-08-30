@@ -169,8 +169,8 @@ tools:
   #     module_system: "lmod"
   #     default_modules: ["gcc/11.2.0", "openmpi/4.1.1"]
 
-# Agent Execution Flows define the agent system
-execution_flows:
+# Agent flows define the agent system
+flows:
   # Simple chatbot for general HPC questions
   hpc_chatbot:
     type: "chatbot"

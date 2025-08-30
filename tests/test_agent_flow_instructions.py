@@ -25,7 +25,7 @@ def test_create_agent_flow_passes_instructions(monkeypatch):
         models={"m1": ModelConfig(model_id="id")},
         tools={},
         mcp_servers={},
-        execution_flows={},
+        flows={},
         workspace_dir="/tmp",
     )
 

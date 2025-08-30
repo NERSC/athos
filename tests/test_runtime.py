@@ -12,7 +12,7 @@ workspace_dir: "/tmp"
 models:
   test_model:
     model_id: "openai/gpt4"
-execution_flows:
+flows:
   chat:
     type: "chatbot"
     model: "test_model"
@@ -39,7 +39,7 @@ mcp_servers:
   s1:
     mcp_type: "mcp_stdio"
     command: "echo"
-execution_flows:
+flows:
   agent:
     type: "agent"
     model: "test_model"
