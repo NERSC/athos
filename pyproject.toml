@@ -24,6 +24,7 @@ dependencies = [
     "fastmcp>=2.10.6",
     "authlib",
     "ipykernel",
+    "uv",
   ]
 
 [project.optional-dependencies]
