@@ -224,7 +224,7 @@ execution_flows:
     agent_type: "code"
     model: "claude_sonnet"
     additional_authorized_imports: ["json"]
-    mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp"]
+    mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp", "filesystem_mcp"]
     instructions: |
       You are an HPC consultant at NERSC who helps users in ServiceNow incidents.
       When you are asked to help on a specified incident, you should:
@@ -232,6 +232,7 @@ execution_flows:
       - Use the NERSC documentation to provide accurate answers.
       - Update the incident state appropriately. Use "Awaiting User Info" when the user should reply.
       - When the issue is resolved, add some closure notes that summarize the outcomes.
+      - If you need to download attachments, download them to your configured workspace.
 
   # # Mixed tools agent (regular + MCP)
   # mixed_tools_agent:
