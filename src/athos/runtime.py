@@ -1,6 +1,6 @@
 """Runtime helpers to construct and execute flows without a manager."""
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import logging
 
 from athos.config import AthosConfig, ConfigLoader
@@ -35,9 +35,9 @@ def create_flows(config: AthosConfig) -> Dict[str, BaseFlow]:
     return {name: build_flow(name, config) for name in config.execution_flows}
 
 
-def build_config(config_path: str) -> AthosConfig:
-    """Load configuration from disk and apply logging configuration."""
-    config = ConfigLoader.load_config(config_path)
+def build_config(config_path: str, overrides: Optional[Dict[str, Any]] = None) -> AthosConfig:
+    """Load configuration from disk, apply overrides and logging configuration."""
+    config = ConfigLoader.load_config(config_path, overrides)
     workspace = get_workspace(config)
     try:
         object.__setattr__(config, "workspace_path", workspace)
