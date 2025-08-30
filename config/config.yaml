@@ -234,37 +234,6 @@ execution_flows:
       - When the issue is resolved, add some closure notes that summarize the outcomes.
       - If you need to download attachments, download them to your configured workspace.
 
-  # # Mixed tools agent (regular + MCP)
-  # mixed_tools_agent:
-  #   type: "agent"
-  #   agent_type: "tool_calling"
-  #   model: "gpt_4o"
-  #   tools: ["websearch", "github_mcp", "sqlite_mcp"]
-  #   system_prompt: |
-  #     You are a versatile assistant with access to web search, GitHub, and database tools.
-  #     You can research topics online, manage code repositories, and query databases.
-  #     Combine these capabilities to provide comprehensive assistance.
-
-  # # Code agent for automated HPC tasks
-  # hpc_automation:
-  #   type: "agent"
-  #   agent_type: "code"
-  #   model: "code_llama"
-  #   tools: ["slurm_manager", "system_monitor", "module_manager", "filesystem_tool"]
-  #   system_prompt: |
-  #     You are an HPC automation agent. You can manage SLURM jobs, monitor system resources,
-  #     handle environment modules, and perform file system operations.
-  #     Always verify operations before execution and provide clear feedback.
-
-  # # Quick support agent with minimal tools
-  # quick_support:
-  #   type: "agent"
-  #   agent_type: "code"
-  #   model: "phi_3_mini"
-  #   tools: ["system_monitor", "filesystem_tool"]
-  #   system_prompt: |
-  #     You are a quick support agent for basic HPC queries and monitoring.
-  #     Provide fast responses for simple tasks and system checks.
 
   # # Comprehensive problem diagnosis and resolution
   # problem_solver:
@@ -352,46 +321,6 @@ execution_flows:
   #         5. Implementation priority and expected impact
           
   #         Provide specific examples and code snippets where applicable.
-
-# # HPC cluster configuration
-# hpc_cluster_config:
-#   cluster_name: "hpc_cluster_01"
-#   scheduler: "slurm"
-#   partitions:
-#     - name: "compute"
-#       max_time: "24:00:00"
-#       max_nodes: 100
-#       default_cpus_per_task: 1
-#     - name: "gpu"
-#       max_time: "12:00:00"
-#       max_nodes: 20
-#       features: ["gpu", "cuda"]
-#     - name: "bigmem"
-#       max_time: "48:00:00"
-#       max_nodes: 10
-#       min_memory: "256GB"
-#     - name: "debug"
-#       max_time: "01:00:00"
-#       max_nodes: 4
-#       priority: "high"
-  
-#   storage:
-#     home_dir: "/home"
-#     scratch_dir: "/scratch"
-#     shared_dir: "/shared"
-    
-#   modules:
-#     system: "lmod"
-#     available_compilers: ["gcc", "intel", "nvidia"]
-#     available_mpi: ["openmpi", "intel-mpi", "mvapich2"]
-    
-#   monitoring:
-#     enabled: true
-#     metrics_retention_days: 30
-#     alert_thresholds:
-#       cpu_usage: 90
-#       memory_usage: 85
-#       disk_usage: 90
 
 # Logging configuration
 logging_config:
