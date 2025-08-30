@@ -1,6 +1,6 @@
 import yaml
 from pathlib import Path
-from typing import Union
+from typing import Union, Dict, Any, Optional
 import os
 
 from pydantic import ValidationError
@@ -20,8 +20,22 @@ class ConfigLoader:
     """Loads and validates YAML configuration files"""
     
     @staticmethod
-    def load_config(config_path: Union[str, Path]) -> AthosConfig:
-        """Load configuration from YAML file"""
+    def _deep_update(base: Dict[str, Any], overrides: Dict[str, Any]) -> None:
+        for key, value in overrides.items():
+            if (
+                key in base
+                and isinstance(base[key], dict)
+                and isinstance(value, dict)
+            ):
+                ConfigLoader._deep_update(base[key], value)
+            else:
+                base[key] = value
+
+    @staticmethod
+    def load_config(
+        config_path: Union[str, Path], overrides: Optional[Dict[str, Any]] = None
+    ) -> AthosConfig:
+        """Load configuration from YAML file and apply overrides"""
         config_path = Path(config_path)
         if not config_path.exists():
             raise FileNotFoundError(f"Configuration file not found: {config_path}")
@@ -31,7 +45,10 @@ class ConfigLoader:
             raise PermissionError(f"Configuration file not readable: {config_path}")
         
         with open(config_path, 'r') as f:
-            config_data = yaml.safe_load(f)
+            config_data = yaml.safe_load(f) or {}
+
+        if overrides:
+            ConfigLoader._deep_update(config_data, overrides)
 
         try:
             # Let Pydantic handle parsing and validation

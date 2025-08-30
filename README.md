@@ -48,6 +48,17 @@ You can override the configured logging verbosity for a single run using
 athos --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?" --log-level DEBUG
 ```
 
+To tweak configuration values without editing the YAML file, use one or more
+`--set` overrides with dot notation:
+
+```bash
+athos --config config/config.yaml --flow hpc_chatbot --input "hi" \
+  --set models.gpt_4o.temperature=0.5 --set models.gpt_4o.max_tokens=50
+```
+
+Values are parsed as YAML, so wrap strings in quotes. Nested keys are
+separated by dots.
+
 To launch a simple Gradio interface for a flow instead of running a single
 query, pass the `--gradio` flag (optionally selecting a port with `--port`):
 

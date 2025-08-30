@@ -6,6 +6,7 @@ import logging
 from dotenv import load_dotenv
 
 from athos.runtime import build_config, build_flow
+from athos.utils import parse_overrides
 
 # Only needed when launching a Gradio UI
 try:  # pragma: no cover - optional dependency at runtime
@@ -97,12 +98,23 @@ async def main():
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Override logging level for this run",
     )
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="Override config values (e.g. models.gpt_4o.temperature=0.5)",
+    )
 
     args = parser.parse_args()
 
+    try:
+        overrides = parse_overrides(args.set) if args.set else None
+    except ValueError as exc:
+        parser.error(str(exc))
+
     flow = None
     try:
-        cfg = build_config(args.config)
+        cfg = build_config(args.config, overrides)
         if args.log_level:
             logging.getLogger().setLevel(getattr(logging, args.log_level))
         if args.show_config:
