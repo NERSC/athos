@@ -21,11 +21,11 @@ async def main():
 
     # Print some info about available flows
     print("Available flows:")
-    for name in cfg.execution_flows:
+    for name in cfg.flows:
         print(f"- {name}")
 
     # Print info about hpc_chatbot flow
-    pprint.pprint(cfg.execution_flows["hpc_chatbot"])
+    pprint.pprint(cfg.flows["hpc_chatbot"])
 
     # Run some example questions in conversation
     query = "What is NERSC?"

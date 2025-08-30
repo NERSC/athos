@@ -244,14 +244,14 @@ async def main() -> None:
 
     # Print available flows for reference
     print("\n📋 Available flows:")
-    for flow_name in cfg.execution_flows:
+    for flow_name in cfg.flows:
         s = f"  - {flow_name}"
         if flow_name == args.flow:
             s += "    ⭐ (selected for demo)"
         print(s)
 
     print(f"\n🎯 Using flow: {args.flow}")
-    pprint.pprint(cfg.execution_flows[args.flow], indent=6)
+    pprint.pprint(cfg.flows[args.flow], indent=6)
 
     # Build the flow
     flow = build_flow(args.flow, cfg)

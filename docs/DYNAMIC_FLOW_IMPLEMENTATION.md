@@ -32,7 +32,7 @@ FlowConfig = Union[
 ]
 
 class AthosConfig(BaseModel):
-    execution_flows: Dict[str, Union[FlowConfig, Dict[str, Any]]]
+    flows: Dict[str, Union[FlowConfig, Dict[str, Any]]]
     
     @model_validator(mode='after')
     def validate_and_construct_flows(self):
@@ -147,7 +147,7 @@ def register_custom_flow():
 
 ### Using in Configuration
 ```yaml
-execution_flows:
+flows:
   my_custom_flow:
     type: "custom"
     model: "gpt_4o"

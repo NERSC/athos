@@ -141,7 +141,7 @@ class ToolConfig(BaseModel):
         return v
 
 class BaseFlowConfig(BaseModel):
-    """Base configuration for execution flows"""
+    """Base configuration for flows"""
     model_config = ConfigDict(extra='forbid')
 
     type: str = Field(description="Flow type identifier")
@@ -162,7 +162,7 @@ class AthosConfig(BaseModel):
     models: Dict[str, ModelConfig] = Field(default_factory=dict, description="Model configurations")
     tools: Dict[str, ToolConfig] = Field(default_factory=dict, description="Tool configurations")
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict, description="MCP server configurations")
-    execution_flows: Dict[str, BaseFlowConfig] = Field(default_factory=dict, description="Execution flow configurations")
+    flows: Dict[str, BaseFlowConfig] = Field(default_factory=dict, description="Flow configurations")
     hpc_cluster_config: Optional[Dict[str, Any]] = Field(default=None, description="HPC cluster configuration")
     logging_config: Optional[Dict[str, Any]] = Field(default=None, description="Logging configuration")
     workspace_dir: str = Field(..., description="Root directory shared by tools/MCP servers")
@@ -188,13 +188,13 @@ class AthosConfig(BaseModel):
         # Ensure plugins are loaded before validation
         load_plugins()
 
-        execution_flows = data.get('execution_flows', {})
-        if not execution_flows:
+        flows = data.get('flows', {})
+        if not flows:
             return data
 
         constructed_flows = {}
 
-        for flow_name, flow_data in execution_flows.items():
+        for flow_name, flow_data in flows.items():
             # Extract flow type from raw data
             if isinstance(flow_data, dict):
                 flow_type = flow_data.get('type')
@@ -217,17 +217,17 @@ class AthosConfig(BaseModel):
                 raise ValueError(f"Invalid config for flow '{flow_name}' of type '{flow_type}': {e}")
 
         # Replace raw data with constructed configs
-        data['execution_flows'] = constructed_flows
+        data['flows'] = constructed_flows
         return data
 
     @model_validator(mode='after')
     def validate_references(self):
-        """Validate that execution flows reference valid models, tools, and MCP servers"""
+        """Validate that flows reference valid models, tools, and MCP servers"""
         return self._validate_references()
 
     def _validate_references(self):
-        """Validate that execution flows reference valid models, tools, and MCP servers"""
-        for flow_name, flow_config in self.execution_flows.items():
+        """Validate that flows reference valid models, tools, and MCP servers"""
+        for flow_name, flow_config in self.flows.items():
             # Validate model reference
             if flow_config.model not in self.models:
                 raise ValueError(

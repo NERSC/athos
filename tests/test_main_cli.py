@@ -90,7 +90,7 @@ async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
         models={"m": SimpleNamespace(model_id="id")},
         tools={"t": SimpleNamespace(module_path="mod", class_name="Tool")},
         mcp_servers={"s": SimpleNamespace(mcp_type="stdio")},
-        execution_flows={"f": SimpleNamespace(type="agent")},
+        flows={"f": SimpleNamespace(type="agent")},
     )
 
     monkeypatch.setattr(
@@ -109,4 +109,4 @@ async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
     assert "m: id" in captured.out
     assert "Tools:" in captured.out
     assert "MCP Servers:" in captured.out
-    assert "Agent Flows:" in captured.out
+    assert "Flows:" in captured.out

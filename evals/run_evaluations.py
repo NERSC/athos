@@ -187,7 +187,7 @@ def main():
 
     for flow_name in args.flow:
         flow = flows[flow_name]
-        flow_config = cfg.execution_flows[flow_name]
+        flow_config = cfg.flows[flow_name]
 
         # Print flow config for debugging
         pprint.pprint(flow_config.model_dump())

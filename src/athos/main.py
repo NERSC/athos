@@ -49,9 +49,9 @@ def _format_config(cfg):
     else:
         lines.append("  (none)")
 
-    lines.append("Agent Flows:")
-    if cfg.execution_flows:
-        for name, flow in cfg.execution_flows.items():
+    lines.append("Flows:")
+    if cfg.flows:
+        for name, flow in cfg.flows.items():
             flow_type = getattr(flow, "type", "")
             lines.append(f"  - {name}: {flow_type}")
     else:
@@ -73,8 +73,8 @@ async def main():
         default="config/config.yaml",
         help="Path to configuration YAML file"
     )
-    parser.add_argument("--flow", help="Execution flow name")
-    parser.add_argument("--input", help="Input for the execution flow")
+    parser.add_argument("--flow", help="Flow name")
+    parser.add_argument("--input", help="Input for the flow")
     parser.add_argument(
         "--gradio",
         action="store_true",

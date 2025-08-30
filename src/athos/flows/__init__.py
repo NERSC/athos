@@ -1,4 +1,4 @@
-"""Execution flow implementations and factories."""
+"""Flow implementations and factories."""
 
 from .base import BaseFlow
 from .chatbot import ChatbotFlow, ChatbotFlowConfig, create_chatbot_flow

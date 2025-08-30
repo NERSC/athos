@@ -93,7 +93,7 @@ The project is structured as a single Python package `athos` with the following 
 
 Contains the foundational components for orchestrating ATHOS flows and tools:
 
-- **`flow_registry.py`**: Registry and plugin loader for execution flow types
+- **`flow_registry.py`**: Registry and plugin loader for flow types
 - **`tool_registry.py`**: Registry and plugin loader for tools
 - **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
 - **`agent.py`** and **`tool.py`**: Deprecated base classes (being phased out)
@@ -149,7 +149,7 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
 - **Plugin-based registries** enable dynamic loading of tools and flow implementations
-- **Multiple execution flow types** are supported (chatbot, code agent, prompt chains)
+- **Multiple flow types** are supported (chatbot, code agent, prompt chains)
 - The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
 
 ### Tool Plugins
@@ -167,7 +167,7 @@ Where `my_package.tools.register` invokes `register_tool` with a tool factory.
 
 ### Flow Plugins
 
-Execution flows can also be extended via the `athos_flows` entry point in the same way:
+Flows can also be extended via the `athos_flows` entry point in the same way:
 
 ```toml
 [project.entry-points.athos_flows]
