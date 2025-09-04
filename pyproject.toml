@@ -25,6 +25,8 @@ dependencies = [
     "authlib",
     "ipykernel",
     "uv",
+    "chromadb",
+    "sentence-transformers",
   ]
 
 [project.optional-dependencies]
