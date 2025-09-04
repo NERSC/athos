@@ -63,6 +63,7 @@ mcp_servers:
     args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
     instructions: |
       Always use keyword arguments when invoking filesystem tools.
+      Filesystem tools return strings only - use string.split('\n') to get lists, never assume .items() or .keys() exist.
 
   servicenow_mcp:
     mcp_type: "mcp_stdio"
