@@ -250,6 +250,7 @@ execution_flows:
       agent_type: "code"
       model: "claude_sonnet"
       max_steps: 20
+      additional_authorized_imports: ["json"]
       mcp_servers: ["chroma_mcp", "filesystem_mcp"]
 
   # # Mixed tools agent (regular + MCP)
