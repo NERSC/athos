@@ -88,6 +88,8 @@ mcp_servers:
       "--query-name", "query_docs",
       "--query-docstring", "Query the NERSC public documentation"
     ]
+    instructions: |
+      Use the `query_docs` tool to answer questions about NERSC public documentation.
 
   consulting_docs_rag_mcp:
     mcp_type: "mcp_stdio"

@@ -71,11 +71,21 @@ class MCPServerConfig(BaseModel):
     # For SSE transport
     url: Optional[str] = Field(default=None, description="URL for SSE MCP server")
     headers: Dict[str, str] = Field(default_factory=dict, description="HTTP headers for SSE")
+    instructions: Optional[str] = Field(
+        default=None,
+        description="Additional instructions to include for tools from this MCP server",
+    )
 
     @field_validator('url', mode='before')
     @classmethod
     def expand_url_env_vars(cls, v: Optional[str]) -> Optional[str]:
         """Expand environment variables in URL field."""
+        return expand_env(v)
+
+    @field_validator('instructions', mode='before')
+    @classmethod
+    def expand_instructions_env_vars(cls, v: Optional[str]) -> Optional[str]:
+        """Expand environment variables in instructions field."""
         return expand_env(v)
 
     @model_validator(mode='before')
