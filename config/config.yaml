@@ -61,6 +61,8 @@ mcp_servers:
     mcp_type: "mcp_stdio"
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
+    instructions: |
+      Always use keyword arguments when invoking filesystem tools.
 
   servicenow_mcp:
     mcp_type: "mcp_stdio"
@@ -102,6 +104,8 @@ mcp_servers:
       "--query-name", "query_consulting_docs",
       "--query-docstring", "Query the NERSC internal consultant documentation"
     ]
+    instructions: |
+      Use the `query_consulting_docs` tool to answer questions about NERSC internal consultant documentation.
 
   # Additional MCP servers can be added here as comments for reference:
   #
