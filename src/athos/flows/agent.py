@@ -90,6 +90,9 @@ class AgentFlowConfig(BaseFlowConfig):
 def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
     tool_instances: List[Tool] = []
     mcp_instances: List[MCPClient] = []
+    combined_instructions: List[str] = []
+    if cfg.instructions:
+        combined_instructions.append(cfg.instructions)
     for name in cfg.tools:
         tool_cfg: ToolConfig = full_cfg.tools[name]
         tool_instances.append(build_tool(tool_cfg))
@@ -97,8 +100,11 @@ def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
         mcp_cfg: MCPServerConfig = full_cfg.mcp_servers[name]
         client = build_mcp_client(name, mcp_cfg)
         mcp_instances.append(client)
+        if mcp_cfg.instructions:
+            combined_instructions.append(mcp_cfg.instructions)
     model_cfg: ModelConfig = full_cfg.models[cfg.model]
     model = build_model(model_cfg)
+    instructions = "\n\n".join(combined_instructions) if combined_instructions else None
     return AgentFlow(
         model,
         tool_instances,
@@ -107,7 +113,7 @@ def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
         max_steps=cfg.max_steps,
         verbosity_level=cfg.verbosity_level,
         additional_authorized_imports=cfg.additional_authorized_imports,
-        instructions=cfg.instructions,
+        instructions=instructions,
     )
 
 
