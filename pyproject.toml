@@ -27,6 +27,7 @@ dependencies = [
     "uv",
     "chromadb",
     "sentence-transformers",
+    "onnx",
   ]
 
 [project.optional-dependencies]
