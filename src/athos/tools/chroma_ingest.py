@@ -3,8 +3,12 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime
+import logging
 import re
 from typing import List, Tuple
+
+
+logger = logging.getLogger(__name__)
 
 
 def parse_title(text: str) -> str:
@@ -21,7 +25,9 @@ def chunk_markdown(text: str, chunk_size: int = 15000) -> List[Tuple[str, str]]:
 
     Returns a list of tuples ``(chunk_title, chunk_text)``.
     """
+    logger.debug("Chunking markdown of length %d with chunk size %d", len(text), chunk_size)
     if len(text) <= chunk_size:
+        logger.debug("Document within chunk size; returning full text")
         return [("full", text)]
 
     # Split by H2 headings
@@ -34,6 +40,7 @@ def chunk_markdown(text: str, chunk_size: int = 15000) -> List[Tuple[str, str]]:
         if line.startswith("## "):
             if current_lines:
                 chunks.append((current_title, "\n".join(current_lines).strip()))
+                logger.debug("Added chunk titled '%s'", current_title)
             current_title = line[3:].strip()
             current_lines = [line]
         else:
@@ -41,14 +48,18 @@ def chunk_markdown(text: str, chunk_size: int = 15000) -> List[Tuple[str, str]]:
 
     if current_lines:
         chunks.append((current_title, "\n".join(current_lines).strip()))
+        logger.debug("Added chunk titled '%s'", current_title)
 
     if len(chunks) == 1:  # no H2 headings, fallback to size-based chunks
         text = chunks[0][1]
         chunks = []
         for i in range(0, len(text), chunk_size):
             part = text[i : i + chunk_size]
-            chunks.append((f"part_{i//chunk_size}", part))
+            title = f"part_{i//chunk_size}"
+            chunks.append((title, part))
+            logger.debug("Added fallback chunk '%s'", title)
 
+    logger.debug("Produced %d chunks", len(chunks))
     return [c for c in chunks if c[1]]
 
 
@@ -62,6 +73,9 @@ def build_collection(
     import chromadb
     from chromadb.utils import embedding_functions
 
+    logger.info(
+        "Building collection '%s' from docs at '%s'", collection_name, docs_path
+    )
     client = chromadb.PersistentClient(path=str(persist_dir))
     embed_fn = embedding_functions.DefaultEmbeddingFunction()
     collection = client.get_or_create_collection(
@@ -74,7 +88,9 @@ def build_collection(
     )
 
     files = sorted(Path(docs_path).rglob("*.md"))
+    logger.debug("Found %d markdown files", len(files))
     for file in files:
+        logger.info("Processing %s", file)
         text = file.read_text(encoding="utf-8")
         title = parse_title(text) or file.stem
         last_modified = datetime.fromtimestamp(file.stat().st_mtime).isoformat()
@@ -92,8 +108,12 @@ def build_collection(
                 "chunk_title": chunk_title,
                 "last_modified": last_modified,
             }
+            logger.debug("Adding chunk %s", doc_id)
             collection.add(ids=[doc_id], documents=[chunk_text], metadatas=[metadata])
 
-    print(
-        f"Ingested {collection.count()} documents into collection '{collection_name}' at '{persist_dir}'."
+    logger.info(
+        "Ingested %d documents into collection '%s' at '%s'",
+        collection.count(),
+        collection_name,
+        persist_dir,
     )
