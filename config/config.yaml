@@ -119,30 +119,6 @@ mcp_servers:
       "${ATHOS_WORKSPACE}/chroma"
     ]
 
-  # Additional MCP servers can be added here as comments for reference:
-  #
-  # # GitHub MCP server (stdio transport)
-  # github_mcp:
-  #   mcp_type: "mcp_stdio"
-  #   command: "npx"
-  #   args: ["-y", "@modelcontextprotocol/server-github"]
-  #   env:
-  #     GITHUB_PERSONAL_ACCESS_TOKEN: "${GITHUB_TOKEN}"
-  #
-  # # SQLite MCP server (stdio transport)
-  # sqlite_mcp:
-  #   mcp_type: "mcp_stdio"
-  #   command: "npx"
-  #   args: ["-y", "@modelcontextprotocol/server-sqlite", "--db-path", "/path/to/database.db"]
-  #
-  # # Example SSE-based MCP server (remote transport)
-  # remote_mcp_example:
-  #   mcp_type: "mcp_sse"
-  #   url: "https://api.example.com/mcp"
-  #   headers:
-  #     Authorization: "Bearer ${API_TOKEN}"
-  #     Content-Type: "application/json"
-
 # Regular and custom tools (non-MCP)
 tools:
   websearch:
@@ -154,38 +130,25 @@ tools:
     module_path: "smolagents.default_tools"
     parameters: {}
 
-  # # SLURM job management tool
-  # slurm_manager:
-  #   callable_name: "SlurmManager"
-  #   module_path: "athos.tools.slurm_tools"
-  #   parameters:
-  #     cluster_name: "hpc_cluster_01"
-  #     default_partition: "compute"
-  #     max_job_time: "24:00:00"
-
-  # # System monitoring tool
-  # system_monitor:
-  #   callable_name: "SystemMonitor"
-  #   module_path: "athos.tools.monitoring_tools"
-  #   parameters:
-  #     check_interval: 30
-  #     metrics: ["cpu", "memory", "disk", "network"]
-
-  # # Performance profiler
-  # perf_profiler:
-  #   callable_name: "PerformanceProfiler"
-  #   module_path: "athos.tools.profiling_tools"
-  #   parameters:
-  #     profiling_tools: ["perf", "gprof", "valgrind"]
-  #     output_format: "json"
-
-  # # Module environment manager
-  # module_manager:
-  #   callable_name: "ModuleManager"
-  #   module_path: "athos.tools.environment_tools"
-  #   parameters:
-  #     module_system: "lmod"
-  #     default_modules: ["gcc/11.2.0", "openmpi/4.1.1"]
+  # Chroma DB tools (imported from chroma-mcp package)
+  chroma_list_collections:
+    callable_name: chroma_list_collections
+    module_path: "athos.tools.chroma"
+  chroma_peek_collection:
+    callable_name: chroma_peek_collection
+    module_path: "athos.tools.chroma"
+  chroma_get_collection_info:
+    callable_name: chroma_get_collection_info
+    module_path: "athos.tools.chroma"
+  chroma_get_collection_count:
+    callable_name: chroma_get_collection_count
+    module_path: "athos.tools.chroma"
+  chroma_query_documents:
+    callable_name: chroma_query_documents
+    module_path: "athos.tools.chroma"
+  chroma_get_documents:
+    callable_name: chroma_get_documents
+    module_path: "athos.tools.chroma"
 
 # Agent flows define the agent system
 flows:
