@@ -26,7 +26,12 @@ def summarize_collections(client: chromadb.Client, indent: str = "") -> None:
 
 def list_collection(coll: chromadb.Collection, indent: str = "") -> None:
     """List all items in ``coll`` along with their metadata."""
-    results = coll.get(include=["documents", "metadatas", "ids"])
+    # ``ids`` are always returned from ``get`` and should not be included
+    # in the ``include`` parameter. Older versions of the script requested
+    # them explicitly which now triggers a validation error in newer Chroma
+    # releases. Only request the optional fields and rely on the default
+    # behaviour for identifiers.
+    results = coll.get(include=["documents", "metadatas"])
     ids = results.get("ids", [])
     documents = results.get("documents", [])
     metadatas = results.get("metadatas", [])
