@@ -135,17 +135,17 @@ mcp_servers:
 # Regular and custom tools (non-MCP)
 tools:
   websearch:
-    class_name: "DuckDuckGoSearchTool"
+    callable_name: "DuckDuckGoSearchTool"
     module_path: "smolagents.default_tools"
     parameters: {}
   webvisit:
-    class_name: "VisitWebpageTool"
+    callable_name: "VisitWebpageTool"
     module_path: "smolagents.default_tools"
     parameters: {}
 
   # # SLURM job management tool
   # slurm_manager:
-  #   class_name: "SlurmManager"
+  #   callable_name: "SlurmManager"
   #   module_path: "athos.tools.slurm_tools"
   #   parameters:
   #     cluster_name: "hpc_cluster_01"
@@ -154,7 +154,7 @@ tools:
 
   # # System monitoring tool
   # system_monitor:
-  #   class_name: "SystemMonitor"
+  #   callable_name: "SystemMonitor"
   #   module_path: "athos.tools.monitoring_tools"
   #   parameters:
   #     check_interval: 30
@@ -162,7 +162,7 @@ tools:
 
   # # Performance profiler
   # perf_profiler:
-  #   class_name: "PerformanceProfiler"
+  #   callable_name: "PerformanceProfiler"
   #   module_path: "athos.tools.profiling_tools"
   #   parameters:
   #     profiling_tools: ["perf", "gprof", "valgrind"]
@@ -170,7 +170,7 @@ tools:
 
   # # Module environment manager
   # module_manager:
-  #   class_name: "ModuleManager"
+  #   callable_name: "ModuleManager"
   #   module_path: "athos.tools.environment_tools"
   #   parameters:
   #     module_system: "lmod"

@@ -135,9 +135,13 @@ class ToolConfig(BaseModel):
     """Configuration for regular tools only"""
     model_config = ConfigDict(extra='forbid')
 
-    class_name: str = Field(description="Python class name for the tool")
-    module_path: str = Field(description="Python module path containing the tool class")
+    callable_name: str = Field(description="Python callable name for the tool")
+    module_path: str = Field(description="Python module path containing the tool callable")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Tool initialization parameters")
+    is_class: bool = Field(
+        default=True,
+        description="Whether the callable is a class requiring instantiation",
+    )
 
     @field_validator('module_path')
     @classmethod
