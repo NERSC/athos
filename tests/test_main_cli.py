@@ -88,7 +88,7 @@ async def test_cli_log_level_default(mock_runtime, mock_build, monkeypatch):
 async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
     mock_runtime.return_value = SimpleNamespace(
         models={"m": SimpleNamespace(model_id="id")},
-        tools={"t": SimpleNamespace(module_path="mod", class_name="Tool")},
+        tools={"t": SimpleNamespace(module_path="mod", callable_name="Tool")},
         mcp_servers={"s": SimpleNamespace(mcp_type="stdio")},
         flows={"f": SimpleNamespace(type="agent")},
     )

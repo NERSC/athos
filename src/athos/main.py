@@ -36,8 +36,8 @@ def _format_config(cfg):
     if cfg.tools:
         for name, tool in cfg.tools.items():
             module = getattr(tool, "module_path", "")
-            cls = getattr(tool, "class_name", "")
-            lines.append(f"  - {name}: {module}.{cls}")
+            callable_name = getattr(tool, "callable_name", "")
+            lines.append(f"  - {name}: {module}.{callable_name}")
     else:
         lines.append("  (none)")
 
