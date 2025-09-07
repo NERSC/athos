@@ -1,5 +1,6 @@
 import sys
 import types
+import textwrap
 import pytest
 
 from pydantic import SecretStr
@@ -40,7 +41,7 @@ def test_build_tool(monkeypatch):
     sys.modules["dummy_module"] = module
 
     cfg = ToolConfig(
-        class_name="DummyTool",
+        callable_name="DummyTool",
         module_path="dummy_module",
         parameters={"value": 42},
     )
@@ -48,6 +49,37 @@ def test_build_tool(monkeypatch):
     tool = build_tool(cfg)
     assert isinstance(tool, DummyTool)
     assert tool.value == 42
+
+
+def test_build_tool_decorated_function(tmp_path, monkeypatch):
+    module_code = textwrap.dedent(
+        '''
+        from smolagents import tool
+
+        @tool
+        def greet(name: str) -> str:
+            """Return a greeting.
+
+            Args:
+                name: Name to greet.
+            """
+            return f"Hello {name}"
+        '''
+    )
+    module_path = tmp_path / "decorated_module.py"
+    module_path.write_text(module_code)
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    cfg = ToolConfig(
+        callable_name="greet",
+        module_path="decorated_module",
+        parameters={},
+        is_class=False,
+    )
+
+    tool = build_tool(cfg)
+    assert callable(tool)
+    assert tool("World") == "Hello World"
 
 
 def test_build_mcp_client_stdio(monkeypatch):

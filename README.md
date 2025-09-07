@@ -48,6 +48,17 @@ You can override the configured logging verbosity for a single run using
 athos --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?" --log-level DEBUG
 ```
 
+To tweak configuration values without editing the YAML file, use one or more
+`--set` overrides with dot notation:
+
+```bash
+athos --config config/config.yaml --flow hpc_chatbot --input "hi" \
+  --set models.gpt_4o.temperature=0.5 --set models.gpt_4o.max_tokens=50
+```
+
+Values are parsed as YAML, so wrap strings in quotes. Nested keys are
+separated by dots.
+
 To launch a simple Gradio interface for a flow instead of running a single
 query, pass the `--gradio` flag (optionally selecting a port with `--port`):
 
@@ -93,7 +104,7 @@ The project is structured as a single Python package `athos` with the following 
 
 Contains the foundational components for orchestrating ATHOS flows and tools:
 
-- **`flow_registry.py`**: Registry and plugin loader for execution flow types
+- **`flow_registry.py`**: Registry and plugin loader for flow types
 - **`tool_registry.py`**: Registry and plugin loader for tools
 - **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
 - **`agent.py`** and **`tool.py`**: Deprecated base classes (being phased out)
@@ -149,7 +160,7 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
 - **Plugin-based registries** enable dynamic loading of tools and flow implementations
-- **Multiple execution flow types** are supported (chatbot, code agent, prompt chains)
+- **Multiple flow types** are supported (chatbot, code agent, prompt chains)
 - The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
 
 ### Tool Plugins
@@ -167,7 +178,7 @@ Where `my_package.tools.register` invokes `register_tool` with a tool factory.
 
 ### Flow Plugins
 
-Execution flows can also be extended via the `athos_flows` entry point in the same way:
+Flows can also be extended via the `athos_flows` entry point in the same way:
 
 ```toml
 [project.entry-points.athos_flows]

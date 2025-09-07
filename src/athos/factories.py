@@ -24,8 +24,10 @@ def build_model(cfg: ModelConfig) -> OpenAIServerModel:
 def build_tool(cfg: ToolConfig) -> Tool:
     """Dynamically import and instantiate a tool from configuration."""
     module = import_module(cfg.module_path)
-    tool_cls = getattr(module, cfg.class_name)
-    return tool_cls(**cfg.parameters)
+    tool_obj = getattr(module, cfg.callable_name)
+    if cfg.is_class:
+        return tool_obj(**cfg.parameters)
+    return tool_obj
 
 
 def build_mcp_client(name: str, cfg: MCPServerConfig) -> MCPClient:

@@ -12,7 +12,7 @@ workspace_dir: "/tmp"
 models:
   test_model:
     model_id: "openai/gpt4"
-execution_flows:
+flows:
   chat:
     type: "chatbot"
     model: "test_model"
@@ -39,7 +39,7 @@ mcp_servers:
   s1:
     mcp_type: "mcp_stdio"
     command: "echo"
-execution_flows:
+flows:
   agent:
     type: "agent"
     model: "test_model"
@@ -61,3 +61,19 @@ def test_workspace_dir_default_expansion(monkeypatch):
     cfg_yaml = 'workspace_dir: "${ATHOS_WORKSPACE:-/tmp/athos_workspace}"\n'
     cfg = AthosConfig.model_validate(yaml.safe_load(cfg_yaml))
     assert cfg.workspace_dir == "/tmp/athos_workspace"
+
+
+def test_build_config_with_overrides(tmp_path):
+    cfg_yaml = """
+workspace_dir: "/tmp"
+models:
+  test_model:
+    model_id: "openai/gpt4"
+    temperature: 0.7
+"""
+    cfg_file = tmp_path / "cfg.yaml"
+    cfg_file.write_text(cfg_yaml)
+    cfg = build_config(
+        str(cfg_file), {"models": {"test_model": {"temperature": 0.2}}}
+    )
+    assert cfg.models["test_model"].temperature == 0.2

@@ -61,6 +61,9 @@ mcp_servers:
     mcp_type: "mcp_stdio"
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
+    instructions: |
+      Always use keyword arguments when invoking filesystem tools.
+      Filesystem tools return strings only - use string.split('\n') to get lists, never assume .items() or .keys() exist.
 
   servicenow_mcp:
     mcp_type: "mcp_stdio"
@@ -88,6 +91,8 @@ mcp_servers:
       "--query-name", "query_docs",
       "--query-docstring", "Query the NERSC public documentation"
     ]
+    instructions: |
+      Use the `query_docs` tool to answer questions about NERSC public documentation.
 
   consulting_docs_rag_mcp:
     mcp_type: "mcp_stdio"
@@ -100,6 +105,8 @@ mcp_servers:
       "--query-name", "query_consulting_docs",
       "--query-docstring", "Query the NERSC internal consultant documentation"
     ]
+    instructions: |
+      Use the `query_consulting_docs` tool to answer questions about NERSC internal consultant documentation.
 
   chroma_mcp:
     mcp_type: mcp_stdio
@@ -139,17 +146,17 @@ mcp_servers:
 # Regular and custom tools (non-MCP)
 tools:
   websearch:
-    class_name: "DuckDuckGoSearchTool"
+    callable_name: "DuckDuckGoSearchTool"
     module_path: "smolagents.default_tools"
     parameters: {}
   webvisit:
-    class_name: "VisitWebpageTool"
+    callable_name: "VisitWebpageTool"
     module_path: "smolagents.default_tools"
     parameters: {}
 
   # # SLURM job management tool
   # slurm_manager:
-  #   class_name: "SlurmManager"
+  #   callable_name: "SlurmManager"
   #   module_path: "athos.tools.slurm_tools"
   #   parameters:
   #     cluster_name: "hpc_cluster_01"
@@ -158,7 +165,7 @@ tools:
 
   # # System monitoring tool
   # system_monitor:
-  #   class_name: "SystemMonitor"
+  #   callable_name: "SystemMonitor"
   #   module_path: "athos.tools.monitoring_tools"
   #   parameters:
   #     check_interval: 30
@@ -166,7 +173,7 @@ tools:
 
   # # Performance profiler
   # perf_profiler:
-  #   class_name: "PerformanceProfiler"
+  #   callable_name: "PerformanceProfiler"
   #   module_path: "athos.tools.profiling_tools"
   #   parameters:
   #     profiling_tools: ["perf", "gprof", "valgrind"]
@@ -174,14 +181,14 @@ tools:
 
   # # Module environment manager
   # module_manager:
-  #   class_name: "ModuleManager"
+  #   callable_name: "ModuleManager"
   #   module_path: "athos.tools.environment_tools"
   #   parameters:
   #     module_system: "lmod"
   #     default_modules: ["gcc/11.2.0", "openmpi/4.1.1"]
 
-# Agent Execution Flows define the agent system
-execution_flows:
+# Agent flows define the agent system
+flows:
   # Simple chatbot for general HPC questions
   hpc_chatbot:
     type: "chatbot"
@@ -235,7 +242,7 @@ execution_flows:
     agent_type: "code"
     model: "claude_sonnet"
     additional_authorized_imports: ["json"]
-    mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp"]
+    mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp", "filesystem_mcp"]
     instructions: |
       You are an HPC consultant at NERSC who helps users in ServiceNow incidents.
       When you are asked to help on a specified incident, you should:
@@ -243,6 +250,7 @@ execution_flows:
       - Use the NERSC documentation to provide accurate answers.
       - Update the incident state appropriately. Use "Awaiting User Info" when the user should reply.
       - When the issue is resolved, add some closure notes that summarize the outcomes.
+      - If you need to download attachments, download them to your configured workspace.
 
   # Agent that can manage a Chroma DB
   chroma_agent:
@@ -252,38 +260,6 @@ execution_flows:
       max_steps: 20
       additional_authorized_imports: ["json"]
       mcp_servers: ["chroma_mcp", "filesystem_mcp"]
-
-  # # Mixed tools agent (regular + MCP)
-  # mixed_tools_agent:
-  #   type: "agent"
-  #   agent_type: "tool_calling"
-  #   model: "gpt_4o"
-  #   tools: ["websearch", "github_mcp", "sqlite_mcp"]
-  #   system_prompt: |
-  #     You are a versatile assistant with access to web search, GitHub, and database tools.
-  #     You can research topics online, manage code repositories, and query databases.
-  #     Combine these capabilities to provide comprehensive assistance.
-
-  # # Code agent for automated HPC tasks
-  # hpc_automation:
-  #   type: "agent"
-  #   agent_type: "code"
-  #   model: "code_llama"
-  #   tools: ["slurm_manager", "system_monitor", "module_manager", "filesystem_tool"]
-  #   system_prompt: |
-  #     You are an HPC automation agent. You can manage SLURM jobs, monitor system resources,
-  #     handle environment modules, and perform file system operations.
-  #     Always verify operations before execution and provide clear feedback.
-
-  # # Quick support agent with minimal tools
-  # quick_support:
-  #   type: "agent"
-  #   agent_type: "code"
-  #   model: "phi_3_mini"
-  #   tools: ["system_monitor", "filesystem_tool"]
-  #   system_prompt: |
-  #     You are a quick support agent for basic HPC queries and monitoring.
-  #     Provide fast responses for simple tasks and system checks.
 
   # # Comprehensive problem diagnosis and resolution
   # problem_solver:
@@ -371,46 +347,6 @@ execution_flows:
   #         5. Implementation priority and expected impact
           
   #         Provide specific examples and code snippets where applicable.
-
-# # HPC cluster configuration
-# hpc_cluster_config:
-#   cluster_name: "hpc_cluster_01"
-#   scheduler: "slurm"
-#   partitions:
-#     - name: "compute"
-#       max_time: "24:00:00"
-#       max_nodes: 100
-#       default_cpus_per_task: 1
-#     - name: "gpu"
-#       max_time: "12:00:00"
-#       max_nodes: 20
-#       features: ["gpu", "cuda"]
-#     - name: "bigmem"
-#       max_time: "48:00:00"
-#       max_nodes: 10
-#       min_memory: "256GB"
-#     - name: "debug"
-#       max_time: "01:00:00"
-#       max_nodes: 4
-#       priority: "high"
-  
-#   storage:
-#     home_dir: "/home"
-#     scratch_dir: "/scratch"
-#     shared_dir: "/shared"
-    
-#   modules:
-#     system: "lmod"
-#     available_compilers: ["gcc", "intel", "nvidia"]
-#     available_mpi: ["openmpi", "intel-mpi", "mvapich2"]
-    
-#   monitoring:
-#     enabled: true
-#     metrics_retention_days: 30
-#     alert_thresholds:
-#       cpu_usage: 90
-#       memory_usage: 85
-#       disk_usage: 90
 
 # Logging configuration
 logging_config:

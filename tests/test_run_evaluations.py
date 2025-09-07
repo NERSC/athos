@@ -41,7 +41,7 @@ def test_multiple_flows_execution(tmp_path, monkeypatch):
             return {"model": self.model}
 
     dummy_cfg = SimpleNamespace(
-        execution_flows={
+        flows={
             "f1": DummyFlowCfg("m1"),
             "f2": DummyFlowCfg("m2"),
         },
@@ -117,7 +117,7 @@ def test_qa_file_flow_execution(tmp_path, monkeypatch):
             return {"model": self.model}
 
     dummy_cfg = SimpleNamespace(
-        execution_flows={"f1": DummyFlowCfg("m1")},
+        flows={"f1": DummyFlowCfg("m1")},
         models={"m1": SimpleNamespace(model_id="m1")},
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))

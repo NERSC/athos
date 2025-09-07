@@ -6,6 +6,7 @@ import logging
 from dotenv import load_dotenv
 
 from athos.runtime import build_config, build_flow
+from athos.utils import parse_overrides
 
 # Only needed when launching a Gradio UI
 try:  # pragma: no cover - optional dependency at runtime
@@ -35,8 +36,8 @@ def _format_config(cfg):
     if cfg.tools:
         for name, tool in cfg.tools.items():
             module = getattr(tool, "module_path", "")
-            cls = getattr(tool, "class_name", "")
-            lines.append(f"  - {name}: {module}.{cls}")
+            callable_name = getattr(tool, "callable_name", "")
+            lines.append(f"  - {name}: {module}.{callable_name}")
     else:
         lines.append("  (none)")
 
@@ -49,9 +50,9 @@ def _format_config(cfg):
     else:
         lines.append("  (none)")
 
-    lines.append("Agent Flows:")
-    if cfg.execution_flows:
-        for name, flow in cfg.execution_flows.items():
+    lines.append("Flows:")
+    if cfg.flows:
+        for name, flow in cfg.flows.items():
             flow_type = getattr(flow, "type", "")
             lines.append(f"  - {name}: {flow_type}")
     else:
@@ -73,8 +74,8 @@ async def main():
         default="config/config.yaml",
         help="Path to configuration YAML file"
     )
-    parser.add_argument("--flow", help="Execution flow name")
-    parser.add_argument("--input", help="Input for the execution flow")
+    parser.add_argument("--flow", help="Flow name")
+    parser.add_argument("--input", help="Input for the flow")
     parser.add_argument(
         "--gradio",
         action="store_true",
@@ -97,12 +98,23 @@ async def main():
         choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
         help="Override logging level for this run",
     )
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        help="Override config values (e.g. models.gpt_4o.temperature=0.5)",
+    )
 
     args = parser.parse_args()
 
+    try:
+        overrides = parse_overrides(args.set) if args.set else None
+    except ValueError as exc:
+        parser.error(str(exc))
+
     flow = None
     try:
-        cfg = build_config(args.config)
+        cfg = build_config(args.config, overrides)
         if args.log_level:
             logging.getLogger().setLevel(getattr(logging, args.log_level))
         if args.show_config:

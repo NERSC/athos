@@ -30,7 +30,7 @@ python evals/run_evaluations.py \
 
 Arguments:
 - `--config`: Path to the ATHOS YAML config file (default: `config/config.yaml`).
-- `--flow`: One or more execution flow names to test (required).
+ - `--flow`: One or more flow names to test (required).
 - `--eval-model`: Optional override model name for evaluation (defaults to the model used by each flow).
 - `--cases-dir`: Directory containing structured test case subdirectories. May be provided multiple times. Defaults to `test_cases` if no datasets are specified.
 - `--qa-file`: JSONL file of question/answer pairs. May be provided multiple times.
