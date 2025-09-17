@@ -38,6 +38,10 @@ class ModelConfig(BaseModel):
     """Configuration for AI models"""
     model_config = ConfigDict(extra='forbid')
 
+    description: Optional[str] = Field(
+        default=None,
+        description="Human-readable summary of the model's purpose",
+    )
     model_id: str
     api_key: Optional[SecretStr] = Field(default=None, description="API key for model access")
     api_base: Optional[str] = Field(default=None, description="Base URL for API")
@@ -62,6 +66,10 @@ class MCPServerConfig(BaseModel):
     """Configuration for MCP server connection"""
     model_config = ConfigDict(extra='forbid')
 
+    description: Optional[str] = Field(
+        default=None,
+        description="Human-readable summary of the MCP server",
+    )
     mcp_type: MCPType
     # For stdio transport
     command: Optional[str] = Field(default=None, description="Command to execute for stdio MCP")
@@ -135,6 +143,10 @@ class ToolConfig(BaseModel):
     """Configuration for regular tools only"""
     model_config = ConfigDict(extra='forbid')
 
+    description: Optional[str] = Field(
+        default=None,
+        description="Human-readable summary of what the tool does",
+    )
     callable_name: str = Field(description="Python callable name for the tool")
     module_path: str = Field(description="Python module path containing the tool callable")
     parameters: Dict[str, Any] = Field(default_factory=dict, description="Tool initialization parameters")
@@ -158,6 +170,10 @@ class BaseFlowConfig(BaseModel):
     """Base configuration for flows"""
     model_config = ConfigDict(extra='forbid')
 
+    description: Optional[str] = Field(
+        default=None,
+        description="Human-readable summary of the flow",
+    )
     type: str = Field(description="Flow type identifier")
     model: str = Field(description="Reference to model configuration")
 

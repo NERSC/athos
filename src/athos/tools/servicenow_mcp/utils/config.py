@@ -57,6 +57,7 @@ class ServerConfig(BaseModel):
     auth: AuthConfig
     debug: bool = False
     timeout: int = 30
+    read_only: bool = False
 
     @property
     def api_url(self) -> str:

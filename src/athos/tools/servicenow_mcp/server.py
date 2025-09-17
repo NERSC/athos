@@ -33,6 +33,15 @@ class ServiceNowMCPServer:
         return {"error": str(error)}
 
     def _setup_tools(self) -> None:
+        if self.config.read_only:
+            logger.info(
+                "ServiceNow MCP Server running in read-only mode; write tools will be disabled."
+            )
+        else:
+            self._register_write_tools()
+        self._register_read_tools()
+
+    def _register_write_tools(self) -> None:
         @self.mcp.tool()
         async def create_incident(
             short_description: str,
@@ -199,6 +208,7 @@ class ServiceNowMCPServer:
             except Exception as e:  # pragma: no cover
                 return self._handle_error(e)
 
+    def _register_read_tools(self) -> None:
         @self.mcp.tool()
         async def list_incidents(
             limit: int = 10,
