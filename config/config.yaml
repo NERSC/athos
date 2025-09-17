@@ -81,6 +81,16 @@ mcp_servers:
       SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
       SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
 
+  servicenow_ro_mcp:
+    description: "ServiceNow integration MCP server for ticket management"
+    mcp_type: "mcp_stdio"
+    command: "servicenow-mcp"
+    args: ["--read-only"]
+    env:
+      SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
+      SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
+      SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
+
   sfapi_mcp:
     description: "NERSC Superfacility API MCP server"
     mcp_type: "mcp_stdio"
@@ -240,6 +250,25 @@ flows:
       - Update the incident state appropriately. Use "Awaiting User Info" when the user should reply.
       - When the issue is resolved, add some closure notes that summarize the outcomes.
       - If you need to download attachments, download them to your configured workspace.
+
+  ticket_helper:
+    description: "Consultant agent that combines read-only ServiceNow and documentation tools"
+    type: "agent"
+    agent_type: "code"
+    model: "claude_sonnet"
+    additional_authorized_imports: ["json"]
+    mcp_servers: ["servicenow_ro_mcp", "filesystem_mcp"]
+    tools:
+      - chroma_list_collections
+      - chroma_peek_collection
+      - chroma_get_collection_info
+      - chroma_get_collection_count
+      - chroma_query_documents
+      - chroma_get_documents
+    instructions: |
+      You are a NERSC HPC consultant assistant helping with ServiceNow user tickets.
+      Use the NERSC docs and/or consulting docs to provide accurate answers.
+      If you need to download attachments, download them to your configured workspace.
 
   # Agent that can manage a Chroma DB
   chroma_agent:
