@@ -45,6 +45,12 @@ def parse_args():
         help="Request timeout in seconds",
         default=int(os.environ.get("SERVICENOW_TIMEOUT", "30")),
     )
+    parser.add_argument(
+        "--read-only",
+        action=argparse.BooleanOptionalAction,
+        default=os.environ.get("SERVICENOW_READ_ONLY", "false").lower() == "true",
+        help="Disable write operations and expose only read-only ServiceNow tools",
+    )
 
     # Authentication
     auth_group = parser.add_argument_group("Authentication")
@@ -206,6 +212,7 @@ def create_config(args) -> ServerConfig:
         # Include other server config fields if they exist on ServerConfig model
         debug=args.debug,
         timeout=args.timeout,
+        read_only=args.read_only,
     )
 
 
