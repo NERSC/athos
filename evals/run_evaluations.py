@@ -2,6 +2,7 @@
 """Evaluation script for ATHOS flows on test cases"""
 import argparse
 import asyncio
+from dotenv import load_dotenv
 import json
 import re
 from pathlib import Path
@@ -11,6 +12,9 @@ from smolagents import ChatMessage
 
 from athos.runtime import build_config, build_flow
 import athos.factories
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def load_test_cases(cases_dir: Path):
