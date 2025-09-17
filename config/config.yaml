@@ -133,21 +133,27 @@ tools:
   # Chroma DB tools (imported from chroma-mcp package)
   chroma_list_collections:
     callable_name: chroma_list_collections
+    is_class: False
     module_path: "athos.tools.chroma"
   chroma_peek_collection:
     callable_name: chroma_peek_collection
+    is_class: False
     module_path: "athos.tools.chroma"
   chroma_get_collection_info:
     callable_name: chroma_get_collection_info
+    is_class: False
     module_path: "athos.tools.chroma"
   chroma_get_collection_count:
     callable_name: chroma_get_collection_count
+    is_class: False
     module_path: "athos.tools.chroma"
   chroma_query_documents:
     callable_name: chroma_query_documents
+    is_class: False
     module_path: "athos.tools.chroma"
   chroma_get_documents:
     callable_name: chroma_get_documents
+    is_class: False
     module_path: "athos.tools.chroma"
 
 # Agent flows define the agent system
@@ -217,12 +223,20 @@ flows:
 
   # Agent that can manage a Chroma DB
   chroma_agent:
-      type: "agent"
-      agent_type: "code"
-      model: "claude_sonnet"
-      max_steps: 20
-      additional_authorized_imports: ["json"]
-      mcp_servers: ["chroma_mcp", "filesystem_mcp"]
+    type: "agent"
+    agent_type: "code"
+    model: "claude_sonnet"
+    max_steps: 20
+    additional_authorized_imports: ["json"]
+    #mcp_servers: ["chroma_mcp", "filesystem_mcp"]
+    mcp_servers: ["filesystem_mcp"]
+    tools:
+      - chroma_list_collections
+      - chroma_peek_collection
+      - chroma_get_collection_info
+      - chroma_get_collection_count
+      - chroma_query_documents
+      - chroma_get_documents
 
   # # Comprehensive problem diagnosis and resolution
   # problem_solver:
