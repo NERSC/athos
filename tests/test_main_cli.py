@@ -148,3 +148,29 @@ async def test_cli_set_override(mock_runtime, mock_build, monkeypatch):
     mock_build.assert_called_once_with("flow", "CFG")
     flow.execute.assert_called_once_with("hello")
     flow.close.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+@patch("athos.main.build_flow")
+@patch("athos.main.build_config")
+async def test_gradio_keyboard_interrupt(mock_build_config, mock_build_flow, monkeypatch, caplog):
+    flow = SimpleNamespace(agent="agent", close=Mock())
+    mock_build_flow.return_value = flow
+    mock_build_config.return_value = "CFG"
+
+    class DummyUI:
+        def __init__(self, agent):
+            pass
+
+        def launch(self, *args, **kwargs):
+            raise KeyboardInterrupt()
+
+    monkeypatch.setattr(sys, "argv", ["athos.main", "--config", "cfg.yaml", "--flow", "flow", "--gradio"])
+    monkeypatch.setattr("athos.main.GradioUI", DummyUI)
+
+    with caplog.at_level(logging.INFO):
+        result = await main()
+
+    assert result == 0
+    assert "Gradio server stopped by user" in caplog.text
+    flow.close.assert_called_once_with()

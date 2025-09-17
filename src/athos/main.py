@@ -126,9 +126,12 @@ async def main():
             if not args.flow:
                 parser.error("--flow is required when --gradio is used")
             flow = build_flow(args.flow, cfg)
-            GradioUI(flow.agent).launch(
-                server_name="0.0.0.0", server_port=args.port, share=False
-            )
+            try:
+                GradioUI(flow.agent).launch(
+                    server_name="0.0.0.0", server_port=args.port, share=False
+                )
+            except KeyboardInterrupt:
+                logger.info("Gradio server stopped by user")
             return 0
         if not args.flow or not args.input:
             parser.error(
