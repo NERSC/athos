@@ -87,10 +87,26 @@ async def test_cli_log_level_default(mock_runtime, mock_build, monkeypatch):
 @patch("athos.main.build_config")
 async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
     mock_runtime.return_value = SimpleNamespace(
-        models={"m": SimpleNamespace(model_id="id")},
-        tools={"t": SimpleNamespace(module_path="mod", callable_name="Tool")},
-        mcp_servers={"s": SimpleNamespace(mcp_type="stdio")},
-        flows={"f": SimpleNamespace(type="agent")},
+        models={
+            "m": SimpleNamespace(model_id="id", description="Model description"),
+        },
+        tools={
+            "t": SimpleNamespace(
+                module_path="mod",
+                callable_name="Tool",
+                description="Tool description",
+            )
+        },
+        mcp_servers={
+            "s": SimpleNamespace(mcp_type="stdio", description="MCP description"),
+        },
+        flows={
+            "f": SimpleNamespace(
+                type="agent",
+                model="m",
+                description="Flow description",
+            )
+        },
     )
 
     monkeypatch.setattr(
@@ -107,9 +123,14 @@ async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "Models:" in captured.out
     assert "m: id" in captured.out
+    assert "Description: Model description" in captured.out
     assert "Tools:" in captured.out
+    assert "Description: Tool description" in captured.out
     assert "MCP Servers:" in captured.out
+    assert "Description: MCP description" in captured.out
     assert "Flows:" in captured.out
+    assert "agent (model=m)" in captured.out
+    assert "Description: Flow description" in captured.out
 
 
 @pytest.mark.asyncio

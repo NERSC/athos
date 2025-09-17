@@ -3,6 +3,7 @@
 
 import asyncio
 import logging
+from typing import Any, Dict, List
 from dotenv import load_dotenv
 
 from athos.runtime import build_config, build_flow
@@ -22,41 +23,63 @@ load_dotenv()
 
 def _format_config(cfg):
     """Create a human-friendly representation of configuration sections."""
-    lines = ["Configuration Summary:"]
 
-    lines.append("Models:")
-    if cfg.models:
-        for name, model in cfg.models.items():
-            model_id = getattr(model, "model_id", "")
-            lines.append(f"  - {name}: {model_id}")
-    else:
-        lines.append("  (none)")
+    def _section_header(title: str) -> str:
+        return f"{title}:"
 
-    lines.append("Tools:")
-    if cfg.tools:
-        for name, tool in cfg.tools.items():
-            module = getattr(tool, "module_path", "")
-            callable_name = getattr(tool, "callable_name", "")
-            lines.append(f"  - {name}: {module}.{callable_name}")
-    else:
-        lines.append("  (none)")
+    def _append_items(
+        lines: List[str],
+        items: Dict[str, Any],
+        summary_getter,
+    ) -> None:
+        if not items:
+            lines.append("  (none)")
+            return
 
-    lines.append("MCP Servers:")
-    if cfg.mcp_servers:
-        for name, mcp in cfg.mcp_servers.items():
-            mcp_type = getattr(mcp, "mcp_type", "")
-            mcp_type = getattr(mcp_type, "value", mcp_type)
-            lines.append(f"  - {name}: {mcp_type}")
-    else:
-        lines.append("  (none)")
+        for name, item in items.items():
+            summary = summary_getter(item)
+            description = getattr(item, "description", None)
+            if summary:
+                lines.append(f"  - {name}: {summary}")
+            else:
+                lines.append(f"  - {name}")
+            if description:
+                lines.append(f"      Description: {description}")
 
-    lines.append("Flows:")
-    if cfg.flows:
-        for name, flow in cfg.flows.items():
-            flow_type = getattr(flow, "type", "")
-            lines.append(f"  - {name}: {flow_type}")
-    else:
-        lines.append("  (none)")
+    lines: List[str] = ["Configuration Summary:"]
+
+    def _model_summary(model: Any) -> str:
+        return getattr(model, "model_id", "")
+
+    def _tool_summary(tool: Any) -> str:
+        module = getattr(tool, "module_path", "")
+        callable_name = getattr(tool, "callable_name", "")
+        if module and callable_name:
+            return f"{module}.{callable_name}"
+        return module or callable_name
+
+    def _mcp_summary(mcp: Any) -> str:
+        mcp_type = getattr(mcp, "mcp_type", "")
+        return getattr(mcp_type, "value", mcp_type)
+
+    def _flow_summary(flow: Any) -> str:
+        flow_type = getattr(flow, "type", "")
+        model_name = getattr(flow, "model", "")
+        if flow_type and model_name:
+            return f"{flow_type} (model={model_name})"
+        return flow_type or model_name
+
+    lines.append(_section_header("Models"))
+    _append_items(lines, cfg.models, _model_summary)
+
+    lines.append(_section_header("Tools"))
+    _append_items(lines, cfg.tools, _tool_summary)
+
+    lines.append(_section_header("MCP Servers"))
+    _append_items(lines, cfg.mcp_servers, _mcp_summary)
+
+    lines.append(_section_header("Flows"))
+    _append_items(lines, cfg.flows, _flow_summary)
 
     return "\n".join(lines)
 

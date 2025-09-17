@@ -9,6 +9,7 @@ models:
 
   # OpenAI GPT-4o model
   gpt_4o:
+    description: "Primary GPT-4o model used for general-purpose reasoning"
     model_id: "openai/gpt-4o"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
@@ -16,6 +17,7 @@ models:
     max_tokens: 2048
 
   gpt_5:
+    description: "Placeholder for GPT-5 when available"
     model_id: "openai/gpt-5"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
@@ -24,6 +26,7 @@ models:
 
   # CBORG chat model
   cborg_chat:
+    description: "CBORG chat model tuned for conversational support"
     model_id: "lbl/cborg-chat:latest"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
@@ -32,6 +35,7 @@ models:
 
   # CBORG coder model
   cborg_coder:
+    description: "CBORG coder model optimized for tool and code generation"
     model_id: "lbl/cborg-coder:latest"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
@@ -40,6 +44,7 @@ models:
 
   # Anthropic Claude Sonnet model
   claude_sonnet:
+    description: "Anthropic Claude Sonnet model used for code-capable agents"
     model_id: "anthropic/claude-sonnet"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
@@ -48,6 +53,7 @@ models:
 
   # OpenAI o4-mini model
   o4_mini:
+    description: "Smaller OpenAI o4-mini model suitable for lightweight tasks"
     model_id: "openai/o4-mini"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
@@ -58,6 +64,7 @@ models:
 mcp_servers:
   # WARNING: filesystem_mcp is given edit privs in specified directory below
   filesystem_mcp:
+    description: "Local filesystem MCP server with read/write access to the workspace"
     mcp_type: "mcp_stdio"
     command: "npx"
     args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
@@ -66,6 +73,7 @@ mcp_servers:
       Filesystem tools return strings only - use string.split('\n') to get lists, never assume .items() or .keys() exist.
 
   servicenow_mcp:
+    description: "ServiceNow integration MCP server for ticket management"
     mcp_type: "mcp_stdio"
     command: "servicenow-mcp"
     env:
@@ -74,6 +82,7 @@ mcp_servers:
       SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
 
   sfapi_mcp:
+    description: "NERSC Superfacility API MCP server"
     mcp_type: "mcp_stdio"
     command: "nersc-sfapi-mcp"
     env:
@@ -81,6 +90,7 @@ mcp_servers:
       NERSC_PRIVATE_KEY_PATH: "${NERSC_PRIVATE_KEY_PATH}"
 
   docs_rag_mcp:
+    description: "Retrieval-augmented MCP for public NERSC documentation"
     mcp_type: "mcp_stdio"
     command: "rag-mcp"
     args: [
@@ -95,6 +105,7 @@ mcp_servers:
       Use the `query_docs` tool to answer questions about NERSC public documentation.
 
   consulting_docs_rag_mcp:
+    description: "Retrieval-augmented MCP for internal consulting documentation"
     mcp_type: "mcp_stdio"
     command: "rag-mcp"
     args: [
@@ -135,10 +146,12 @@ mcp_servers:
 # Regular and custom tools (non-MCP)
 tools:
   websearch:
+    description: "DuckDuckGo search tool for general web queries"
     callable_name: "DuckDuckGoSearchTool"
     module_path: "smolagents.default_tools"
     parameters: {}
   webvisit:
+    description: "Fetch and summarize webpages for agents"
     callable_name: "VisitWebpageTool"
     module_path: "smolagents.default_tools"
     parameters: {}
@@ -180,6 +193,7 @@ tools:
 flows:
   # Simple chatbot for general HPC questions
   hpc_chatbot:
+    description: "Chatbot that answers general HPC questions using CBORG chat"
     type: "chatbot"
     model: "cborg_chat"
     system_prompt: |
@@ -189,6 +203,7 @@ flows:
 
   # Web agent example
   web_agent:
+    description: "Web-enabled agent leveraging DuckDuckGo and webpage tools"
     type: "agent"
     agent_type: "tool_calling"
     model: "o4_mini"
@@ -196,6 +211,7 @@ flows:
 
   # MCP-enabled agent example
   filesystem_agent:
+    description: "Code agent with filesystem MCP access"
     type: "agent"
     agent_type: "code"
     model: "claude_sonnet"
@@ -203,6 +219,7 @@ flows:
 
   # ServiceNow integration agent
   servicenow_agent:
+    description: "Code agent for interacting with ServiceNow"
     type: "agent"
     agent_type: "code"
     model: "claude_sonnet"
@@ -212,6 +229,7 @@ flows:
 
   # Agent which can call the superfacility API tools
   sfapi_agent:
+    description: "Agent preconfigured for Superfacility API workflows"
     type: "agent"
     agent_type: "code"
     model: "claude_sonnet"
@@ -219,6 +237,7 @@ flows:
 
   # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
   docs_rag_agent:
+    description: "Agent that uses documentation RAG MCP servers for retrieval"
     type: "agent"
     agent_type: "code"
     model: "claude_sonnet"
@@ -227,6 +246,7 @@ flows:
 
   # Agent that can interact with servicenow and read from docs
   hpc_consultant:
+    description: "Consultant agent that combines ServiceNow and documentation tools"
     type: "agent"
     agent_type: "code"
     model: "claude_sonnet"
