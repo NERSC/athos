@@ -124,7 +124,6 @@ Contains the foundational components for orchestrating ATHOS flows and tools:
 - **`flow_registry.py`**: Registry and plugin loader for flow types
 - **`tool_registry.py`**: Registry and plugin loader for tools
 - **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
-- **`agent.py`** and **`tool.py`**: Deprecated base classes (being phased out)
 
 ### `src/athos/runtime.py`
 **Runtime helpers**
@@ -139,9 +138,7 @@ Utility functions for building models, tools and MCP clients from configuration.
 ### `src/athos/agents/`
 **Agent implementations**
 
-Contains concrete agent implementations:
-
-- **`openai_agent.py`**: Deprecated OpenAI-based agent classes
+Previously contained legacy agent implementations. The current framework uses flow-based agents defined in `src/athos/flows/`.
 
 ### `src/athos/tools/`
 **HPC-specific tools and utilities**
@@ -156,11 +153,10 @@ Custom tools designed for HPC operations:
 **Usage examples and demonstrations**
 
 Example scripts demonstrating agent and tool integrations can be found in this
-directory. For instance `filesystem_agent.py` showcases the MCP filesystem
-tools. The `servicenow_agent.py` example demonstrates interacting with a
-ServiceNow instance through the ServiceNow MCP server. You can choose which
-ServiceNow tasks to run using `--tasks` and specify an incident with
-`--incident`.
+directory. For instance, `filesystem_agent.py` showcases the MCP filesystem
+tools, and `servicenow_agent.py` demonstrates interacting with a ServiceNow
+instance through the ServiceNow MCP server. You can choose which ServiceNow
+tasks to run using `--tasks` and specify an incident with `--incident`.
 
 ### `src/athos/main.py`
 **CLI interface and entry point**
