@@ -16,6 +16,23 @@ On NERSC systems, simply run the provided setup script:
 ./scripts/create_env_nersc.sh
 ```
 
+### Environment configuration
+
+Depending on the tools you plan to configure, you will need to set specific
+environment variables for ServiceNow, SFAPI, Iris, or CBORG integrations. The
+provided `.env.template` is a convenience reference showing which variables are
+available to configure; you can also copy it locally and edit the values to suit
+your environment:
+
+```bash
+cp .env.template .env
+```
+
+Update the copied file with your ServiceNow credentials, NERSC client
+certificate details, and optional Iris or CBORG settings. The template enables
+the default shared workspace path (`${SCRATCH}/athos/workspace`) and leaves the
+remaining settings commented out so they can be customized as needed.
+
 ## Shared Workspace
 
 ATHOS tools and MCP servers can share a common workspace directory so that
