@@ -233,6 +233,7 @@ flows:
     type: "agent"
     agent_type: "code"
     model: "claude_sonnet"
+    additional_authorized_imports: ["json"]
     mcp_servers: ["sfapi_mcp"]
 
   # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
