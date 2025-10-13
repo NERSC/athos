@@ -21,18 +21,11 @@ def expand_env(value: Optional[str]) -> Optional[str]:
     return os.path.expandvars(DEFAULT_ENV_VAR_PATTERN.sub(repl, value))
 
 
-# ExecutionFlowType enum removed - flow types are now dynamically registered
-
-
-class AgentType(str, Enum):
-    """Supported agent implementations"""
-    CODE = "code"
-    TOOL_CALLING = "tool_calling"
-
 class MCPType(str, Enum):
     """Supported MCP server types"""
     MCP_STDIO = "mcp_stdio"
     MCP_SSE = "mcp_sse"
+
 
 class ModelConfig(BaseModel):
     """Configuration for AI models"""
@@ -61,6 +54,7 @@ class ModelConfig(BaseModel):
        if v and not v.startswith(('http://', 'https://')):
            raise ValueError('api_base must be a valid HTTP/HTTPS URL')
        return v
+
 
 class MCPServerConfig(BaseModel):
     """Configuration for MCP server connection"""
@@ -139,6 +133,7 @@ class MCPServerConfig(BaseModel):
            raise ValueError('url must be a valid HTTP/HTTPS URL')
        return v
 
+
 class ToolConfig(BaseModel):
     """Configuration for regular tools only"""
     model_config = ConfigDict(extra='forbid')
@@ -165,6 +160,7 @@ class ToolConfig(BaseModel):
             if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', component):
                 raise ValueError('module_path must be a valid Python module path')
         return v
+
 
 class BaseFlowConfig(BaseModel):
     """Base configuration for flows"""
