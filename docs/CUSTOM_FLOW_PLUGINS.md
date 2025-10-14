@@ -1,10 +1,10 @@
-# Custom Flow Plugins
+# Custom Flow Extensions
 
-This document explains how to create and use custom flow plugins in ATHOS, allowing external developers to extend the system with their own flow types.
+This document explains how to create and use custom flow extensions in ATHOS, allowing developers to extend the system with their own flow types by importing modules that register additional flows.
 
 ## Overview
 
-ATHOS now supports dynamic flow registration through a plugin system. This allows external developers to:
+ATHOS now supports dynamic flow registration through a runtime registry. This allows developers to:
 
 1. Define custom flow types with their own configuration schemas
 2. Implement custom execution logic
@@ -39,7 +39,7 @@ FLOW_REGISTRY: Dict[str, Tuple[Type[BaseFlowConfig], FlowFactory]] = {}
 
 Configuration validation happens at runtime based on the registered flow types.
 
-## Creating a Custom Flow Plugin
+## Creating a Custom Flow Extension
 
 ### 1. Define Configuration Class
 
@@ -98,30 +98,16 @@ Create a registration function:
 from athos.core.flow_registry import register_flow
 
 def register_custom_flow():
-    """Entry point function to register the custom flow type"""
+    """Helper function to register the custom flow type"""
     register_flow("custom", CustomFlowConfig, create_custom_flow)
 ```
 
-## Installation Methods
+## Making the Flow Available
 
-### Method 1: Entry Points (Recommended)
-
-For distributable plugins, use Python entry points in your `pyproject.toml`:
-
-```toml
-[project.entry-points.athos_flows]
-custom_flow = "my_package.flows:register_custom_flow"
-```
-
-ATHOS will automatically discover and load these plugins.
-
-### Method 2: Direct Registration
-
-For development or testing, register flows directly:
+Ensure the module that registers your flow is imported before configuration loading:
 
 ```python
-from my_package.flows import register_custom_flow
-register_custom_flow()
+from my_package import flows  # noqa: F401 - triggers register_custom_flow()
 ```
 
 ## Configuration Usage
@@ -140,12 +126,12 @@ flows:
 
 ## Complete Example
 
-See `examples/custom_flow_plugin.py` for a complete working example.
+See `examples/custom_flow_plugin.py` for a complete working example of module-based registration.
 
-## Testing Your Plugin
+## Testing Your Extension
 
-1. Create your plugin following the structure above
-2. Register it using one of the installation methods
+1. Create your flow extension following the structure above
+2. Import it so the registration function runs
 3. Create a configuration file that uses your custom flow type
 4. Test with the provided test script:
 
@@ -182,7 +168,7 @@ python examples/test_dynamic_flows.py
 
 Existing configurations will continue to work without changes. The new system is backward compatible.
 
-### For New Plugins
+### For New Extensions
 
 Follow the patterns shown in this document to create new flow types that integrate seamlessly with the ATHOS ecosystem.
 
@@ -190,13 +176,13 @@ Follow the patterns shown in this document to create new flow types that integra
 
 ### Common Issues
 
-1. **"Unknown flow type" error**: Ensure your plugin is registered before configuration loading
+1. **"Unknown flow type" error**: Ensure your module is imported before configuration loading
 2. **Validation errors**: Check that your config class matches the YAML structure
-3. **Import errors**: Verify that your plugin module is in the Python path
+3. **Import errors**: Verify that your extension module is in the Python path
 
 ### Debugging
 
-1. Enable debug logging to see plugin loading messages
+1. Enable debug logging to see flow registration messages
 2. Use `get_available_flow_types()` to check registered flow types
 3. Test configuration validation separately from execution
 
@@ -216,4 +202,4 @@ Follow the patterns shown in this document to create new flow types that integra
 ### Registry
 
 - `FLOW_REGISTRY`: Global registry of flow types
-- `load_plugins()`: Load plugins from entry points
+  - Register custom flows by importing the module that calls `register_flow()`

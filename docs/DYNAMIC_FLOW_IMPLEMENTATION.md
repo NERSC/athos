@@ -1,10 +1,13 @@
 # Dynamic Flow Plugin Implementation
 
-This document summarizes the implementation of the dynamic plugin-based approach for flow configuration in ATHOS.
+This document summarizes the implementation of the dynamic registration approach for flow configuration in ATHOS. External
+entry-point driven plugins have been removed in favour of registering flows directly within Python modules.
 
 ## Overview
 
-The ATHOS system has been enhanced to support dynamic flow registration through a plugin system, replacing the previous static discriminated union approach. This allows external developers to create and register custom flow types at runtime.
+The ATHOS system has been enhanced to support dynamic flow registration, replacing the previous static discriminated union
+approach. This allows developers to create and register custom flow types at runtime by importing modules that invoke the
+registry APIs.
 
 ## Key Changes Made
 
@@ -35,7 +38,7 @@ class AthosConfig(BaseModel):
     @model_validator(mode='after')
     def validate_and_construct_flows(self):
         """Dynamically construct and validate flow configs based on registry"""
-        # Load built-in flows and plugins
+        # Ensure built-in flows are registered
         # Validate flow types against registry
         # Construct appropriate config objects
         # Validate cross-references
@@ -43,10 +46,9 @@ class AthosConfig(BaseModel):
 
 ### 2. Enhanced Flow Registry (`src/athos/core/flow_registry.py`)
 
-Added utility functions for better plugin management:
+Added utility functions for better registry management:
 - `get_available_flow_types()`: Get all registered flow types
 - `is_flow_type_registered()`: Check if a flow type is registered
-- Enhanced `load_plugins()` with better error handling
 
 ### 3. Manager Updates (`src/athos/core/manager.py`)
 
@@ -60,7 +62,7 @@ flow_type = flow_config.type.value if hasattr(flow_config.type, 'value') else fl
 
 ### Dynamic Validation Process
 
-1. **Plugin Loading**: Built-in flows and external plugins are loaded
+1. **Registration**: Built-in flows (and any additional modules) are imported so they can register themselves
 2. **Type Discovery**: Flow type is extracted from configuration data
 3. **Registry Lookup**: Appropriate config class is found in registry
 4. **Dynamic Construction**: Config object is created using the registered class
@@ -74,15 +76,7 @@ flow_type = flow_config.type.value if hasattr(flow_config.type, 'value') else fl
 
 ### Plugin Registration
 
-External developers can register custom flows using:
-
-1. **Entry Points** (recommended for distribution):
-```toml
-[project.entry-points.athos_flows]
-custom_flow = "my_package.flows:register_custom_flow"
-```
-
-2. **Direct Registration** (for development):
+Developers can register custom flows using direct registration:
 ```python
 from athos.core.flow_registry import register_flow
 register_flow("custom", CustomFlowConfig, create_custom_flow)
@@ -99,7 +93,7 @@ register_flow("custom", CustomFlowConfig, create_custom_flow)
 - `examples/custom_flow_plugin.py` - Complete custom flow example
 - `examples/config_with_custom_flow.yaml` - Configuration using custom flows
 - `examples/test_dynamic_flows.py` - Test script demonstrating functionality
-- `docs/CUSTOM_FLOW_PLUGINS.md` - Developer guide for creating plugins
+- `docs/CUSTOM_FLOW_PLUGINS.md` - Developer guide for creating custom flows
 - `docs/DYNAMIC_FLOW_IMPLEMENTATION.md` - This implementation summary
 
 ## Testing Results
@@ -112,7 +106,6 @@ register_flow("custom", CustomFlowConfig, create_custom_flow)
 ### New Functionality
 - ✅ Dynamic flow registration works
 - ✅ Custom flow validation works
-- ✅ Plugin loading works
 - ✅ Mixed built-in and custom flows work
 - ✅ Error handling for unknown flow types
 
@@ -157,22 +150,22 @@ flows:
 
 For existing users:
 - No changes required - existing configurations work as-is
-- New plugin capabilities available immediately
+- Additional flow types become available as soon as their modules are imported
 
-For plugin developers:
+For extension developers:
 - Follow patterns in `examples/custom_flow_plugin.py`
-- Use entry points for distribution
+- Ensure your package imports the registration helper at startup
 - Inherit from `BaseFlowConfig` and `BaseFlow`
 
 ## Future Enhancements
 
 Potential future improvements:
-1. Plugin discovery from multiple entry point groups
+1. Automated module discovery for extension packages
 2. Flow type versioning and compatibility checking
 3. Dynamic schema generation for documentation
-4. Plugin dependency management
-5. Hot-reloading of plugins during development
+4. Extension dependency management
+5. Hot-reloading of extensions during development
 
 ## Conclusion
 
-The dynamic plugin system successfully replaces the static discriminated union approach while maintaining full backward compatibility. External developers can now easily extend ATHOS with custom flow types, making the system truly extensible and plugin-friendly.
+The dynamic registration system successfully replaces the static discriminated union approach while maintaining full backward compatibility. External developers can now easily extend ATHOS with custom flow types without relying on packaging-time plugins.
