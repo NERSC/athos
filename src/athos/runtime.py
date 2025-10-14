@@ -8,7 +8,6 @@ from athos.logging_utils import configure_logging
 from athos.flows import BaseFlow
 from athos.core.flow_registry import FLOW_REGISTRY
 from athos.utils.workspace import get_workspace
-import athos.flows.builtins  # noqa: F401 - register built-in flows
 
 logger = logging.getLogger(__name__)
 

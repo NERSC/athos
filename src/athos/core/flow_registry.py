@@ -1,6 +1,6 @@
 from typing import Callable, Dict, Tuple, Type
 
-from athos.flows import BaseFlow
+from athos.flows.base import BaseFlow
 from athos.config.models import BaseFlowConfig
 
 from athos.config.models import AthosConfig
