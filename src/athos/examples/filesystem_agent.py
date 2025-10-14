@@ -22,7 +22,7 @@ import os
 import pprint
 from pathlib import Path
 
-from athos.runtime import build_config, build_flow
+from athos import build_config, build_flow
 
 
 async def demonstrate_basic_filesystem_tasks(flow):

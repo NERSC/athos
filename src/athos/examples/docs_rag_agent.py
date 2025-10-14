@@ -5,7 +5,7 @@ import argparse
 import pprint
 from dotenv import load_dotenv
 
-from athos.runtime import build_config, build_flow
+from athos import build_config, build_flow
 
 # Load environment variables from .env if present
 load_dotenv()
