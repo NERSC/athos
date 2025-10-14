@@ -72,9 +72,11 @@ from the terminal.
 The heart of ATHOS is a set of flow classes—such as `AgentFlow` for general task
 automation and `ChatbotFlow` for conversational assistance—that coordinate model
 reasoning, tool invocation, and state management. These flows leverage the
-`flow_registry` and `tool_registry`, which act as discovery mechanisms and
-extension points. Through `runtime.build_config` and `build_flow`, configurations
-are transformed into runnable agents that are consistent across environments.
+`flow_registry`, which acts as the discovery mechanism and extension point for
+new behaviors. Through `runtime.build_config` and `build_flow`, configurations
+are transformed into runnable agents that are consistent across environments,
+while tool integrations are instantiated directly from their configuration
+definitions.
 
 Integration is achieved through MCP-aware tool servers that bridge ATHOS with
 external services like ServiceNow for ticket management, SLURM for job control,
