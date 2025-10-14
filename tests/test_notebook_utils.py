@@ -1,7 +1,7 @@
 import os
 from unittest.mock import MagicMock, patch
 
-from athos.notebook_utils import (
+from athos.utils.notebook_utils import (
     add_conda_bin_to_path,
     get_jupyter_proxy_url,
     launch_gradio_ui,
@@ -24,7 +24,7 @@ def test_get_jupyter_proxy_url(monkeypatch):
 def test_launch_gradio_ui(monkeypatch):
     monkeypatch.setenv("JUPYTERHUB_SERVICE_PREFIX", "/user/test/")
     dummy_agent = MagicMock()
-    with patch("athos.notebook_utils.GradioUI") as MockUI:
+    with patch("athos.utils.notebook_utils.GradioUI") as MockUI:
         ui_instance = MockUI.return_value
         launch_gradio_ui(dummy_agent, port=1234)
         MockUI.assert_called_once_with(dummy_agent)
