@@ -199,7 +199,7 @@ class AthosConfig(BaseModel):
         from athos.core.flow_registry import FLOW_REGISTRY
 
         # Ensure built-in flows are registered
-        import athos.flows.builtins  # noqa: F401 - register built-in flows
+        import athos.flows  # noqa: F401 - register built-in flows
 
         flows = data.get('flows', {})
         if not flows:

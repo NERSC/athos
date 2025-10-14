@@ -14,6 +14,7 @@ from smolagents import (
 )
 
 from athos.flows.base import BaseFlow
+from athos.core.flow_registry import register_flow
 from athos.config.models import (
     ModelConfig,
     ToolConfig,
@@ -118,6 +119,9 @@ def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
         additional_authorized_imports=cfg.additional_authorized_imports,
         instructions=instructions,
     )
+
+
+register_flow("agent", AgentFlowConfig, create_agent_flow)
 
 
 __all__ = ["AgentFlow", "AgentFlowConfig", "create_agent_flow"]
