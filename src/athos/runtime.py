@@ -6,7 +6,7 @@ import logging
 from athos.config import AthosConfig, ConfigLoader
 from athos.logging_utils import configure_logging
 from athos.flows import BaseFlow
-from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
+from athos.core.flow_registry import FLOW_REGISTRY
 from athos.utils.workspace import get_workspace
 import athos.flows.builtins  # noqa: F401 - register built-in flows
 
@@ -15,8 +15,6 @@ logger = logging.getLogger(__name__)
 
 def build_flow(flow_name: str, config: AthosConfig) -> BaseFlow:
     """Construct a flow instance from the given configuration."""
-    load_plugins()
-
     if flow_name not in config.flows:
         raise ValueError(f"Unknown flow: {flow_name}")
 

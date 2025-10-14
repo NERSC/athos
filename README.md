@@ -121,8 +121,8 @@ The project is structured as a single Python package `athos` with the following 
 
 Contains the foundational components for orchestrating ATHOS flows and tools:
 
-- **`flow_registry.py`**: Registry and plugin loader for flow types
-- **`tool_registry.py`**: Registry and plugin loader for tools
+- **`flow_registry.py`**: Registry for flow types
+- **`tool_registry.py`**: Registry for tools
 - **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
 
 ### `src/athos/runtime.py`
@@ -172,30 +172,12 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 ## Key Architecture Notes
 
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
-- **Plugin-based registries** enable dynamic loading of tools and flow implementations
+- **Registry-based architecture** enables dynamic loading of tools and flow implementations when their modules are imported
 - **Multiple flow types** are supported (chatbot, code agent, prompt chains)
 - The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
 
-### Tool Plugins
+### Extending Tools and Flows
 
-Third-party packages can provide additional tools via the `athos_tools` entry point.
-Each plugin should expose a callable that registers tools using
-`athos.core.tool_registry.register_tool`. Example `pyproject.toml` snippet:
-
-```toml
-[project.entry-points.athos_tools]
-my_plugin = "my_package.tools:register"
-```
-
-Where `my_package.tools.register` invokes `register_tool` with a tool factory.
-
-### Flow Plugins
-
-Flows can also be extended via the `athos_flows` entry point in the same way:
-
-```toml
-[project.entry-points.athos_flows]
-my_flow = "my_package.flows:register"
-```
-
-The function referenced by the entry point should call `athos.core.flow_registry.register_flow` to register the new flow type.
+To provide additional tools or flows, ensure your package imports a module that calls the appropriate registry helpers
+(`athos.core.tool_registry.register_tool` and `athos.core.flow_registry.register_flow`). Importing that module from your
+application will make the new functionality available without relying on packaging entry points.

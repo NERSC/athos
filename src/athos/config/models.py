@@ -197,13 +197,10 @@ class AthosConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
+        from athos.core.flow_registry import FLOW_REGISTRY
 
         # Ensure built-in flows are registered
         import athos.flows.builtins  # noqa: F401 - register built-in flows
-
-        # Ensure plugins are loaded before validation
-        load_plugins()
 
         flows = data.get('flows', {})
         if not flows:
