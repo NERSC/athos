@@ -180,7 +180,6 @@ class AthosConfig(BaseModel):
     tools: Dict[str, ToolConfig] = Field(default_factory=dict, description="Tool configurations")
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict, description="MCP server configurations")
     flows: Dict[str, BaseFlowConfig] = Field(default_factory=dict, description="Flow configurations")
-    hpc_cluster_config: Optional[Dict[str, Any]] = Field(default=None, description="HPC cluster configuration")
     logging_config: Optional[Dict[str, Any]] = Field(default=None, description="Logging configuration")
     workspace_dir: str = Field(..., description="Root directory shared by tools/MCP servers")
 
