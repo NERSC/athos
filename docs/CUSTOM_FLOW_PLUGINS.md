@@ -22,7 +22,6 @@ FlowConfig = Annotated[
     Union[
         ChatbotFlowConfig,
         AgentFlowConfig,
-        PromptChainFlowConfig,
     ],
     Field(discriminator='type')
 ]

@@ -11,7 +11,6 @@ from athos.config.models import (
     ModelConfig,
     MCPType,
     MCPServerConfig,
-    PromptChainFlowConfig,
     BaseFlowConfig,
 )
 from athos.flows import ChatbotFlowConfig, AgentFlowConfig

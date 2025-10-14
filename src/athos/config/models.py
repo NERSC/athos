@@ -1,9 +1,8 @@
 import os
 import re
 from enum import Enum
-from typing import Dict, List, Any, Optional, Union, Annotated, Type
+from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, SecretStr
-from typing_extensions import Literal
 
 
 DEFAULT_ENV_VAR_PATTERN = re.compile(r"\$\{([^}:\s]+):-([^}]+)\}")
@@ -172,14 +171,6 @@ class BaseFlowConfig(BaseModel):
     )
     type: str = Field(description="Flow type identifier")
     model: str = Field(description="Reference to model configuration")
-
-
-class PromptChainFlowConfig(BaseFlowConfig):
-    """Configuration for PromptChainFlow"""
-
-    type: Literal["prompt_chain"]
-    prompt_chain: Optional[List[Dict[str, str]]] = Field(default=None, description="Prompt chain configuration")
-
 
 class AthosConfig(BaseModel):
     """Main ATHOS configuration"""
