@@ -1,6 +1,6 @@
 import yaml
-from athos.runtime import build_config, build_flow
-from athos.flows import ChatbotFlow
+from athos.core.runtime import build_config, build_flow
+from athos.frameworks.smolagents.flows import ChatbotFlow
 from athos.config import AthosConfig
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -23,7 +23,10 @@ flows:
     mock_model = lambda messages, stop_sequences=None: type(
         "Resp", (), {"content": "ok"}
     )()
-    monkeypatch.setattr("athos.flows.chatbot.build_model", lambda cfg: mock_model)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.chatbot.build_model",
+        lambda cfg: mock_model,
+    )
     cfg = build_config(str(cfg_file))
     flow = build_flow("chat", cfg)
     assert isinstance(flow, ChatbotFlow)
@@ -47,9 +50,15 @@ flows:
 """
     cfg_file = tmp_path / "cfg.yaml"
     cfg_file.write_text(cfg_yaml)
-    monkeypatch.setattr("athos.flows.agent.build_model", lambda cfg: lambda m: None)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.agent.build_model",
+        lambda cfg: lambda m: None,
+    )
     dummy_client = SimpleNamespace(disconnect=Mock(), get_tools=lambda: [])
-    monkeypatch.setattr("athos.flows.agent.build_mcp_client", lambda n, c: dummy_client)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.agent.build_mcp_client",
+        lambda n, c: dummy_client,
+    )
     cfg = build_config(str(cfg_file))
     flow = build_flow("agent", cfg)
     flow.close()

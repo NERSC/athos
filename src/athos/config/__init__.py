@@ -13,7 +13,7 @@ from athos.config.models import (
     MCPServerConfig,
     BaseFlowConfig,
 )
-from athos.flows import ChatbotFlowConfig, AgentFlowConfig
+from athos.frameworks.smolagents.flows import AgentFlowConfig, ChatbotFlowConfig
 
 class ConfigLoader:
     """Loads and validates YAML configuration files"""

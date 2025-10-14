@@ -121,23 +121,23 @@ The project is structured as a single Python package `athos` with the following 
 
 Contains the foundational components for orchestrating ATHOS flows and tools:
 
+- **`base_flow.py`**: Shared interface for all flow implementations
 - **`flow_registry.py`**: Registry for flow types
-- **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
+- **`runtime.py`**: Helpers such as `build_config`, `build_flow`, and `create_flows`
 
-### `src/athos/runtime.py`
-**Runtime helpers**
+### `src/athos/frameworks/smolagents/`
+**Default SmolAgents-backed implementation**
 
-Provides `build_config` and `build_flow` helpers for constructing flows directly from configuration without a monolithic manager.
+SmolAgents is currently the reference framework shipped with Athos. This package
+contains the concrete flow implementations and supporting factories:
 
-### `src/athos/factories.py`
-**Factory utilities**
-
-Utility functions for building models, tools and MCP clients from configuration.
+- **`factories.py`**: Utility functions for building models, tools, and MCP clients
+- **`flows/agent.py`** and **`flows/chatbot.py`**: Built-in SmolAgents flows registered with the core registry
 
 ### `src/athos/agents/`
 **Agent implementations**
 
-Previously contained legacy agent implementations. The current framework uses flow-based agents defined in `src/athos/flows/`.
+Previously contained legacy agent implementations. The current framework uses flow-based agents defined in `src/athos/frameworks/smolagents/flows/`.
 
 ### `src/athos/tools/`
 **HPC-specific tools and utilities**
@@ -183,6 +183,6 @@ application will make the new functionality available without relying on
 packaging entry points.
 
 Tools are instantiated directly from configuration using the
-`athos.factories.build_tool` helper, which loads the module and callable defined
+`athos.frameworks.smolagents.factories.build_tool` helper, which loads the module and callable defined
 in `ToolConfig`. Supplying the correct module path and callable name is
 all that is required to extend the available tooling.
