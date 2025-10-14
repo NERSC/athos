@@ -4,8 +4,8 @@ from typing import Any, Dict, Optional
 import logging
 
 from athos.config import AthosConfig, ConfigLoader
-from athos.core.base_flow import BaseFlow
-from athos.core.flow_registry import FLOW_REGISTRY
+from athos.interfaces.base_flow import BaseFlow
+from athos.registry.flow_registry import FLOW_REGISTRY
 from athos.utils.logging_utils import configure_logging
 from athos.utils.workspace import get_workspace
 

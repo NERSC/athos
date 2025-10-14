@@ -1,6 +1,6 @@
 from typing_extensions import Literal
 
-import athos.core.flow_registry as flow_registry
+import athos.registry.flow_registry as flow_registry
 from athos.config.models import BaseFlowConfig
 
 

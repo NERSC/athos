@@ -116,14 +116,22 @@ whose parent directory doesn't exist, it will be created automatically.
 
 The project is structured as a single Python package `athos` with the following modules:
 
-### `src/athos/core/`
-**Core framework and registries**
+### `src/athos/interfaces/`
+**Shared flow interfaces**
 
-Contains the foundational components for orchestrating ATHOS flows and tools:
+Provides the foundational `BaseFlow` protocol that concrete implementations extend.
 
-- **`base_flow.py`**: Shared interface for all flow implementations
-- **`flow_registry.py`**: Registry for flow types
-- **`runtime.py`**: Helpers such as `build_config`, `build_flow`, and `create_flows`
+### `src/athos/registry/`
+**Flow registration utilities**
+
+Hosts the flow registry and helper functions that extensions use to advertise
+new flow types.
+
+### `src/athos/runtime/`
+**Runtime builders**
+
+Contains helpers such as `build_config`, `build_flow`, and `create_flows` that
+assemble flows from configuration files.
 
 ### `src/athos/frameworks/smolagents/`
 **Default SmolAgents-backed implementation**
@@ -178,7 +186,7 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 ### Extending Tools and Flows
 
 To provide additional flows, ensure your package imports a module that calls the
-`athos.core.flow_registry.register_flow` helper. Importing that module from your
+`athos.registry.flow_registry.register_flow` helper. Importing that module from your
 application will make the new functionality available without relying on
 packaging entry points.
 

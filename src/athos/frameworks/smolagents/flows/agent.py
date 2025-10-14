@@ -13,8 +13,8 @@ from smolagents import (
     MCPClient,
 )
 
-from athos.core.base_flow import BaseFlow
-from athos.core.flow_registry import register_flow
+from athos.interfaces.base_flow import BaseFlow
+from athos.registry.flow_registry import register_flow
 from athos.config.models import (
     AthosConfig,
     BaseFlowConfig,

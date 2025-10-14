@@ -1,5 +1,6 @@
 from .config import AthosConfig, ConfigLoader
-from .core import BaseFlow, build_config, build_flow, create_flows
+from .interfaces.base_flow import BaseFlow
+from .runtime.builder import build_config, build_flow, create_flows
 
 __all__ = [
     "AthosConfig",

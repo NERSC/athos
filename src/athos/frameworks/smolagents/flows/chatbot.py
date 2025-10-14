@@ -3,8 +3,8 @@ import logging
 
 from smolagents import ChatMessage, OpenAIServerModel
 
-from athos.core.base_flow import BaseFlow
-from athos.core.flow_registry import register_flow
+from athos.interfaces.base_flow import BaseFlow
+from athos.registry.flow_registry import register_flow
 
 from athos.config.models import AthosConfig, ModelConfig
 from athos.frameworks.smolagents.factories import build_model

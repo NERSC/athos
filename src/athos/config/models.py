@@ -196,7 +196,7 @@ class AthosConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        from athos.core.flow_registry import FLOW_REGISTRY
+        from athos.registry.flow_registry import FLOW_REGISTRY
 
         # Ensure built-in flows are registered
         import athos.frameworks.smolagents.flows  # noqa: F401 - register built-in flows

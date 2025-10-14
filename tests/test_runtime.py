@@ -1,5 +1,5 @@
 import yaml
-from athos.core.runtime import build_config, build_flow
+from athos.runtime.builder import build_config, build_flow
 from athos.frameworks.smolagents.flows import ChatbotFlow
 from athos.config import AthosConfig
 from types import SimpleNamespace
