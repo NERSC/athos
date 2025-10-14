@@ -122,7 +122,6 @@ The project is structured as a single Python package `athos` with the following 
 Contains the foundational components for orchestrating ATHOS flows and tools:
 
 - **`flow_registry.py`**: Registry for flow types
-- **`tool_registry.py`**: Registry for tools
 - **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
 
 ### `src/athos/runtime.py`
@@ -172,12 +171,18 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 ## Key Architecture Notes
 
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
-- **Registry-based architecture** enables dynamic loading of tools and flow implementations when their modules are imported
+- **Registry-based architecture** enables dynamic loading of flow implementations when their modules are imported
 - **Multiple flow types** are supported (chatbot, code agent, prompt chains)
 - The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
 
 ### Extending Tools and Flows
 
-To provide additional tools or flows, ensure your package imports a module that calls the appropriate registry helpers
-(`athos.core.tool_registry.register_tool` and `athos.core.flow_registry.register_flow`). Importing that module from your
-application will make the new functionality available without relying on packaging entry points.
+To provide additional flows, ensure your package imports a module that calls the
+`athos.core.flow_registry.register_flow` helper. Importing that module from your
+application will make the new functionality available without relying on
+packaging entry points.
+
+Tools are instantiated directly from configuration using the
+`athos.factories.build_tool` helper, which loads the module and callable defined
+in `ToolConfig`. Supplying the correct module path and callable name is
+all that is required to extend the available tooling.
