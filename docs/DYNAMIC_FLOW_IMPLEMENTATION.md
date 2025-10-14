@@ -16,7 +16,6 @@ FlowConfig = Annotated[
     Union[
         ChatbotFlowConfig,
         AgentFlowConfig,
-        PromptChainFlowConfig,
     ],
     Field(discriminator='type')
 ]
@@ -28,7 +27,6 @@ FlowConfig = Annotated[
 FlowConfig = Union[
     ChatbotFlowConfig,
     AgentFlowConfig,
-    PromptChainFlowConfig,
 ]
 
 class AthosConfig(BaseModel):
@@ -71,7 +69,7 @@ flow_type = flow_config.type.value if hasattr(flow_config.type, 'value') else fl
 ### Backward Compatibility
 
 - Existing configurations continue to work without changes
-- Built-in flow types (`chatbot`, `agent`, `prompt_chain`) are automatically registered
+- Built-in flow types (`chatbot`, `agent`) are automatically registered
 - Enum-based type handling is preserved alongside string-based types
 
 ### Plugin Registration
