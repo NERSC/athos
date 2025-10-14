@@ -142,10 +142,7 @@ contains the concrete flow implementations and supporting factories:
 - **`factories.py`**: Utility functions for building models, tools, and MCP clients
 - **`flows/agent.py`** and **`flows/chatbot.py`**: Built-in SmolAgents flows registered with the core registry
 
-### `src/athos/agents/`
-**Agent implementations**
 
-Previously contained legacy agent implementations. The current framework uses flow-based agents defined in `src/athos/frameworks/smolagents/flows/`.
 
 ### `src/athos/tools/`
 **HPC-specific tools and utilities**
@@ -181,7 +178,7 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
 - **Registry-based architecture** enables dynamic loading of flow implementations when their modules are imported
 - **Multiple flow types** are supported (chatbot, code agent, prompt chains)
-- The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
+- The framework is currently built on top of **Hugging Face SmolAgents** and can be extended with other agent frameworks
 
 ### Extending Tools and Flows
 
