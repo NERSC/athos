@@ -1,6 +1,9 @@
 from typing import List, Optional
+from typing_extensions import Literal
+from enum import Enum
 import asyncio
 import logging
+from pydantic import Field
 
 from smolagents import (
     CodeAgent,
@@ -11,12 +14,13 @@ from smolagents import (
 )
 
 from athos.flows.base import BaseFlow
+from athos.core.flow_registry import register_flow
 from athos.config.models import (
-    AgentType,
     ModelConfig,
     ToolConfig,
     MCPServerConfig,
     AthosConfig,
+    BaseFlowConfig,
 )
 from athos.factories import build_model, build_tool, build_mcp_client
 
@@ -69,10 +73,10 @@ class AgentFlow(BaseFlow):
         self._mcp_clients.clear()
 
 
-# Config and factory ---------------------------------------------------------
-from pydantic import Field
-from athos.config.models import BaseFlowConfig
-from typing_extensions import Literal
+class AgentType(str, Enum):
+    """Supported agent implementations"""
+    CODE = "code"
+    TOOL_CALLING = "tool_calling"
 
 
 class AgentFlowConfig(BaseFlowConfig):
@@ -115,6 +119,9 @@ def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
         additional_authorized_imports=cfg.additional_authorized_imports,
         instructions=instructions,
     )
+
+
+register_flow("agent", AgentFlowConfig, create_agent_flow)
 
 
 __all__ = ["AgentFlow", "AgentFlowConfig", "create_agent_flow"]

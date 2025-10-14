@@ -6,7 +6,7 @@ architectures diversify, workflows grow in scale, and user expectations rise.
 This paper presents **ATHOS**, a lightweight yet flexible toolkit that equips
 agents with the tools, models, and orchestration logic needed to assist with
 HPC operations and user support. ATHOS builds on modern language models and a
-plugin-based architecture to interface with services such as ServiceNow,
+registry-based architecture to interface with services such as ServiceNow,
 SLURM, and the Superfacility API. We outline the design of the toolkit,
 describe an evaluation framework for benchmarking agentic workflows, and
 highlight ongoing deployment and testing at NERSC. Results and detailed
@@ -56,9 +56,9 @@ future results.
 ATHOS is designed as a lightweight yet expressive toolkit that lets practitioners
 compose agentic systems from interchangeable parts rather than monolithic
 applications. Configuration files describe the desired flows, models, and tools,
-and a plugin architecture discovers new capabilities via Python entry points. At
-runtime, registries expose these plugins to the rest of the system so that agents
-can be assembled without modifying core source code.
+and a registry architecture discovers new capabilities when their modules are
+imported. At runtime, registries expose these extensions to the rest of the
+system so that agents can be assembled without modifying core source code.
 
 Factory utilities interpret the YAML configuration and construct the required
 models, tools, and Model Context Protocol (MCP) clients. Because these factories
@@ -72,9 +72,11 @@ from the terminal.
 The heart of ATHOS is a set of flow classes—such as `AgentFlow` for general task
 automation and `ChatbotFlow` for conversational assistance—that coordinate model
 reasoning, tool invocation, and state management. These flows leverage the
-`flow_registry` and `tool_registry`, which act as discovery mechanisms and
-extension points. Through `runtime.build_config` and `build_flow`, configurations
-are transformed into runnable agents that are consistent across environments.
+`flow_registry`, which acts as the discovery mechanism and extension point for
+new behaviors. Through `runtime.build_config` and `build_flow`, configurations
+are transformed into runnable agents that are consistent across environments,
+while tool integrations are instantiated directly from their configuration
+definitions.
 
 Integration is achieved through MCP-aware tool servers that bridge ATHOS with
 external services like ServiceNow for ticket management, SLURM for job control,

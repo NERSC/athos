@@ -9,7 +9,7 @@ import pprint
 
 from smolagents import ChatMessage
 
-from athos.runtime import build_config, build_flow
+from athos import build_config, build_flow
 import athos.factories
 
 

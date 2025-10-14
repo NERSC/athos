@@ -6,7 +6,7 @@ import asyncio
 import argparse
 import pprint
 
-from athos.runtime import build_config, build_flow
+from athos import build_config, build_flow
 
 
 async def main():
