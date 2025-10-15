@@ -5,7 +5,11 @@ import pytest
 
 from pydantic import SecretStr
 
-from athos.factories import build_model, build_tool, build_mcp_client
+from athos.frameworks.smolagents.factories import (
+    build_mcp_client,
+    build_model,
+    build_tool,
+)
 from athos.config.models import ModelConfig, ToolConfig, MCPServerConfig, MCPType
 
 
@@ -19,7 +23,10 @@ def test_build_model(monkeypatch):
         self.model_id = model_id
         self.api_base = api_base
         self.api_key = api_key
-    monkeypatch.setattr("athos.factories.OpenAIServerModel.__init__", dummy_init)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.factories.OpenAIServerModel.__init__",
+        dummy_init,
+    )
 
     cfg = ModelConfig(
         model_id="openai/gpt4",
@@ -85,7 +92,10 @@ def test_build_tool_decorated_function(tmp_path, monkeypatch):
 def test_build_mcp_client_stdio(monkeypatch):
     def dummy_init(self, server_parameters):
         self.server_parameters = server_parameters
-    monkeypatch.setattr("athos.factories.MCPClient.__init__", dummy_init)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.factories.MCPClient.__init__",
+        dummy_init,
+    )
 
     cfg = MCPServerConfig(
         mcp_type=MCPType.MCP_STDIO,
@@ -107,7 +117,10 @@ def test_build_mcp_client_stdio(monkeypatch):
 def test_build_mcp_client_sse(monkeypatch):
     def dummy_init(self, server_parameters):
         self.server_parameters = server_parameters
-    monkeypatch.setattr("athos.factories.MCPClient.__init__", dummy_init)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.factories.MCPClient.__init__",
+        dummy_init,
+    )
 
     cfg = MCPServerConfig(
         mcp_type=MCPType.MCP_SSE,

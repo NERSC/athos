@@ -116,28 +116,33 @@ whose parent directory doesn't exist, it will be created automatically.
 
 The project is structured as a single Python package `athos` with the following modules:
 
-### `src/athos/core/`
-**Core framework and registries**
+### `src/athos/interfaces/`
+**Shared flow interfaces**
 
-Contains the foundational components for orchestrating ATHOS flows and tools:
+Provides the foundational `BaseFlow` protocol that concrete implementations extend.
 
-- **`flow_registry.py`**: Registry for flow types
-- **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
+### `src/athos/registry/`
+**Flow registration utilities**
 
-### `src/athos/runtime.py`
-**Runtime helpers**
+Hosts the flow registry and helper functions that extensions use to advertise
+new flow types.
 
-Provides `build_config` and `build_flow` helpers for constructing flows directly from configuration without a monolithic manager.
+### `src/athos/runtime/`
+**Runtime builders**
 
-### `src/athos/factories.py`
-**Factory utilities**
+Contains helpers such as `build_config`, `build_flow`, and `create_flows` that
+assemble flows from configuration files.
 
-Utility functions for building models, tools and MCP clients from configuration.
+### `src/athos/frameworks/smolagents/`
+**Default SmolAgents-backed implementation**
 
-### `src/athos/agents/`
-**Agent implementations**
+SmolAgents is currently the reference framework shipped with Athos. This package
+contains the concrete flow implementations and supporting factories:
 
-Previously contained legacy agent implementations. The current framework uses flow-based agents defined in `src/athos/flows/`.
+- **`factories.py`**: Utility functions for building models, tools, and MCP clients
+- **`flows/agent.py`** and **`flows/chatbot.py`**: Built-in SmolAgents flows registered with the core registry
+
+
 
 ### `src/athos/tools/`
 **HPC-specific tools and utilities**
@@ -173,16 +178,16 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
 - **Registry-based architecture** enables dynamic loading of flow implementations when their modules are imported
 - **Multiple flow types** are supported (chatbot, code agent, prompt chains)
-- The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
+- The framework is currently built on top of **Hugging Face SmolAgents** and can be extended with other agent frameworks
 
 ### Extending Tools and Flows
 
 To provide additional flows, ensure your package imports a module that calls the
-`athos.core.flow_registry.register_flow` helper. Importing that module from your
+`athos.registry.flow_registry.register_flow` helper. Importing that module from your
 application will make the new functionality available without relying on
 packaging entry points.
 
 Tools are instantiated directly from configuration using the
-`athos.factories.build_tool` helper, which loads the module and callable defined
+`athos.frameworks.smolagents.factories.build_tool` helper, which loads the module and callable defined
 in `ToolConfig`. Supplying the correct module path and callable name is
 all that is required to extend the available tooling.

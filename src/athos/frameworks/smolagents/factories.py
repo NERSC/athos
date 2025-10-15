@@ -1,7 +1,6 @@
 """Utility factory functions for constructing models, tools and MCP clients."""
 
 from importlib import import_module
-from typing import Dict
 import logging
 
 from smolagents import OpenAIServerModel, Tool, MCPClient

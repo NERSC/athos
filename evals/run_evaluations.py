@@ -10,7 +10,7 @@ import pprint
 from smolagents import ChatMessage
 
 from athos import build_config, build_flow
-import athos.factories
+from athos.frameworks.smolagents import factories as smolagents_factories
 
 
 def load_test_cases(cases_dir: Path):
@@ -198,7 +198,7 @@ def main():
             raise ValueError(
                 f"Evaluation model '{args.eval_model}' not found in config models"
             )
-        eval_model_instance = athos.factories.build_model(
+        eval_model_instance = smolagents_factories.build_model(
             cfg.models[eval_model_name]
         )
 

@@ -1,13 +1,13 @@
 from typing import List, Optional
 import logging
 
-from smolagents import OpenAIServerModel, ChatMessage
+from smolagents import ChatMessage, OpenAIServerModel
 
-from athos.flows.base import BaseFlow
-from athos.core.flow_registry import register_flow
+from athos.interfaces.base_flow import BaseFlow
+from athos.registry.flow_registry import register_flow
 
-from athos.config.models import ModelConfig, AthosConfig
-from athos.factories import build_model
+from athos.config.models import AthosConfig, ModelConfig
+from athos.frameworks.smolagents.factories import build_model
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class ChatbotFlow(BaseFlow):
 # Config and factory ---------------------------------------------------------
 from pydantic import Field
 from typing_extensions import Literal
+
 from athos.config.models import BaseFlowConfig
 
 

@@ -13,16 +13,20 @@ from smolagents import (
     MCPClient,
 )
 
-from athos.flows.base import BaseFlow
-from athos.core.flow_registry import register_flow
+from athos.interfaces.base_flow import BaseFlow
+from athos.registry.flow_registry import register_flow
 from athos.config.models import (
-    ModelConfig,
-    ToolConfig,
-    MCPServerConfig,
     AthosConfig,
     BaseFlowConfig,
+    MCPServerConfig,
+    ModelConfig,
+    ToolConfig,
 )
-from athos.factories import build_model, build_tool, build_mcp_client
+from athos.frameworks.smolagents.factories import (
+    build_mcp_client,
+    build_model,
+    build_tool,
+)
 
 logger = logging.getLogger(__name__)
 

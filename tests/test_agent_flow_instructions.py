@@ -1,4 +1,8 @@
-from athos.flows.agent import AgentFlow, AgentFlowConfig, create_agent_flow
+from athos.frameworks.smolagents.flows.agent import (
+    AgentFlow,
+    AgentFlowConfig,
+    create_agent_flow,
+)
 from athos.config.models import AthosConfig, ModelConfig, MCPServerConfig, MCPType
 
 
@@ -19,14 +23,23 @@ def test_create_agent_flow_appends_mcp_instructions(monkeypatch):
                 return []
         return DummyClient()
 
-    monkeypatch.setattr("athos.flows.agent.build_model", fake_build_model)
-    monkeypatch.setattr("athos.flows.agent.build_mcp_client", fake_build_mcp_client)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.agent.build_model",
+        fake_build_model,
+    )
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.agent.build_mcp_client",
+        fake_build_mcp_client,
+    )
 
     # simplify CodeAgent.__init__ to record instructions
     def dummy_agent_init(self, tools, model, **kwargs):
         self.instructions = kwargs.get("instructions")
 
-    monkeypatch.setattr("athos.flows.agent.CodeAgent.__init__", dummy_agent_init)
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.agent.CodeAgent.__init__",
+        dummy_agent_init,
+    )
 
     cfg = AgentFlowConfig(
         type="agent",
