@@ -1,21 +1,10 @@
-import os
 import json
+import os
 from typing import Dict, List
 
 import chromadb
-from chromadb.config import Settings
-from chromadb.api.collection_configuration import (
-    CreateCollectionConfiguration,
-)
 from chromadb.api import EmbeddingFunction
-from chromadb.utils.embedding_functions import (
-    DefaultEmbeddingFunction,
-    CohereEmbeddingFunction,
-    OpenAIEmbeddingFunction,
-    JinaEmbeddingFunction,
-    VoyageAIEmbeddingFunction,
-    RoboflowEmbeddingFunction,
-)
+from chromadb.api.collection_configuration import CreateCollectionConfiguration
 from smolagents import tool, ToolCollection
 
 
@@ -59,14 +48,50 @@ def chroma_list_collections(
     except Exception as e:
         raise Exception(f"Failed to list collections: {str(e)}") from e
 
-mcp_known_embedding_functions: Dict[str, type[EmbeddingFunction]] = {
-    "default": DefaultEmbeddingFunction,
-    "cohere": CohereEmbeddingFunction,
-    "openai": OpenAIEmbeddingFunction,
-    "jina": JinaEmbeddingFunction,
-    "voyageai": VoyageAIEmbeddingFunction,
-    "roboflow": RoboflowEmbeddingFunction,
+_EMBEDDING_DEPENDENCY_MESSAGE = (
+    "Chroma embedding support requires optional dependencies. "
+    "Install them with `pip install athos[chroma-embeddings]` before using this tool."
+)
+
+_KNOWN_EMBEDDING_FUNCTIONS: Dict[str, str] = {
+    "default": "DefaultEmbeddingFunction",
+    "cohere": "CohereEmbeddingFunction",
+    "openai": "OpenAIEmbeddingFunction",
+    "jina": "JinaEmbeddingFunction",
+    "voyageai": "VoyageAIEmbeddingFunction",
+    "roboflow": "RoboflowEmbeddingFunction",
 }
+
+
+def _instantiate_embedding_function(embedding_function_name: str) -> EmbeddingFunction:
+    """Instantiate the requested Chroma embedding function with clear error messaging."""
+
+    try:
+        from chromadb.utils import embedding_functions
+    except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+        raise RuntimeError(_EMBEDDING_DEPENDENCY_MESSAGE) from exc
+
+    try:
+        embedding_class_name = _KNOWN_EMBEDDING_FUNCTIONS[embedding_function_name]
+    except KeyError as exc:
+        known = ", ".join(sorted(_KNOWN_EMBEDDING_FUNCTIONS))
+        raise ValueError(
+            f"Unknown embedding function '{embedding_function_name}'. Known options: {known}."
+        ) from exc
+
+    try:
+        embedding_class = getattr(embedding_functions, embedding_class_name)
+    except AttributeError as exc:  # pragma: no cover - defensive guard
+        raise RuntimeError(
+            f"Embedding function '{embedding_function_name}' is unavailable in this Chroma installation."
+        ) from exc
+
+    try:
+        return embedding_class()
+    except ModuleNotFoundError as exc:  # pragma: no cover - instantiation guard
+        raise RuntimeError(_EMBEDDING_DEPENDENCY_MESSAGE) from exc
+
+
 @tool
 def chroma_create_collection(
     collection_name: str,
@@ -77,15 +102,13 @@ def chroma_create_collection(
 
     Args:
         collection_name: Name of the collection to create
-        embedding_function_name: Name of the embedding function to use. Options: 'default', 'cohere', 'openai', 'jina', 'voyageai', 'ollama', 'roboflow'
+        embedding_function_name: Name of the embedding function to use. Options: 'default', 'cohere', 'openai', 'jina', 'voyageai', 'roboflow'
         metadata: Optional metadata dict to add to the collection
     """
     client = _get_chroma_client()
 
-    embedding_function = mcp_known_embedding_functions[embedding_function_name]
-
     configuration = CreateCollectionConfiguration(
-        embedding_function=embedding_function()
+        embedding_function=_instantiate_embedding_function(embedding_function_name)
     )
 
     try:
