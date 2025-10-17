@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
@@ -16,7 +17,6 @@ from athos.config.models import (
     ToolConfig,
 )
 from athos.frameworks.langgraph.factories import (
-    LangGraphMCPClient,
     build_mcp_client,
     build_model,
     build_tool,
@@ -27,9 +27,11 @@ from athos.registry.flow_registry import register_flow
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from langchain_core.language_models import BaseLanguageModel
     from langchain_core.tools import BaseTool
+    from langchain_mcp_adapters.client import MultiServerMCPClient
 else:  # pragma: no cover - fallback for runtime without optional deps
     BaseLanguageModel = Any  # type: ignore
     BaseTool = Any  # type: ignore
+    MultiServerMCPClient = Any  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +50,7 @@ class LangGraphReactAgentFlow(BaseFlow):
         tools: Sequence[BaseTool],
         instructions: Optional[str] = None,
         *,
-        mcp_clients: Optional[Sequence[LangGraphMCPClient]] = None,
+        mcp_clients: Optional[Sequence["MultiServerMCPClient"]] = None,
         max_iterations: int = 20,
         initial_state: Optional[Dict[str, Any]] = None,
     ) -> None:
@@ -59,6 +61,8 @@ class LangGraphReactAgentFlow(BaseFlow):
         self.state: Dict[str, Any] = dict(initial_state or {})
         self._graph = None  # Will be populated once the LangGraph wiring is implemented.
         self._mcp_clients = list(mcp_clients or [])
+        self._mcp_tool_sync_lock = asyncio.Lock()
+        self._mcp_tools_loaded = False
 
     async def execute(self, input_data: str) -> Any:
         """Execute the LangGraph agent against ``input_data``.
@@ -66,6 +70,8 @@ class LangGraphReactAgentFlow(BaseFlow):
         The actual LangGraph graph is not yet built, so the method raises a
         ``NotImplementedError`` to signal the missing implementation.
         """
+
+        await self._ensure_mcp_tools_loaded()
 
         logger.debug(
             "LangGraph ReAct agent invoked with input: %s. Graph construction pending.",
@@ -78,12 +84,29 @@ class LangGraphReactAgentFlow(BaseFlow):
     def close(self) -> None:
         """Close any MCP client connections held by the flow."""
 
-        for client in self._mcp_clients:
-            try:
-                client.close()
-            except Exception as exc:  # pragma: no cover - defensive cleanup
-                logger.debug("Error closing LangGraph MCP client '%s': %s", client.name, exc)
         self._mcp_clients.clear()
+
+    async def _ensure_mcp_tools_loaded(self) -> None:
+        """Ensure tools from connected MCP servers are loaded into the flow."""
+
+        if not self._mcp_clients or self._mcp_tools_loaded:
+            return
+
+        async with self._mcp_tool_sync_lock:
+            if self._mcp_tools_loaded:
+                return
+
+            for client in self._mcp_clients:
+                try:
+                    tools = await client.get_tools()
+                except Exception as exc:  # pragma: no cover - defensive logging
+                    logger.warning(
+                        "Failed to load tools from LangGraph MCP client: %s", exc
+                    )
+                    continue
+                self.tools.extend(tools)
+
+            self._mcp_tools_loaded = True
 
 
 class LangGraphReactAgentFlowConfig(BaseFlowConfig):
@@ -113,7 +136,7 @@ def create_langgraph_react_agent_flow(
     """Factory for :class:`LangGraphReactAgentFlow`."""
 
     tool_instances: List[BaseTool] = []
-    mcp_instances: List[LangGraphMCPClient] = []
+    mcp_instances: List["MultiServerMCPClient"] = []
     combined_instructions: List[str] = []
 
     if cfg.instructions:

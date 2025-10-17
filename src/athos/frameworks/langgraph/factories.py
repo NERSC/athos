@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from importlib import import_module
 import logging
-from typing import Any, Dict, List, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 from athos.config.models import MCPServerConfig, MCPType, ModelConfig, ToolConfig
 
@@ -26,41 +26,6 @@ except Exception:  # pragma: no cover - defer import errors until runtime
     MultiServerMCPClient = None
 
 logger = logging.getLogger(__name__)
-
-
-class LangGraphMCPClient:
-    """Thin wrapper around :class:`MultiServerMCPClient` for Athos flows."""
-
-    def __init__(self, name: str, cfg: MCPServerConfig) -> None:
-        if MultiServerMCPClient is None:  # pragma: no cover - optional dependency missing
-            raise ImportError(
-                "langchain-mcp-adapters must be installed to use LangGraph MCP clients."
-            )
-
-        connection = _connection_from_config(cfg)
-        self.name = name
-        self.config = cfg
-        self._client = MultiServerMCPClient({name: connection})
-
-    @property
-    def client(self) -> "MultiServerMCPClient":
-        """Expose the underlying MultiServer client for future integrations."""
-
-        return self._client
-
-    def get_tools(self) -> List[Any]:
-        """Placeholder hook for fetching tools from the MCP client."""
-
-        logger.debug(
-            "LangGraph MCP client '%s' get_tools called - returning no tools (not yet implemented)",
-            self.name,
-        )
-        return []
-
-    def close(self) -> None:
-        """Placeholder cleanup hook for future MCP clients."""
-
-        logger.debug("LangGraph MCP client '%s' close called", self.name)
 
 
 def build_model(cfg: ModelConfig) -> BaseLanguageModel:
@@ -104,18 +69,26 @@ def build_tool(cfg: ToolConfig) -> BaseTool:
     return tool
 
 
-def build_mcp_client(name: str, cfg: MCPServerConfig) -> LangGraphMCPClient:
-    """Create a placeholder MCP client for LangGraph flows."""
+def build_mcp_client(name: str, cfg: MCPServerConfig) -> "MultiServerMCPClient":
+    """Create a :class:`MultiServerMCPClient` instance for LangGraph flows."""
+
+    if MultiServerMCPClient is None:  # pragma: no cover - optional dependency missing
+        raise ImportError(
+            "langchain-mcp-adapters must be installed to use LangGraph MCP clients."
+        )
 
     if cfg.mcp_type not in {MCPType.MCP_STDIO, MCPType.MCP_SSE}:  # pragma: no cover
         raise ValueError(f"Unsupported MCP type {cfg.mcp_type}")
+
+    connection = _connection_from_config(cfg)
+    client = MultiServerMCPClient({name: connection})
 
     logger.info(
         "Created LangGraph MCP client '%s' of type '%s' (MultiServerMCPClient)",
         name,
         cfg.mcp_type.value,
     )
-    return LangGraphMCPClient(name, cfg)
+    return client
 
 
 def _connection_from_config(cfg: MCPServerConfig) -> Dict[str, Any]:
@@ -151,5 +124,4 @@ __all__ = [
     "build_model",
     "build_tool",
     "build_mcp_client",
-    "LangGraphMCPClient",
 ]
