@@ -1,14 +1,34 @@
 """Utilities for ingesting markdown documentation into a ChromaDB collection."""
 from __future__ import annotations
 
-from pathlib import Path
-from datetime import datetime
 import logging
 import re
+from datetime import datetime
+from pathlib import Path
 from typing import List, Tuple
 
 
 logger = logging.getLogger(__name__)
+
+
+_EMBEDDING_DEPENDENCY_MESSAGE = (
+    "Chroma embedding support requires optional dependencies. "
+    "Install them with `pip install athos[chroma-embeddings]` before running this command."
+)
+
+
+def _create_default_embedding_function():
+    """Return the default Chroma embedding function with helpful error handling."""
+
+    try:
+        from chromadb.utils import embedding_functions
+    except ModuleNotFoundError as exc:  # pragma: no cover - import guard
+        raise RuntimeError(_EMBEDDING_DEPENDENCY_MESSAGE) from exc
+
+    try:
+        return embedding_functions.DefaultEmbeddingFunction()
+    except ModuleNotFoundError as exc:  # pragma: no cover - instantiation guard
+        raise RuntimeError(_EMBEDDING_DEPENDENCY_MESSAGE) from exc
 
 
 def parse_title(text: str) -> str:
@@ -71,13 +91,12 @@ def build_collection(
 ) -> None:
     """Ingest markdown files under ``docs_path`` into a ChromaDB collection."""
     import chromadb
-    from chromadb.utils import embedding_functions
 
     logger.info(
         "Building collection '%s' from docs at '%s'", collection_name, docs_path
     )
     client = chromadb.PersistentClient(path=str(persist_dir))
-    embed_fn = embedding_functions.DefaultEmbeddingFunction()
+    embed_fn = _create_default_embedding_function()
     collection = client.get_or_create_collection(
         name=collection_name,
         metadata={
