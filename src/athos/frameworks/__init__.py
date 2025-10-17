@@ -1,3 +1,3 @@
 """Framework-specific integrations for Athos."""
 
-__all__ = ["smolagents"]
+__all__ = ["smolagents", "langgraph"]

@@ -199,7 +199,8 @@ class AthosConfig(BaseModel):
         from athos.registry.flow_registry import FLOW_REGISTRY
 
         # Ensure built-in flows are registered
-        import athos.frameworks.smolagents.flows  # noqa: F401 - register built-in flows
+        import athos.frameworks.smolagents.flows  # noqa: F401 - register SmolAgents flows
+        import athos.frameworks.langgraph.flows  # noqa: F401 - register LangGraph flows
 
         flows = data.get('flows', {})
         if not flows:
