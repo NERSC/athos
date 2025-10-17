@@ -1,6 +1,6 @@
 import logging
 import logging.handlers
-from athos.logging_utils import configure_logging
+from athos.utils.logging_utils import configure_logging
 
 
 def test_configure_logging_creates_file_directory(tmp_path):

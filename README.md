@@ -16,6 +16,23 @@ On NERSC systems, simply run the provided setup script:
 ./scripts/create_env_nersc.sh
 ```
 
+### Environment configuration
+
+Depending on the tools you plan to configure, you will need to set specific
+environment variables for ServiceNow, SFAPI, Iris, or CBORG integrations. The
+provided `.env.template` is a convenience reference showing which variables are
+available to configure; you can also copy it locally and edit the values to suit
+your environment:
+
+```bash
+cp .env.template .env
+```
+
+Update the copied file with your ServiceNow credentials, NERSC client
+certificate details, and optional Iris or CBORG settings. The template enables
+the default shared workspace path (`${SCRATCH}/athos/workspace`) and leaves the
+remaining settings commented out so they can be customized as needed.
+
 ## Shared Workspace
 
 ATHOS tools and MCP servers can share a common workspace directory so that
@@ -99,32 +116,33 @@ whose parent directory doesn't exist, it will be created automatically.
 
 The project is structured as a single Python package `athos` with the following modules:
 
-### `src/athos/core/`
-**Core framework and registries**
+### `src/athos/interfaces/`
+**Shared flow interfaces**
 
-Contains the foundational components for orchestrating ATHOS flows and tools:
+Provides the foundational `BaseFlow` protocol that concrete implementations extend.
 
-- **`flow_registry.py`**: Registry and plugin loader for flow types
-- **`tool_registry.py`**: Registry and plugin loader for tools
-- **`flows.py`**: Built-in flow implementations including `AgentFlow` and `ChatbotFlow`
-- **`agent.py`** and **`tool.py`**: Deprecated base classes (being phased out)
+### `src/athos/registry/`
+**Flow registration utilities**
 
-### `src/athos/runtime.py`
-**Runtime helpers**
+Hosts the flow registry and helper functions that extensions use to advertise
+new flow types.
 
-Provides `build_config` and `build_flow` helpers for constructing flows directly from configuration without a monolithic manager.
+### `src/athos/runtime/`
+**Runtime builders**
 
-### `src/athos/factories.py`
-**Factory utilities**
+Contains helpers such as `build_config`, `build_flow`, and `create_flows` that
+assemble flows from configuration files.
 
-Utility functions for building models, tools and MCP clients from configuration.
+### `src/athos/frameworks/smolagents/`
+**Default SmolAgents-backed implementation**
 
-### `src/athos/agents/`
-**Agent implementations**
+SmolAgents is currently the reference framework shipped with Athos. This package
+contains the concrete flow implementations and supporting factories:
 
-Contains concrete agent implementations:
+- **`factories.py`**: Utility functions for building models, tools, and MCP clients
+- **`flows/agent.py`** and **`flows/chatbot.py`**: Built-in SmolAgents flows registered with the core registry
 
-- **`openai_agent.py`**: Deprecated OpenAI-based agent classes
+
 
 ### `src/athos/tools/`
 **HPC-specific tools and utilities**
@@ -139,11 +157,10 @@ Custom tools designed for HPC operations:
 **Usage examples and demonstrations**
 
 Example scripts demonstrating agent and tool integrations can be found in this
-directory. For instance `filesystem_agent.py` showcases the MCP filesystem
-tools. The `servicenow_agent.py` example demonstrates interacting with a
-ServiceNow instance through the ServiceNow MCP server. You can choose which
-ServiceNow tasks to run using `--tasks` and specify an incident with
-`--incident`.
+directory. For instance, `filesystem_agent.py` showcases the MCP filesystem
+tools, and `servicenow_agent.py` demonstrates interacting with a ServiceNow
+instance through the ServiceNow MCP server. You can choose which ServiceNow
+tasks to run using `--tasks` and specify an incident with `--incident`.
 
 ### `src/athos/main.py`
 **CLI interface and entry point**
@@ -159,30 +176,18 @@ See [evals/README.md](evals/README.md) for instructions on how to run.
 ## Key Architecture Notes
 
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
-- **Plugin-based registries** enable dynamic loading of tools and flow implementations
+- **Registry-based architecture** enables dynamic loading of flow implementations when their modules are imported
 - **Multiple flow types** are supported (chatbot, code agent, prompt chains)
-- The framework is built on top of the **OpenAI Agents SDK** and **Hugging Face SmolAgents**
+- The framework is currently built on top of **Hugging Face SmolAgents** and can be extended with other agent frameworks
 
-### Tool Plugins
+### Extending Tools and Flows
 
-Third-party packages can provide additional tools via the `athos_tools` entry point.
-Each plugin should expose a callable that registers tools using
-`athos.core.tool_registry.register_tool`. Example `pyproject.toml` snippet:
+To provide additional flows, ensure your package imports a module that calls the
+`athos.registry.flow_registry.register_flow` helper. Importing that module from your
+application will make the new functionality available without relying on
+packaging entry points.
 
-```toml
-[project.entry-points.athos_tools]
-my_plugin = "my_package.tools:register"
-```
-
-Where `my_package.tools.register` invokes `register_tool` with a tool factory.
-
-### Flow Plugins
-
-Flows can also be extended via the `athos_flows` entry point in the same way:
-
-```toml
-[project.entry-points.athos_flows]
-my_flow = "my_package.flows:register"
-```
-
-The function referenced by the entry point should call `athos.core.flow_registry.register_flow` to register the new flow type.
+Tools are instantiated directly from configuration using the
+`athos.frameworks.smolagents.factories.build_tool` helper, which loads the module and callable defined
+in `ToolConfig`. Supplying the correct module path and callable name is
+all that is required to extend the available tooling.

@@ -10,8 +10,8 @@ import pprint
 
 from smolagents import ChatMessage
 
-from athos.runtime import build_config, build_flow
-import athos.factories
+from athos import build_config, build_flow
+from athos.frameworks.smolagents import factories as smolagents_factories
 
 # Load environment variables from .env file
 load_dotenv()
@@ -202,7 +202,7 @@ def main():
             raise ValueError(
                 f"Evaluation model '{args.eval_model}' not found in config models"
             )
-        eval_model_instance = athos.factories.build_model(
+        eval_model_instance = smolagents_factories.build_model(
             cfg.models[eval_model_name]
         )
 

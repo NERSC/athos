@@ -1,9 +1,8 @@
 import os
 import re
 from enum import Enum
-from typing import Dict, List, Any, Optional, Union, Annotated, Type
+from typing import Dict, List, Any, Optional
 from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, SecretStr
-from typing_extensions import Literal
 
 
 DEFAULT_ENV_VAR_PATTERN = re.compile(r"\$\{([^}:\s]+):-([^}]+)\}")
@@ -21,18 +20,11 @@ def expand_env(value: Optional[str]) -> Optional[str]:
     return os.path.expandvars(DEFAULT_ENV_VAR_PATTERN.sub(repl, value))
 
 
-# ExecutionFlowType enum removed - flow types are now dynamically registered
-
-
-class AgentType(str, Enum):
-    """Supported agent implementations"""
-    CODE = "code"
-    TOOL_CALLING = "tool_calling"
-
 class MCPType(str, Enum):
     """Supported MCP server types"""
     MCP_STDIO = "mcp_stdio"
     MCP_SSE = "mcp_sse"
+
 
 class ModelConfig(BaseModel):
     """Configuration for AI models"""
@@ -61,6 +53,7 @@ class ModelConfig(BaseModel):
        if v and not v.startswith(('http://', 'https://')):
            raise ValueError('api_base must be a valid HTTP/HTTPS URL')
        return v
+
 
 class MCPServerConfig(BaseModel):
     """Configuration for MCP server connection"""
@@ -139,6 +132,7 @@ class MCPServerConfig(BaseModel):
            raise ValueError('url must be a valid HTTP/HTTPS URL')
        return v
 
+
 class ToolConfig(BaseModel):
     """Configuration for regular tools only"""
     model_config = ConfigDict(extra='forbid')
@@ -166,6 +160,7 @@ class ToolConfig(BaseModel):
                 raise ValueError('module_path must be a valid Python module path')
         return v
 
+
 class BaseFlowConfig(BaseModel):
     """Base configuration for flows"""
     model_config = ConfigDict(extra='forbid')
@@ -177,14 +172,6 @@ class BaseFlowConfig(BaseModel):
     type: str = Field(description="Flow type identifier")
     model: str = Field(description="Reference to model configuration")
 
-
-class PromptChainFlowConfig(BaseFlowConfig):
-    """Configuration for PromptChainFlow"""
-
-    type: Literal["prompt_chain"]
-    prompt_chain: Optional[List[Dict[str, str]]] = Field(default=None, description="Prompt chain configuration")
-
-
 class AthosConfig(BaseModel):
     """Main ATHOS configuration"""
     model_config = ConfigDict(extra='forbid')
@@ -193,7 +180,6 @@ class AthosConfig(BaseModel):
     tools: Dict[str, ToolConfig] = Field(default_factory=dict, description="Tool configurations")
     mcp_servers: Dict[str, MCPServerConfig] = Field(default_factory=dict, description="MCP server configurations")
     flows: Dict[str, BaseFlowConfig] = Field(default_factory=dict, description="Flow configurations")
-    hpc_cluster_config: Optional[Dict[str, Any]] = Field(default=None, description="HPC cluster configuration")
     logging_config: Optional[Dict[str, Any]] = Field(default=None, description="Logging configuration")
     workspace_dir: str = Field(..., description="Root directory shared by tools/MCP servers")
 
@@ -210,13 +196,10 @@ class AthosConfig(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        from athos.core.flow_registry import FLOW_REGISTRY, load_plugins
+        from athos.registry.flow_registry import FLOW_REGISTRY
 
         # Ensure built-in flows are registered
-        import athos.flows.builtins  # noqa: F401 - register built-in flows
-
-        # Ensure plugins are loaded before validation
-        load_plugins()
+        import athos.frameworks.smolagents.flows  # noqa: F401 - register built-in flows
 
         flows = data.get('flows', {})
         if not flows:

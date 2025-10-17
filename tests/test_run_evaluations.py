@@ -52,7 +52,8 @@ def test_multiple_flows_execution(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
     monkeypatch.setattr(
-        "athos.factories.build_model",
+        revals.smolagents_factories,
+        "build_model",
         lambda cfg: (lambda messages: SimpleNamespace(content="ok")),
     )
     monkeypatch.setattr(revals, "build_flow", Mock(side_effect=_make_flow))
@@ -121,7 +122,7 @@ def test_qa_file_flow_execution(tmp_path, monkeypatch):
         models={"m1": SimpleNamespace(model_id="m1")},
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
-    monkeypatch.setattr("athos.factories.build_model", lambda cfg: None)
+    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
     monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (42, "fb"))
 
     created_flows = []

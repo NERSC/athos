@@ -6,7 +6,7 @@ import logging
 from typing import Any, Dict, List
 from dotenv import load_dotenv
 
-from athos.runtime import build_config, build_flow
+from athos import build_config, build_flow
 from athos.utils import parse_overrides
 
 # Only needed when launching a Gradio UI
