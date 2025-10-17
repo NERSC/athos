@@ -5,7 +5,7 @@ import argparse
 import logging
 from pathlib import Path
 
-from athos.tools.chroma_ingest import build_collection
+from athos.utils.chroma_ingest import build_collection
 
 
 def main() -> None:
