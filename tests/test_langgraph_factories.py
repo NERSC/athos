@@ -81,7 +81,7 @@ def test_build_tool_decorated_function(tmp_path, monkeypatch):
             return f"Hello {name}!"
         """
     )
-    module_path = tmp_path / "decorated_module.py"
+    module_path = tmp_path / "langgraph_decorated_module.py"
     module_path.write_text(module_code)
     monkeypatch.syspath_prepend(str(tmp_path))
 
@@ -96,7 +96,7 @@ def test_build_tool_decorated_function(tmp_path, monkeypatch):
 
     cfg = ToolConfig(
         callable_name="greet",
-        module_path="decorated_module",
+        module_path="langgraph_decorated_module",
         parameters={},
         is_class=False,
     )

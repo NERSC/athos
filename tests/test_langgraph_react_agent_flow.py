@@ -1,0 +1,160 @@
+import pytest
+
+from athos.config.models import AthosConfig, MCPServerConfig, MCPType, ModelConfig, ToolConfig
+from athos.frameworks.langgraph.flows import react_agent
+from athos.frameworks.langgraph.flows.react_agent import (
+    LangGraphReactAgentFlow,
+    LangGraphReactAgentFlowConfig,
+    create_langgraph_react_agent_flow,
+)
+
+
+class DummyGraph:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.invocations = []
+
+    async def ainvoke(self, state, config=None):
+        index = len(self.invocations)
+        self.invocations.append((state, config))
+        messages = list(state["messages"])
+        response_text = (
+            self.responses[index] if index < len(self.responses) else ""
+        )
+        messages.append(react_agent.AIMessage(response_text))
+        return {"messages": messages}
+
+
+@pytest.mark.asyncio
+async def test_react_agent_flow_executes_and_tracks_history(monkeypatch):
+    dummy_graph = DummyGraph(["first reply", "second reply"])
+    create_calls = []
+
+    def fake_create_react_agent(model, tools, *, prompt=None):
+        create_calls.append({"model": model, "tools": list(tools), "prompt": prompt})
+        return dummy_graph
+
+    monkeypatch.setattr(react_agent, "create_react_agent", fake_create_react_agent)
+
+    class DummyModel:
+        pass
+
+    base_tool = object()
+
+    flow = LangGraphReactAgentFlow(
+        model=DummyModel(),
+        tools=[base_tool],
+        instructions="Be concise.",
+        max_iterations=7,
+    )
+
+    first = await flow.execute("Hello there")
+    second = await flow.execute("How are you?")
+
+    assert first == "first reply"
+    assert second == "second reply"
+
+    assert len(create_calls) == 1  # graph is reused after initial construction
+    assert create_calls[0]["prompt"] == "Be concise."
+    assert create_calls[0]["tools"] == [base_tool]
+
+    assert len(dummy_graph.invocations) == 2
+    initial_state, initial_config = dummy_graph.invocations[0]
+    followup_state, followup_config = dummy_graph.invocations[1]
+
+    assert initial_config == {"recursion_limit": 7}
+    assert followup_config == {"recursion_limit": 7}
+
+    assert isinstance(initial_state["messages"][-1], react_agent.HumanMessage)
+    assert initial_state["messages"][-1].content == "Hello there"
+
+    # Previous conversation is preserved for subsequent calls
+    assert [m.content for m in followup_state["messages"][:-1]] == [
+        "Hello there",
+        "first reply",
+    ]
+    assert followup_state["messages"][-1].content == "How are you?"
+
+
+@pytest.mark.asyncio
+async def test_react_agent_factory_combines_instructions_and_tools(monkeypatch):
+    base_tool = object()
+    mcp_tool = object()
+    dummy_model = object()
+    dummy_graph = DummyGraph(["combined response"])
+    create_calls = []
+
+    def fake_build_model(model_cfg):
+        assert model_cfg.model_id == "demo-model"
+        return dummy_model
+
+    def fake_build_tool(tool_cfg):
+        assert tool_cfg.callable_name == "DemoTool"
+        return base_tool
+
+    class DummyMCPClient:
+        async def get_tools(self):
+            return [mcp_tool]
+
+        def close(self):
+            self.closed = True
+
+    def fake_build_mcp_client(name, mcp_cfg):
+        assert name == "demo_mcp"
+        assert mcp_cfg.mcp_type == MCPType.MCP_STDIO
+        return DummyMCPClient()
+
+    def fake_create_react_agent(model, tools, *, prompt=None):
+        create_calls.append({"model": model, "tools": list(tools), "prompt": prompt})
+        return dummy_graph
+
+    monkeypatch.setattr(react_agent, "build_model", fake_build_model)
+    monkeypatch.setattr(react_agent, "build_tool", fake_build_tool)
+    monkeypatch.setattr(react_agent, "build_mcp_client", fake_build_mcp_client)
+    monkeypatch.setattr(react_agent, "create_react_agent", fake_create_react_agent)
+
+    cfg = LangGraphReactAgentFlowConfig(
+        type="langgraph_react_agent",
+        model="demo",
+        tools=["demo_tool"],
+        mcp_servers=["demo_mcp"],
+        instructions="Primary instruction",
+        max_iterations=3,
+    )
+
+    full_cfg = AthosConfig(
+        workspace_dir="/tmp",
+        models={"demo": ModelConfig(model_id="demo-model")},
+        tools={
+            "demo_tool": ToolConfig(
+                callable_name="DemoTool",
+                module_path="demo.module",
+                parameters={},
+            )
+        },
+        mcp_servers={
+            "demo_mcp": MCPServerConfig(
+                mcp_type=MCPType.MCP_STDIO,
+                command="echo",
+                args=["hi"],
+                instructions="Server instruction",
+            )
+        },
+    )
+
+    flow = create_langgraph_react_agent_flow(cfg, full_cfg)
+
+    assert flow.instructions == "Primary instruction\n\nServer instruction"
+
+    reply = await flow.execute("Ping")
+    assert reply == "combined response"
+
+    # MCP tools are fetched and included when constructing the graph
+    assert len(create_calls) == 1
+    assert create_calls[0]["prompt"] == "Primary instruction\n\nServer instruction"
+    assert create_calls[0]["tools"] == [base_tool, mcp_tool]
+
+    state, config = dummy_graph.invocations[0]
+    assert config == {"recursion_limit": 3}
+    assert isinstance(state["messages"][-1], react_agent.HumanMessage)
+    assert state["messages"][-1].content == "Ping"

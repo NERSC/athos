@@ -1,10 +1,10 @@
-"""Skeleton LangGraph ReAct agent flow implementation."""
+"""LangGraph ReAct agent flow implementation."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -26,6 +26,13 @@ from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from langchain_core.language_models import BaseLanguageModel
+    from langchain_core.messages import (
+        AIMessage,
+        BaseMessage,
+        HumanMessage,
+        SystemMessage,
+        ToolMessage,
+    )
     from langchain_core.tools import BaseTool
     from langchain_mcp_adapters.client import MultiServerMCPClient
 else:  # pragma: no cover - fallback for runtime without optional deps
@@ -33,16 +40,68 @@ else:  # pragma: no cover - fallback for runtime without optional deps
     BaseTool = Any  # type: ignore
     MultiServerMCPClient = Any  # type: ignore
 
+try:  # pragma: no cover - optional dependency
+    from langgraph.prebuilt import create_react_agent
+except Exception as exc:  # pragma: no cover - executed only when langgraph missing
+    create_react_agent = None  # type: ignore[assignment]
+    _CREATE_REACT_AGENT_IMPORT_ERROR: Optional[Exception] = exc
+else:  # pragma: no cover - executed when dependency is available
+    _CREATE_REACT_AGENT_IMPORT_ERROR = None
+
+try:  # pragma: no cover - optional dependency
+    from langchain_core.messages import (
+        AIMessage,
+        BaseMessage,
+        HumanMessage,
+        SystemMessage,
+        ToolMessage,
+    )
+except Exception:  # pragma: no cover - executed only when langchain is unavailable
+
+    class _BaseMessage:  # type: ignore[too-many-ancestors]
+        """Minimal stand-in for LangChain message objects."""
+
+        def __init__(self, content: str, **kwargs: Any) -> None:
+            self.content = content
+
+        def __repr__(self) -> str:  # pragma: no cover - debug helper only
+            return f"{self.__class__.__name__}(content={self.content!r})"
+
+    class HumanMessage(_BaseMessage):
+        """Fallback human message type."""
+
+    class AIMessage(_BaseMessage):
+        """Fallback AI message type."""
+
+        def __init__(self, content: str, *, tool_calls: Optional[Sequence[Any]] = None, **kwargs: Any) -> None:
+            super().__init__(content, **kwargs)
+            self.tool_calls = list(tool_calls or [])
+
+    class SystemMessage(_BaseMessage):
+        """Fallback system message type."""
+
+    class ToolMessage(_BaseMessage):
+        """Fallback tool message type."""
+
+        def __init__(
+            self,
+            content: str,
+            *,
+            name: Optional[str] = None,
+            tool_call_id: Optional[str] = None,
+            **kwargs: Any,
+        ) -> None:
+            super().__init__(content, **kwargs)
+            self.name = name
+            self.tool_call_id = tool_call_id or ""
+
+    BaseMessage = _BaseMessage  # type: ignore[assignment]
+
 logger = logging.getLogger(__name__)
 
 
 class LangGraphReactAgentFlow(BaseFlow):
-    """ReAct-style LangGraph agent flow.
-
-    The class currently wires together the configuration pieces required to
-    construct a LangGraph flow but defers the actual graph construction to a
-    future implementation.
-    """
+    """ReAct-style LangGraph agent flow."""
 
     def __init__(
         self,
@@ -59,30 +118,56 @@ class LangGraphReactAgentFlow(BaseFlow):
         self.instructions = instructions
         self.max_iterations = max_iterations
         self.state: Dict[str, Any] = dict(initial_state or {})
-        self._graph = None  # Will be populated once the LangGraph wiring is implemented.
+        initial_messages = self.state.pop("messages", None)
+        self._messages: List["BaseMessage"] = []
+        if initial_messages:
+            self._messages.extend(self._coerce_messages(initial_messages))
+
+        self._graph = None  # type: ignore[assignment]
+        self._graph_lock = asyncio.Lock()
+        self._graph_needs_rebuild = True
+
         self._mcp_clients = list(mcp_clients or [])
         self._mcp_tool_sync_lock = asyncio.Lock()
         self._mcp_tools_loaded = False
 
     async def execute(self, input_data: str) -> Any:
-        """Execute the LangGraph agent against ``input_data``.
-
-        The actual LangGraph graph is not yet built, so the method raises a
-        ``NotImplementedError`` to signal the missing implementation.
-        """
+        """Execute the LangGraph agent against ``input_data``."""
 
         await self._ensure_mcp_tools_loaded()
+        await self._ensure_graph_built()
+
+        invocation_state = dict(self.state)
+        history = list(self._messages)
+        history.append(HumanMessage(input_data))
+        invocation_state["messages"] = history
+
+        graph = self._graph
+        if graph is None:  # pragma: no cover - defensive guard
+            raise RuntimeError("LangGraph agent graph is not available")
 
         logger.debug(
-            "LangGraph ReAct agent invoked with input: %s. Graph construction pending.",
-            input_data,
+            "LangGraph ReAct agent invoking graph with %d messages", len(history)
         )
-        raise NotImplementedError(
-            "LangGraph ReAct agent execution is not implemented yet."
+
+        result_state = await graph.ainvoke(  # type: ignore[attr-defined]
+            invocation_state,
+            config={"recursion_limit": self.max_iterations},
         )
+
+        self._update_state(result_state)
+        return self._extract_response(result_state)
 
     def close(self) -> None:
         """Close any MCP client connections held by the flow."""
+
+        for client in self._mcp_clients:
+            close_method = getattr(client, "close", None)
+            if callable(close_method):  # pragma: no branch - trivial guard
+                try:
+                    close_method()
+                except Exception:  # pragma: no cover - best-effort cleanup
+                    logger.debug("Ignoring MCP client close error", exc_info=True)
 
         self._mcp_clients.clear()
 
@@ -96,6 +181,7 @@ class LangGraphReactAgentFlow(BaseFlow):
             if self._mcp_tools_loaded:
                 return
 
+            new_tools_loaded = False
             for client in self._mcp_clients:
                 try:
                     tools = await client.get_tools()
@@ -104,9 +190,124 @@ class LangGraphReactAgentFlow(BaseFlow):
                         "Failed to load tools from LangGraph MCP client: %s", exc
                     )
                     continue
-                self.tools.extend(tools)
+                if tools:
+                    self.tools.extend(tools)
+                    new_tools_loaded = True
+
+            if new_tools_loaded:
+                self._graph_needs_rebuild = True
 
             self._mcp_tools_loaded = True
+
+    async def _ensure_graph_built(self) -> None:
+        """Ensure the underlying LangGraph graph is constructed."""
+
+        if self._graph is not None and not self._graph_needs_rebuild:
+            return
+
+        async with self._graph_lock:
+            if self._graph is not None and not self._graph_needs_rebuild:
+                return
+
+            if create_react_agent is None:
+                raise ImportError(
+                    "The 'langgraph' package is required to use the LangGraph ReAct agent."
+                ) from _CREATE_REACT_AGENT_IMPORT_ERROR
+
+            prompt = self.instructions or None
+            self._graph = create_react_agent(self.model, list(self.tools), prompt=prompt)
+            self._graph_needs_rebuild = False
+
+    def _coerce_messages(self, messages: Any) -> List["BaseMessage"]:
+        """Convert various message payloads into LangChain message objects."""
+
+        if messages is None:
+            return []
+
+        if isinstance(messages, dict):
+            items = [messages]
+        elif isinstance(messages, Iterable) and not isinstance(messages, (str, bytes)):
+            items = list(messages)
+        else:
+            items = [messages]
+
+        converted: List["BaseMessage"] = []
+        for item in items:
+            converted.append(self._coerce_single_message(item))
+        return converted
+
+    def _coerce_single_message(self, message: Any) -> "BaseMessage":
+        """Coerce a single message entry into a LangChain message instance."""
+
+        if isinstance(message, BaseMessage):
+            return message
+
+        if isinstance(message, str):
+            return HumanMessage(message)
+
+        if isinstance(message, dict):
+            role = (message.get("role") or message.get("type") or "").lower()
+            content = message.get("content", "")
+            if role in {"user", "human"}:
+                return HumanMessage(content)
+            if role in {"assistant", "ai"}:
+                return AIMessage(content)
+            if role == "system":
+                return SystemMessage(content)
+            if role == "tool":
+                return ToolMessage(
+                    content,
+                    name=message.get("name"),
+                    tool_call_id=message.get("tool_call_id"),
+                )
+
+        raise TypeError(
+            "Unsupported message payload provided to LangGraph ReAct flow: "
+            f"{type(message)!r}"
+        )
+
+    def _update_state(self, result_state: Any) -> None:
+        """Persist the latest LangGraph state for subsequent invocations."""
+
+        if hasattr(result_state, "model_dump"):
+            raw_state = result_state.model_dump()
+        elif isinstance(result_state, dict):
+            raw_state = dict(result_state)
+        else:  # pragma: no cover - defensive guard
+            raise TypeError(
+                "Unexpected state returned from LangGraph agent: "
+                f"{type(result_state)!r}"
+            )
+
+        messages = raw_state.get("messages") or []
+        self._messages = list(messages)
+        raw_state["messages"] = self._messages
+        self.state = raw_state
+
+    def _extract_response(self, state: Any) -> Any:
+        """Derive the flow response from the LangGraph state."""
+
+        if isinstance(state, dict):
+            structured = state.get("structured_response")
+        elif hasattr(state, "structured_response"):
+            structured = getattr(state, "structured_response")
+        else:
+            structured = None
+
+        if structured is not None:
+            return structured
+
+        messages: Sequence["BaseMessage"]
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        for message in reversed(messages):
+            if isinstance(message, AIMessage):
+                return message.content
+
+        raise RuntimeError("LangGraph agent did not produce an AI message response")
 
 
 class LangGraphReactAgentFlowConfig(BaseFlowConfig):
