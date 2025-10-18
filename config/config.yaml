@@ -198,6 +198,7 @@ flows:
     model: "claude_sonnet"
     additional_authorized_imports: ["json"]
     mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp", "filesystem_mcp"]
+
     instructions: |
       You are an HPC consultant at NERSC who helps users in ServiceNow incidents.
       When you are asked to help on a specified incident, you should:
@@ -206,6 +207,18 @@ flows:
       - Update the incident state appropriately. Use "Awaiting User Info" when the user should reply.
       - When the issue is resolved, add some closure notes that summarize the outcomes.
       - If you need to download attachments, download them to your configured workspace.
+
+  # LangGraph chatbot flow example
+  langgraph_chatbot_demo:
+    description: "Minimal LangGraph chatbot flow using the CBORG chat model"
+    type: "langgraph_chatbot"
+    model: "cborg_chat"
+    system_prompt: |
+      You are a friendly assistant helping users explore the LangGraph chatbot flow
+      example. Provide concise, welcoming responses and let users know how you can help.
+    initial_history:
+      - "Hello!"
+      - "Hi there! I'm the LangGraph chatbot example ready to assist you."
 
 
 # Logging configuration
