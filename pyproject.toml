@@ -24,6 +24,9 @@ dependencies = [
     "fastmcp>=2.10.6",
     "authlib",
     "ipykernel",
+    "langchain-core>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-mcp-adapters>=0.1.0",
   ]
 
 [project.optional-dependencies]
