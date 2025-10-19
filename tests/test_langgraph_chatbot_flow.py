@@ -60,3 +60,38 @@ def test_chatbot_factory_builds_flow(monkeypatch):
 
     assert flow.model is dummy_model
     assert flow._system_message.content == "System"
+
+
+class FailingModel:
+    """Model that always raises an exception."""
+
+    async def ainvoke(self, messages):
+        raise RuntimeError("Model API error: connection timeout")
+
+
+@pytest.mark.asyncio
+async def test_chatbot_flow_handles_exceptions_gracefully():
+    """Test that exceptions during model invocation are caught and returned as error messages."""
+    model = FailingModel()
+    flow = LangGraphChatbotFlow(
+        model=model,
+        system_prompt="You are a helpful assistant.",
+    )
+
+    reply = await flow.execute("Tell me a joke")
+
+    # Should return error message instead of raising exception
+    assert reply.startswith("Error:")
+    assert "connection timeout" in reply
+
+    # History should contain both user message and error message
+    assert len(flow._history) == 2
+    assert flow._history[0].content == "Tell me a joke"
+    assert flow._history[1].content.startswith("Error:")
+
+    # Chatbot should still work after an error
+    model_working = DummyModel()
+    flow.model = model_working
+    reply2 = await flow.execute("How are you?")
+    assert reply2 == "Hello back!"
+    assert len(flow._history) == 4  # Previous 2 + new 2

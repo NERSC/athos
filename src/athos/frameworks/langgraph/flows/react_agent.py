@@ -21,81 +21,27 @@ from athos.frameworks.langgraph.factories import (
     build_model,
     build_tool,
 )
+from athos.frameworks.langgraph.utils.messages import (
+    BaseMessage,
+    HumanMessage,
+    coerce_to_messages,
+)
 from athos.interfaces.base_flow import BaseFlow
 from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from langchain_core.language_models import BaseLanguageModel
-    from langchain_core.messages import (
-        AIMessage,
-        BaseMessage,
-        HumanMessage,
-        SystemMessage,
-        ToolMessage,
-    )
     from langchain_core.tools import BaseTool
     from langchain_mcp_adapters.client import MultiServerMCPClient
-else:  # pragma: no cover - fallback for runtime without optional deps
-    BaseLanguageModel = Any  # type: ignore
-    BaseTool = Any  # type: ignore
-    MultiServerMCPClient = Any  # type: ignore
 
 try:  # pragma: no cover - optional dependency
+    from langchain_core.messages import AIMessage
     from langgraph.prebuilt import create_react_agent
 except Exception as exc:  # pragma: no cover - executed only when langgraph missing
     create_react_agent = None  # type: ignore[assignment]
     _CREATE_REACT_AGENT_IMPORT_ERROR: Optional[Exception] = exc
 else:  # pragma: no cover - executed when dependency is available
     _CREATE_REACT_AGENT_IMPORT_ERROR = None
-
-try:  # pragma: no cover - optional dependency
-    from langchain_core.messages import (
-        AIMessage,
-        BaseMessage,
-        HumanMessage,
-        SystemMessage,
-        ToolMessage,
-    )
-except Exception:  # pragma: no cover - executed only when langchain is unavailable
-
-    class _BaseMessage:  # type: ignore[too-many-ancestors]
-        """Minimal stand-in for LangChain message objects."""
-
-        def __init__(self, content: str, **kwargs: Any) -> None:
-            self.content = content
-
-        def __repr__(self) -> str:  # pragma: no cover - debug helper only
-            return f"{self.__class__.__name__}(content={self.content!r})"
-
-    class HumanMessage(_BaseMessage):
-        """Fallback human message type."""
-
-    class AIMessage(_BaseMessage):
-        """Fallback AI message type."""
-
-        def __init__(self, content: str, *, tool_calls: Optional[Sequence[Any]] = None, **kwargs: Any) -> None:
-            super().__init__(content, **kwargs)
-            self.tool_calls = list(tool_calls or [])
-
-    class SystemMessage(_BaseMessage):
-        """Fallback system message type."""
-
-    class ToolMessage(_BaseMessage):
-        """Fallback tool message type."""
-
-        def __init__(
-            self,
-            content: str,
-            *,
-            name: Optional[str] = None,
-            tool_call_id: Optional[str] = None,
-            **kwargs: Any,
-        ) -> None:
-            super().__init__(content, **kwargs)
-            self.name = name
-            self.tool_call_id = tool_call_id or ""
-
-    BaseMessage = _BaseMessage  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -220,52 +166,11 @@ class LangGraphReactAgentFlow(BaseFlow):
             self._graph_needs_rebuild = False
 
     def _coerce_messages(self, messages: Any) -> List["BaseMessage"]:
-        """Convert various message payloads into LangChain message objects."""
+        """Convert various message payloads into LangChain message objects.
 
-        if messages is None:
-            return []
-
-        if isinstance(messages, dict):
-            items = [messages]
-        elif isinstance(messages, Iterable) and not isinstance(messages, (str, bytes)):
-            items = list(messages)
-        else:
-            items = [messages]
-
-        converted: List["BaseMessage"] = []
-        for item in items:
-            converted.append(self._coerce_single_message(item))
-        return converted
-
-    def _coerce_single_message(self, message: Any) -> "BaseMessage":
-        """Coerce a single message entry into a LangChain message instance."""
-
-        if isinstance(message, BaseMessage):
-            return message
-
-        if isinstance(message, str):
-            return HumanMessage(message)
-
-        if isinstance(message, dict):
-            role = (message.get("role") or message.get("type") or "").lower()
-            content = message.get("content", "")
-            if role in {"user", "human"}:
-                return HumanMessage(content)
-            if role in {"assistant", "ai"}:
-                return AIMessage(content)
-            if role == "system":
-                return SystemMessage(content)
-            if role == "tool":
-                return ToolMessage(
-                    content,
-                    name=message.get("name"),
-                    tool_call_id=message.get("tool_call_id"),
-                )
-
-        raise TypeError(
-            "Unsupported message payload provided to LangGraph ReAct flow: "
-            f"{type(message)!r}"
-        )
+        This is a wrapper around the shared coerce_to_messages utility function.
+        """
+        return coerce_to_messages(messages)
 
     def _update_state(self, result_state: Any) -> None:
         """Persist the latest LangGraph state for subsequent invocations."""

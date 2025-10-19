@@ -10,37 +10,17 @@ from typing_extensions import Literal
 
 from athos.config.models import AthosConfig, BaseFlowConfig, ModelConfig
 from athos.frameworks.langgraph.factories import build_model
+from athos.frameworks.langgraph.utils.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+)
 from athos.interfaces.base_flow import BaseFlow
 from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - only for static analysis
     from langchain_core.language_models import BaseLanguageModel
-    from langchain_core.messages import BaseMessage
-else:  # pragma: no cover - fallback definitions when optional deps are absent
-    BaseLanguageModel = Any  # type: ignore[assignment]
-    BaseMessage = Any  # type: ignore[assignment]
-
-try:  # pragma: no cover - optional dependency
-    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-except Exception:  # pragma: no cover - executed only when langchain is unavailable
-
-    class _BaseMessage:
-        """Light-weight stand-in for LangChain message objects."""
-
-        def __init__(self, content: str) -> None:
-            self.content = content
-
-        def __repr__(self) -> str:  # pragma: no cover - debug helper only
-            return f"{self.__class__.__name__}(content={self.content!r})"
-
-    class HumanMessage(_BaseMessage):
-        """Fallback human message type."""
-
-    class AIMessage(_BaseMessage):
-        """Fallback AI message type."""
-
-    class SystemMessage(_BaseMessage):
-        """Fallback system message type."""
 
 
 logger = logging.getLogger(__name__)
@@ -76,28 +56,35 @@ class LangGraphChatbotFlow(BaseFlow):
         logger.debug("Invoking LangGraph chatbot model with %d messages", len(conversation))
 
         try:
-            response = await self.model.ainvoke(conversation)
-        except AttributeError:  # pragma: no cover - defensive fallback
-            # Some language models expose ``agenerate`` instead of ``ainvoke``.
-            response = await self.model.agenerate([conversation])
-            if hasattr(response, "generations"):
-                response = response.generations[0][0].message
+            try:
+                response = await self.model.ainvoke(conversation)
+            except AttributeError:  # pragma: no cover - defensive fallback
+                # Some language models expose ``agenerate`` instead of ``ainvoke``.
+                response = await self.model.agenerate([conversation])
+                if hasattr(response, "generations"):
+                    response = response.generations[0][0].message
 
-        if hasattr(response, "content"):
-            reply_text = response.content
-            ai_message = response
-        elif isinstance(response, str):  # pragma: no cover - unlikely but defensive
-            reply_text = response
-            ai_message = AIMessage(response)
-        else:  # pragma: no cover - defensive guard
-            raise TypeError(
-                "Unexpected response type from chat model: " f"{type(response)!r}"
-            )
+            if hasattr(response, "content"):
+                reply_text = response.content
+                ai_message = response
+            elif isinstance(response, str):  # pragma: no cover - unlikely but defensive
+                reply_text = response
+                ai_message = AIMessage(response)
+            else:  # pragma: no cover - defensive guard
+                raise TypeError(
+                    "Unexpected response type from chat model: " f"{type(response)!r}"
+                )
 
-        self._history.extend([user_message, ai_message])
-        return reply_text
+            self._history.extend([user_message, ai_message])
+            return reply_text
 
-    def close(self) -> None:  # pragma: no cover - flow holds no external resources
+        except Exception as e:
+            logger.error("LangGraph chatbot execution failed: %s", e)
+            error_message = AIMessage(f"Error: {e}")
+            self._history.extend([user_message, error_message])
+            return f"Error: {e}"
+
+    async def close(self) -> None:  # pragma: no cover - flow holds no external resources
         self._history.clear()
 
 
