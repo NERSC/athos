@@ -66,12 +66,12 @@ class AgentFlow(BaseFlow):
             logger.error("%s execution failed: %s", self.agent.__class__.__name__, e)
             return f"Error: {e}"
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Disconnect any MCP clients held by this flow."""
         for client in self._mcp_clients:
             try:
                 client.disconnect()
-                logger.info("Disconnected MCP client")
+                logger.debug("Disconnected MCP client")
             except Exception as e:  # pragma: no cover - disconnect failures should not crash
                 logger.warning("Error disconnecting MCP client: %s", e)
         self._mcp_clients.clear()

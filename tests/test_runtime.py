@@ -32,7 +32,7 @@ flows:
     assert isinstance(flow, ChatbotFlow)
 
 
-def test_agent_flow_closes_mcp(tmp_path, monkeypatch):
+async def test_agent_flow_closes_mcp(tmp_path, monkeypatch):
     cfg_yaml = """
 workspace_dir: "/tmp"
 models:
@@ -61,7 +61,7 @@ flows:
     )
     cfg = build_config(str(cfg_file))
     flow = build_flow("agent", cfg)
-    flow.close()
+    await flow.close()
     dummy_client.disconnect.assert_called_once()
 
 

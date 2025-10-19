@@ -169,7 +169,7 @@ async def main():
     finally:
         if flow is not None:
             try:
-                flow.close()
+                await flow.close()
             except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
                 logger.warning("Error during flow cleanup: %s", e)
 

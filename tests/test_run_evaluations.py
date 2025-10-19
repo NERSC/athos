@@ -1,5 +1,6 @@
 import sys
 import json
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -15,7 +16,7 @@ revals = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(revals)
 
 
-def test_multiple_flows_execution(tmp_path, monkeypatch):
+async def test_multiple_flows_execution(tmp_path, monkeypatch):
     """Ensure run_evaluations executes all provided flows."""
 
     # create a minimal test case directory
@@ -73,7 +74,7 @@ def test_multiple_flows_execution(tmp_path, monkeypatch):
         ],
     )
 
-    revals.main()
+    await revals.main()
 
     # First two created flows correspond to the user flows
     for f in created_flows[:2]:
@@ -98,7 +99,7 @@ def test_load_qa_cases(tmp_path):
     ]
 
 
-def test_qa_file_flow_execution(tmp_path, monkeypatch):
+async def test_qa_file_flow_execution(tmp_path, monkeypatch):
     """Run evaluations with a QA file and ensure results are grouped separately."""
 
     qa_file = tmp_path / "qa.jsonl"
@@ -154,7 +155,7 @@ def test_qa_file_flow_execution(tmp_path, monkeypatch):
         ],
     )
 
-    revals.main()
+    await revals.main()
 
     # Flow executed once per QA pair
     assert len(created_flows) == 1

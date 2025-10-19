@@ -158,16 +158,17 @@ class LangGraphReactAgentFlow(BaseFlow):
         self._update_state(result_state)
         return self._extract_response(result_state)
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close any MCP client connections held by the flow."""
 
         for client in self._mcp_clients:
-            close_method = getattr(client, "close", None)
-            if callable(close_method):  # pragma: no branch - trivial guard
-                try:
-                    close_method()
-                except Exception:  # pragma: no cover - best-effort cleanup
-                    logger.debug("Ignoring MCP client close error", exc_info=True)
+            try:
+                # MultiServerMCPClient uses async context manager protocol
+                if hasattr(client, '__aexit__'):
+                    await client.__aexit__(None, None, None)
+                    logger.debug("Closed MCP client connection")
+            except Exception:  # pragma: no cover - best-effort cleanup
+                logger.debug("Ignoring MCP client close error", exc_info=True)
 
         self._mcp_clients.clear()
 

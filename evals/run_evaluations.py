@@ -128,7 +128,7 @@ def evaluate_response(eval_model, solution: str, response: str):
     return score, feedback
 
 
-def main():
+async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config/config.yaml")
     parser.add_argument(
@@ -211,7 +211,7 @@ def main():
                 files_dir = case.get("files_dir")
                 input_data = build_input(desc, files_dir)
                 try:
-                    response = asyncio.run(flow.execute(input_data))
+                    response = await flow.execute(input_data)
                 except Exception as e:
                     response = f"Error executing flow: {e}"
                 score, feedback = evaluate_response(
@@ -252,7 +252,7 @@ def main():
 
     for f in flows.values():
         try:
-            f.close()
+            await f.close()
         except Exception as e:  # pragma: no cover - cleanup errors ignored
             print(f"Warning: failed to close flow: {e}")
 
@@ -261,4 +261,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
