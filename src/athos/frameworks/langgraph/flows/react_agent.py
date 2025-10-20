@@ -15,6 +15,7 @@ from athos.config.models import (
     MCPServerConfig,
     ModelConfig,
     ToolConfig,
+    ToolFramework,
 )
 from athos.frameworks.langgraph.factories import (
     build_mcp_client,
@@ -281,6 +282,7 @@ register_flow(
     "langgraph_react_agent",
     LangGraphReactAgentFlowConfig,
     create_langgraph_react_agent_flow,
+    framework=ToolFramework.LANGGRAPH,
 )
 
 

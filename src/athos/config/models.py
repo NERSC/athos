@@ -133,6 +133,13 @@ class MCPServerConfig(BaseModel):
        return v
 
 
+class ToolFramework(str, Enum):
+    """Supported execution frameworks for regular tools."""
+
+    SMOLAGENTS = "smolagents"
+    LANGGRAPH = "langgraph"
+
+
 class ToolConfig(BaseModel):
     """Configuration for regular tools only"""
     model_config = ConfigDict(extra='forbid')
@@ -147,6 +154,10 @@ class ToolConfig(BaseModel):
     is_class: bool = Field(
         default=True,
         description="Whether the callable is a class requiring instantiation",
+    )
+    framework: ToolFramework = Field(
+        default=ToolFramework.SMOLAGENTS,
+        description="Execution framework this tool is compatible with",
     )
 
     @field_validator('module_path')
@@ -221,7 +232,7 @@ class AthosConfig(BaseModel):
             if flow_type not in FLOW_REGISTRY:
                 raise ValueError(f"Unknown flow type '{flow_type}' for flow '{flow_name}'. Available types: {list(FLOW_REGISTRY.keys())}")
 
-            config_cls, _ = FLOW_REGISTRY[flow_type]
+            config_cls = FLOW_REGISTRY[flow_type].config_cls
 
             # Dynamically construct the appropriate config
             try:
@@ -242,10 +253,19 @@ class AthosConfig(BaseModel):
     def _validate_references(self):
         """Validate that flows reference valid models, tools, and MCP servers"""
         for flow_name, flow_config in self.flows.items():
+            flow_type = getattr(flow_config, "type", None)
             # Validate model reference
             if flow_config.model not in self.models:
                 raise ValueError(
                     f"Flow '{flow_name}' references unknown model '{flow_config.model}'"
+                )
+
+            from athos.registry.flow_registry import FLOW_REGISTRY
+
+            flow_registration = FLOW_REGISTRY.get(flow_type)
+            if flow_registration is None:
+                raise ValueError(
+                    f"Flow '{flow_name}' has unregistered type '{flow_type}'"
                 )
 
             # Validate MCP server references if present
@@ -262,6 +282,21 @@ class AthosConfig(BaseModel):
                 if tool_name not in self.tools:
                     raise ValueError(
                         f"Flow '{flow_name}' references unknown tool '{tool_name}'"
+                    )
+
+                tool_cfg = self.tools[tool_name]
+                if tool_cfg.framework != flow_registration.framework:
+                    raise ValueError(
+                        "Flow '{flow}' of type '{flow_type}' requires tools configured for "
+                        "'{expected}' but found tool '{tool}' configured for '{actual}'. "
+                        "Update the tool's framework or choose a matching tool."
+                        .format(
+                            flow=flow_name,
+                            flow_type=flow_type,
+                            expected=flow_registration.framework.value,
+                            tool=tool_name,
+                            actual=tool_cfg.framework.value,
+                        )
                     )
 
         return self

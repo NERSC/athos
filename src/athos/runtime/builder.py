@@ -18,11 +18,12 @@ def build_flow(flow_name: str, config: AthosConfig) -> BaseFlow:
         raise ValueError(f"Unknown flow: {flow_name}")
 
     flow_cfg = config.flows[flow_name]
-    entry = FLOW_REGISTRY.get(flow_cfg.type)
-    if not entry:
+    registration = FLOW_REGISTRY.get(flow_cfg.type)
+    if not registration:
         raise ValueError(f"Unknown flow type: {flow_cfg.type}")
 
-    config_cls, factory = entry
+    config_cls = registration.config_cls
+    factory = registration.factory
     assert isinstance(flow_cfg, config_cls)
     return factory(flow_cfg, config)
 

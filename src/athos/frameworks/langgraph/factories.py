@@ -6,7 +6,13 @@ from importlib import import_module
 import logging
 from typing import Any, Dict, TYPE_CHECKING
 
-from athos.config.models import MCPServerConfig, MCPType, ModelConfig, ToolConfig
+from athos.config.models import (
+    MCPServerConfig,
+    MCPType,
+    ModelConfig,
+    ToolConfig,
+    ToolFramework,
+)
 
 if TYPE_CHECKING:  # pragma: no cover - used only for typing
     from langchain_core.language_models import BaseLanguageModel
@@ -57,6 +63,16 @@ def build_model(cfg: ModelConfig) -> BaseLanguageModel:
 def build_tool(cfg: ToolConfig) -> BaseTool:
     """Dynamically import and instantiate a LangChain tool."""
 
+    if cfg.framework is not ToolFramework.LANGGRAPH:
+        raise ValueError(
+            "Tool '%s.%s' is configured for framework '%s' but is being used in a "
+            "LangGraph flow. Set framework='langgraph' or choose a compatible tool."
+            % (
+                cfg.module_path,
+                cfg.callable_name,
+                cfg.framework.value,
+            )
+        )
     module = import_module(cfg.module_path)
     tool_obj = getattr(module, cfg.callable_name)
     tool = tool_obj(**cfg.parameters) if cfg.is_class else tool_obj

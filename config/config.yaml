@@ -127,16 +127,19 @@ tools:
     callable_name: "DuckDuckGoSearchTool"
     module_path: "smolagents.default_tools"
     parameters: {}
+    framework: "smolagents"
   langgraph_websearch:
     description: "LangChain DuckDuckGo search tool for LangGraph flows"
     callable_name: "DuckDuckGoSearchRun"
     module_path: "langchain_community.tools"
     parameters: {}
+    framework: "langgraph"
   webvisit:
     description: "Fetch and summarize webpages for agents"
     callable_name: "VisitWebpageTool"
     module_path: "smolagents.default_tools"
     parameters: {}
+    framework: "smolagents"
 
   # You need a free tavily API key for this one:
   # https://python.langchain.com/docs/integrations/tools/tavily_search/
@@ -145,6 +148,7 @@ tools:
     module_path: "langchain_tavily"
     callable_name: "TavilySearch"
     parameters: {}
+    framework: "langgraph"
 
 
 # Agent flows define the agent system

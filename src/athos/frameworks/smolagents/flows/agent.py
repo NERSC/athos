@@ -21,6 +21,7 @@ from athos.config.models import (
     MCPServerConfig,
     ModelConfig,
     ToolConfig,
+    ToolFramework,
 )
 from athos.frameworks.smolagents.factories import (
     build_mcp_client,
@@ -125,7 +126,12 @@ def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
     )
 
 
-register_flow("agent", AgentFlowConfig, create_agent_flow)
+register_flow(
+    "agent",
+    AgentFlowConfig,
+    create_agent_flow,
+    framework=ToolFramework.SMOLAGENTS,
+)
 
 
 __all__ = ["AgentFlow", "AgentFlowConfig", "create_agent_flow"]

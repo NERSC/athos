@@ -8,7 +8,7 @@ from typing import Any, List, Optional, Sequence, TYPE_CHECKING
 from pydantic import Field
 from typing_extensions import Literal
 
-from athos.config.models import AthosConfig, BaseFlowConfig, ModelConfig
+from athos.config.models import AthosConfig, BaseFlowConfig, ModelConfig, ToolFramework
 from athos.frameworks.langgraph.factories import build_model
 from athos.frameworks.langgraph.utils.messages import (
     AIMessage,
@@ -137,6 +137,7 @@ register_flow(
     "langgraph_chatbot",
     LangGraphChatbotFlowConfig,
     create_langgraph_chatbot_flow,
+    framework=ToolFramework.LANGGRAPH,
 )
 
 
