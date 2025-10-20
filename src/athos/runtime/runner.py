@@ -15,6 +15,7 @@ from athos.models.execution import FlowRequest, FlowResult
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.session import FlowSession
 from athos.runtime.builder import build_flow
+from athos.runtime.compat import LegacyFlowAdapter, is_new_interface
 from athos.runtime.session_store import InMemorySessionStore, SessionStore
 
 logger = logging.getLogger(__name__)
@@ -241,6 +242,14 @@ class FlowRunner:
 
         logger.debug("Loading flow '%s'", flow_name)
         flow = build_flow(flow_name, self.config)
+
+        if not is_new_interface(flow):
+            logger.warning(
+                "Flow '%s' uses legacy interface; applying compatibility adapter",
+                flow_name,
+            )
+            flow = LegacyFlowAdapter(flow)
+
         flow_config = self.config.flows[flow_name]
         await flow.initialize(flow_config)
         self._flow_cache[flow_name] = flow

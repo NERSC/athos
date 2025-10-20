@@ -6,7 +6,7 @@ _Last updated: 2025-10-20 19:45 UTC_
 - **Integration phase**: Milestone 1 — Core Runtime Foundation.
 - **Overall status**: On track.
 - **Recent highlights**: SessionStore abstraction merged with concurrency-safe in-memory backend (Task 1.2), BaseFlow interface upgraded to structured models (Task 1.3), and FlowRunner orchestration implemented with caching + error handling (Task 1.4).
-- **Upcoming focus**: Design and implement legacy compatibility adapter (Task 2.1).
+- **Upcoming focus**: Build LangGraph translation utilities (Task 2.2).
 
 ## Milestone & Task Progress
 
@@ -16,7 +16,7 @@ _Last updated: 2025-10-20 19:45 UTC_
 | 1. Core Runtime Foundation | 1.2 | Create SessionStore abstraction and in-memory implementation. | ✅ Complete | Async interface finalized with atomic in-memory reference implementation and coverage. |
 | 1. Core Runtime Foundation | 1.3 | Update BaseFlow interface to consume new models. | ✅ Complete | BaseFlow now consumes `FlowInput`/`FlowOutput`, supports streaming hooks, and includes lifecycle methods. |
 | 1. Core Runtime Foundation | 1.4 | Implement basic FlowRunner orchestration. | ✅ Complete | FlowRunner manages sessions, caching, error handling, and has unit tests. |
-| 2. Runtime Compatibility | 2.1 | Create compatibility shim for legacy flows. | ⏳ Not Started | Will revisit after FlowRunner skeleton stabilizes. |
+| 2. Runtime Compatibility | 2.1 | Create compatibility shim for legacy flows. | ✅ Complete | Adapter merged; legacy flows run under FlowRunner with auto-detection. |
 | 2. Runtime Compatibility | 2.2 | LangGraph translation utilities. | ⏳ Not Started | Requires Runner streaming semantics (Milestone 1 completion). |
 | 2. Runtime Compatibility | 2.3 | Migrate LangGraph chatbot flow to new interfaces. | ⏳ Not Started | Pending translation utilities. |
 | 2. Runtime Compatibility | 2.4 | Update CLI to use runner. | ⏳ Not Started | Requires Runner and compatibility layers. |
@@ -38,6 +38,6 @@ _Last updated: 2025-10-20 19:45 UTC_
 - **Evaluation Framework**: The evaluation framework will require development work to leverage the new runtime, which is not currently in the plan. This presents an opportunity to improve the evaluation capabilities.
 
 ## Next Steps
-1. Define compatibility adapter requirements and ergonomics for legacy flows (Task 2.1).
+1. Implement LangGraph translation utilities to unblock flow migrations (Task 2.2).
 2. Document expectations for future persistence backends (Redis, SQL) building on the SessionStore interface.
-3. Identify regression scenarios for legacy flows to inform upcoming compatibility layer (Task 2.1).
+3. Identify regression scenarios for legacy flows now that the compatibility layer exists (Task 2.1 follow-up).
