@@ -138,6 +138,8 @@ tools:
     module_path: "smolagents.default_tools"
     parameters: {}
 
+  # You need a free tavily API key for this one:
+  # https://python.langchain.com/docs/integrations/tools/tavily_search/
   langchain_tavily_search:
     description: "LangChain Tavily search engine tool for AI"
     module_path: "langchain_tavily"
