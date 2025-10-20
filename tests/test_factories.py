@@ -10,7 +10,13 @@ from athos.frameworks.smolagents.factories import (
     build_model,
     build_tool,
 )
-from athos.config.models import ModelConfig, ToolConfig, MCPServerConfig, MCPType
+from athos.config.models import (
+    ModelConfig,
+    ToolConfig,
+    MCPServerConfig,
+    MCPType,
+    ToolFramework,
+)
 
 
 class DummyTool:
@@ -56,6 +62,22 @@ def test_build_tool(monkeypatch):
     tool = build_tool(cfg)
     assert isinstance(tool, DummyTool)
     assert tool.value == 42
+
+
+def test_build_tool_rejects_mismatched_framework(monkeypatch):
+    module = types.ModuleType("dummy_module")
+    module.DummyTool = DummyTool
+    sys.modules["dummy_module"] = module
+
+    cfg = ToolConfig(
+        callable_name="DummyTool",
+        module_path="dummy_module",
+        parameters={"value": 42},
+        framework=ToolFramework.LANGGRAPH,
+    )
+
+    with pytest.raises(ValueError, match="framework 'langgraph'"):
+        build_tool(cfg)
 
 
 def test_build_tool_decorated_function(tmp_path, monkeypatch):

@@ -125,7 +125,7 @@ The YAML configuration has four main sections:
 
 1. **`models`**: LLM instances with `model_id`, `api_key`, `api_base`, and generation parameters
 2. **`mcp_servers`**: MCP server definitions with `mcp_type`, `command`, `args`, and optional `env` and `instructions`
-3. **`tools`**: Non-MCP tools with `callable_name`, `module_path`, and `parameters`
+3. **`tools`**: Non-MCP tools with `callable_name`, `module_path`, `parameters`, and a `framework` indicating the runtime (e.g., `smolagents`, `langgraph`)
 4. **`flows`**: Agent flow definitions with `type`, `model`, and framework-specific parameters (e.g., `agent_type`, `mcp_servers`, `tools`, `system_prompt`)
 
 ### Flow Types and Frameworks
@@ -150,7 +150,7 @@ The YAML configuration has four main sections:
 
 **Adding a New Tool**:
 - For MCP tools: Define an MCP server in the `mcp_servers` section of config.yaml with command, args, and environment variables
-- For regular tools: Add to the `tools` section with `callable_name` and `module_path` pointing to the tool class
+- For regular tools: Add to the `tools` section with `callable_name`, `module_path`, and an explicit `framework` matching the target flow runtime
 
 ### Workspace Management
 

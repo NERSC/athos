@@ -6,7 +6,7 @@ from smolagents import ChatMessage, OpenAIServerModel
 from athos.interfaces.base_flow import BaseFlow
 from athos.registry.flow_registry import register_flow
 
-from athos.config.models import AthosConfig, ModelConfig
+from athos.config.models import AthosConfig, ModelConfig, ToolFramework
 from athos.frameworks.smolagents.factories import build_model
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,12 @@ def create_chatbot_flow(cfg: ChatbotFlowConfig, full_cfg: AthosConfig) -> Chatbo
     return ChatbotFlow(model, cfg.system_prompt)
 
 
-register_flow("chatbot", ChatbotFlowConfig, create_chatbot_flow)
+register_flow(
+    "chatbot",
+    ChatbotFlowConfig,
+    create_chatbot_flow,
+    framework=ToolFramework.SMOLAGENTS,
+)
 
 
 __all__ = ["ChatbotFlow", "ChatbotFlowConfig", "create_chatbot_flow"]

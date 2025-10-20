@@ -4,7 +4,13 @@ import textwrap
 
 import pytest
 
-from athos.config.models import MCPServerConfig, MCPType, ModelConfig, ToolConfig
+from athos.config.models import (
+    MCPServerConfig,
+    MCPType,
+    ModelConfig,
+    ToolConfig,
+    ToolFramework,
+)
 from athos.frameworks.langgraph import factories
 
 
@@ -63,6 +69,7 @@ def test_build_tool_instantiates_class(tmp_path, monkeypatch):
         callable_name="DummyTool",
         module_path="dummy_module",
         parameters={"value": 7},
+        framework=ToolFramework.LANGGRAPH,
     )
 
     tool = factories.build_tool(cfg)
@@ -99,6 +106,7 @@ def test_build_tool_decorated_function(tmp_path, monkeypatch):
         module_path="langgraph_decorated_module",
         parameters={},
         is_class=False,
+        framework=ToolFramework.LANGGRAPH,
     )
 
     tool = factories.build_tool(cfg)
@@ -152,3 +160,19 @@ def test_build_mcp_client_invalid_type():
 
     with pytest.raises(ValueError):
         factories.build_mcp_client("bad", cfg)
+
+
+def test_build_tool_rejects_mismatched_framework():
+    module = types.ModuleType("dummy_module")
+    module.DummyTool = DummyTool
+    sys.modules["dummy_module"] = module
+
+    cfg = ToolConfig(
+        callable_name="DummyTool",
+        module_path="dummy_module",
+        parameters={"value": 7},
+        framework=ToolFramework.SMOLAGENTS,
+    )
+
+    with pytest.raises(ValueError, match="framework 'smolagents'"):
+        factories.build_tool(cfg)

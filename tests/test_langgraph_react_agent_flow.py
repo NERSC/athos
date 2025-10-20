@@ -1,6 +1,13 @@
 import pytest
 
-from athos.config.models import AthosConfig, MCPServerConfig, MCPType, ModelConfig, ToolConfig
+from athos.config.models import (
+    AthosConfig,
+    MCPServerConfig,
+    MCPType,
+    ModelConfig,
+    ToolConfig,
+    ToolFramework,
+)
 from athos.frameworks.langgraph.flows import react_agent
 from athos.frameworks.langgraph.flows.react_agent import (
     LangGraphReactAgentFlow,
@@ -130,6 +137,7 @@ async def test_react_agent_factory_combines_instructions_and_tools(monkeypatch):
                 callable_name="DemoTool",
                 module_path="demo.module",
                 parameters={},
+                framework=ToolFramework.LANGGRAPH,
             )
         },
         mcp_servers={
