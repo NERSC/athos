@@ -1,12 +1,12 @@
 # ATHOS ↔ OpenWebUI Integration Status Report
 
-_Last updated: 2025-10-20 18:15 UTC_
+_Last updated: 2025-10-20 19:45 UTC_
 
 ## Summary
 - **Integration phase**: Milestone 1 — Core Runtime Foundation.
 - **Overall status**: On track.
-- **Recent highlights**: SessionStore abstraction merged with concurrency-safe in-memory backend (Task 1.2) and BaseFlow interface upgraded to structured models (Task 1.3).
-- **Upcoming focus**: Begin FlowRunner orchestration prototype (Task 1.4).
+- **Recent highlights**: SessionStore abstraction merged with concurrency-safe in-memory backend (Task 1.2), BaseFlow interface upgraded to structured models (Task 1.3), and FlowRunner orchestration implemented with caching + error handling (Task 1.4).
+- **Upcoming focus**: Design and implement legacy compatibility adapter (Task 2.1).
 
 ## Milestone & Task Progress
 
@@ -15,7 +15,7 @@ _Last updated: 2025-10-20 18:15 UTC_
 | 1. Core Runtime Foundation | 1.1 | Create models package (`athos.models`) and supporting tests. | ✅ Complete | Models merged to `work` branch with serialization & state-management coverage. |
 | 1. Core Runtime Foundation | 1.2 | Create SessionStore abstraction and in-memory implementation. | ✅ Complete | Async interface finalized with atomic in-memory reference implementation and coverage. |
 | 1. Core Runtime Foundation | 1.3 | Update BaseFlow interface to consume new models. | ✅ Complete | BaseFlow now consumes `FlowInput`/`FlowOutput`, supports streaming hooks, and includes lifecycle methods. |
-| 1. Core Runtime Foundation | 1.4 | Implement basic FlowRunner orchestration. | ⏳ Not Started | Dependent on Tasks 1.2–1.3. |
+| 1. Core Runtime Foundation | 1.4 | Implement basic FlowRunner orchestration. | ✅ Complete | FlowRunner manages sessions, caching, error handling, and has unit tests. |
 | 2. Runtime Compatibility | 2.1 | Create compatibility shim for legacy flows. | ⏳ Not Started | Will revisit after FlowRunner skeleton stabilizes. |
 | 2. Runtime Compatibility | 2.2 | LangGraph translation utilities. | ⏳ Not Started | Requires Runner streaming semantics (Milestone 1 completion). |
 | 2. Runtime Compatibility | 2.3 | Migrate LangGraph chatbot flow to new interfaces. | ⏳ Not Started | Pending translation utilities. |
@@ -35,6 +35,6 @@ _Last updated: 2025-10-20 18:15 UTC_
 - Document serialization expectations for `FlowSession.state` to ensure eventual persistence stores (e.g., Redis) can operate without extra adapters.
 
 ## Next Steps
-1. Begin outlining FlowRunner execution lifecycle (Task 1.4) to anticipate integration with OpenWebUI pipeline contract.
+1. Define compatibility adapter requirements and ergonomics for legacy flows (Task 2.1).
 2. Document expectations for future persistence backends (Redis, SQL) building on the SessionStore interface.
 3. Identify regression scenarios for legacy flows to inform upcoming compatibility layer (Task 2.1).
