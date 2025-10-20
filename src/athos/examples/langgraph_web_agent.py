@@ -5,12 +5,16 @@ from __future__ import annotations
 import argparse
 import asyncio
 import pprint
+from dotenv import load_dotenv
 
 from athos import build_config, build_flow
 
 
 async def run_demo(*, config_path: str, flow_name: str) -> None:
     """Load the requested flow and execute a single sample query."""
+
+    # Load environment variables from .env file
+    load_dotenv()
 
     cfg = build_config(config_path)
 
@@ -27,7 +31,7 @@ async def run_demo(*, config_path: str, flow_name: str) -> None:
 
     flow = build_flow(flow_name, cfg)
 
-    query = "What are the latest headlines about exascale computing research?"
+    query = "What are some upcoming or ongoing training events at NERSC?"
     result = await flow.execute(query)
 
     print(f"\nQuery: {query}")

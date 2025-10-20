@@ -25,7 +25,7 @@ async def test_langgraph_react_web_agent_demo_flow(monkeypatch):
 
     flow_cfg = cfg.flows["langgraph_react_web_agent_demo"]
     assert flow_cfg.type == "langgraph_react_agent"
-    assert flow_cfg.tools == ["langgraph_websearch"]
+    assert flow_cfg.tools == ["langchain_tavily_search"]
     assert flow_cfg.max_iterations == 8
 
     dummy_model = object()
@@ -51,7 +51,7 @@ async def test_langgraph_react_web_agent_demo_flow(monkeypatch):
 
     assert flow.tools == [dummy_tool]
     assert flow.instructions is not None
-    assert "DuckDuckGo" in flow.instructions
+    assert "web search tool" in flow.instructions
 
     result = await flow.execute("Tell me about modern supercomputers")
     assert result == "example search summary"

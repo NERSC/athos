@@ -130,12 +130,18 @@ tools:
   langgraph_websearch:
     description: "LangChain DuckDuckGo search tool for LangGraph flows"
     callable_name: "DuckDuckGoSearchRun"
-    module_path: "langchain_community.tools.duckduckgo_search.tool"
+    module_path: "langchain_community.tools"
     parameters: {}
   webvisit:
     description: "Fetch and summarize webpages for agents"
     callable_name: "VisitWebpageTool"
     module_path: "smolagents.default_tools"
+    parameters: {}
+
+  langchain_tavily_search:
+    description: "LangChain Tavily search engine tool for AI"
+    module_path: "langchain_tavily"
+    callable_name: "TavilySearch"
     parameters: {}
 
 
@@ -228,11 +234,12 @@ flows:
   langgraph_react_web_agent_demo:
     description: "LangGraph ReAct agent that uses DuckDuckGo search for web answers"
     type: "langgraph_react_agent"
-    model: "cborg_chat"
-    tools: ["langgraph_websearch"]
+    model: "claude_sonnet"
+    tools: ["langchain_tavily_search"]
     instructions: |
-      Always consider performing a DuckDuckGo search before responding so you can
-      reference up-to-date information. Summarize the findings concisely in your reply.
+      You are a friendly assistant help users with questions. Always consider using
+      a web search tool before responding so you can reference up-to-date information.
+      Summarize the findings concisely in your reply.
     max_iterations: 8
 
 
