@@ -28,6 +28,7 @@ dependencies = [
     "langchain-openai>=0.2.0",
     "langchain-mcp-adapters>=0.1.0",
     "langchain-community>=0.2.0",
+    "langgraph>=0.2.36",
   ]
 
 [project.optional-dependencies]
