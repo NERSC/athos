@@ -1,5 +1,7 @@
 """Tests for the session store abstractions."""
 
+import asyncio
+
 import pytest
 
 from athos.models.session import FlowSession
@@ -73,3 +75,17 @@ async def test_list_sessions_filters_by_user() -> None:
 
     assert set(all_sessions) == {"session-1", "session-2", "session-3"}
     assert set(user_1_sessions) == {"session-1", "session-2"}
+
+
+@pytest.mark.asyncio
+async def test_get_or_create_is_atomic() -> None:
+    store = InMemorySessionStore()
+
+    async def worker() -> FlowSession:
+        return await store.get_or_create("shared-session", "user-1")
+
+    sessions = await asyncio.gather(*[worker() for _ in range(5)])
+
+    first = sessions[0]
+    for session in sessions[1:]:
+        assert session is first
