@@ -31,8 +31,11 @@ _Last updated: 2025-10-20 19:45 UTC_
 
 ## Feedback & Recommendations
 - Consider introducing `typing.TypedDict` structures for conversation message entries to improve discoverability and static analysis when flows interact with `FlowSession.messages`.
-- Evaluate whether `FlowOutput.artifacts` should support lazy-loading handles (e.g., callables, URIs) for large binary payloads before finalizing Runner streaming behavior.
-- Document serialization expectations for `FlowSession.state` to ensure eventual persistence stores (e.g., Redis) can operate without extra adapters.
+- Evaluate whether `FlowOutput.artifacts` should support lazy-loading handles. See [Artifact Handling Strategy](lazy_loading_artifacts.md) for details.
+- Document serialization expectations for `FlowSession.state`. See [FlowSession State Serialization Requirements](state_serialization_requirements.md) for details.
+- **CLI**: Consider enabling session resume in the main CLI once a persistent session store is implemented.
+- **Examples**: The example scripts in `src/athos/examples` should be updated to reflect the new runtime design and APIs.
+- **Evaluation Framework**: The evaluation framework will require development work to leverage the new runtime, which is not currently in the plan. This presents an opportunity to improve the evaluation capabilities.
 
 ## Next Steps
 1. Define compatibility adapter requirements and ergonomics for legacy flows (Task 2.1).
