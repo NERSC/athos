@@ -1,4 +1,11 @@
-# ATHOS OpenWebUI Pipelines Integration Plan (v2)
+# ATHOS OpenWebUI Pipelines Integration Plan (v3.0)
+
+## Version History
+
+- **v3.0 (2025-10-19):**
+  - Consolidated `v2.1` plan and the Pydantic addendum into a single, canonical document.
+  - Refactored all core data models (`FlowInput`, `FlowOutput`, `FlowSession`, etc.) from `dataclasses` to `pydantic.BaseModel`. This standardizes on the existing Pydantic convention in the project, provides robust data validation, and removes boilerplate `to_dict`/`from_dict` methods.
+  - Archived older plan documents (`v2.0`, `v2.1`, addendum) to reduce clutter.
 
 ## Executive Summary
 
@@ -14,12 +21,13 @@ The integration leverages:
 
 1. **Flows are Stateless**: Pure functions over `(input, session) -> output`
 2. **Runner Manages Lifecycle**: Orchestration, sessions, hooks, errors
-3. **Rich Structured I/O**: Typed inputs/outputs with metadata and artifacts
+3. **Rich Structured I/O**: Typed, validated inputs/outputs with metadata and artifacts.
 4. **Session Externalization**: State lives outside flows in pluggable stores
 5. **Streaming First-Class**: Built into interfaces, not bolted on
 6. **Framework Flexibility**: Support both LangGraph and Smolagents transparently
-7. **Start Simple, Extend Later**: Begin with basic execution, add features incrementally
-8. **Backward Compatible**: Existing flows work during migration
+7. **LangGraph Integration**: Let LangGraph manage its own checkpointing, we coordinate
+8. **Start Simple, Extend Later**: Begin with basic execution, add features incrementally
+9. **Backward Compatible**: Existing flows work during migration
 
 ## Design Overview
 
@@ -74,13 +82,76 @@ The integration leverages:
 └──────────────────────────────────────────────────────────────┘
 ```
 
+## Package Structure
+
+Following the **flat models package** pattern for clean separation of concerns:
+
+```
+athos/
+├── models/                        # All data models (NEW)
+│   ├── __init__.py
+│   ├── flow.py                   # FlowInput, FlowOutput, Artifact
+│   ├── session.py                # FlowSession
+│   ├── execution.py              # FlowRequest, FlowResult
+│   └── enums.py                  # ExecutionMode
+│
+├── interfaces/
+│   ├── __init__.py
+│   └── base_flow.py              # BaseFlow (imports from models)
+│
+├── runtime/
+│   ├── __init__.py
+│   ├── runner.py                 # FlowRunner (imports from models)
+│   ├── session_store.py          # SessionStore (imports from models)
+│   ├── hooks.py                  # HookManager (NEW)
+│   ├── compat.py                 # Legacy compatibility (NEW)
+│   └── builder.py                # Existing builder
+│
+├── integrations/
+│   └── openwebui/
+│       ├── __init__.py
+│       ├── pipeline.py           # Pipeline class (NEW)
+│       └── formatters.py         # Event formatting (NEW)
+│
+├── frameworks/
+│   ├── langgraph/
+│   │   ├── flows/
+│   │   │   ├── chatbot.py       # Refactored
+│   │   │   └── react_agent.py   # Refactored
+│   │   ├── factories.py
+│   │   └── utils/
+│   │       ├── messages.py
+│   │       └── translation.py   # LangGraph ↔ ATHOS translation (NEW)
+│   └── smolagents/
+│       └── flows/
+│
+├── config/
+│   └── models.py                 # Existing Pydantic configs
+│
+└── ...
+```
+
+**Key Benefits**:
+- ✅ **No circular dependencies**: `models/` has no imports from other ATHOS packages
+- ✅ **Clear layering**: Models → Interfaces → Runtime → Integrations
+- ✅ **Easy imports**: `from athos.models.flow import FlowInput, FlowOutput`
+- ✅ **Standard pattern**: Similar to Django, FastAPI, etc.
+
 ## Core Data Models
+
+All models live in `athos/models/` and are implemented using **Pydantic** for consistency, validation, and simplified serialization.
 
 ### FlowInput: Rich Input to Flows
 
+**File**: `athos/src/athos/models/flow.py`
+
 ```python
-@dataclass
-class FlowInput:
+from pydantic import BaseModel, Field
+from typing import Any
+from athos.models.session import FlowSession
+from athos.models.enums import ExecutionMode
+
+class FlowInput(BaseModel):
     """
     Rich input passed to flows.
 
@@ -89,72 +160,102 @@ class FlowInput:
     message: str                    # User's message/query
     session: FlowSession            # Session state (history, workspace)
     mode: ExecutionMode             # SYNC, STREAMING, INTERACTIVE
-    metadata: dict                  # Per-request extras
+    metadata: dict = Field(default_factory=dict)  # Per-request extras
 ```
 
 **Key Benefits**:
 - **Single parameter**: Flows receive one structured input instead of many args
 - **Extensible**: Add new fields without breaking existing flows
 - **Testable**: Easy to create test inputs with controlled state
+- **Validated**: Pydantic ensures input data conforms to the expected types.
 
 ### FlowOutput: Structured Results
 
+**File**: `athos/src/athos/models/flow.py`
+
 ```python
-@dataclass
-class FlowOutput:
+from pydantic import BaseModel, Field
+from typing import Optional, Any, List
+
+class Artifact(BaseModel):
+    """Something the flow produced beyond text."""
+    type: str                       # "image", "file", "data", "link"
+    path: Optional[str] = None      # For files/images
+    data: Optional[Any] = None      # For inline data
+    display_name: str = ""
+    metadata: dict = Field(default_factory=dict)
+
+class FlowOutput(BaseModel):
     """
     Structured output from flows.
 
     Supports text, artifacts (images/files), and metadata.
+    Serialization is handled automatically by Pydantic.
     """
     content: str                    # Primary text response
-    artifacts: list[Artifact]       # Images, plots, files, links
-    metadata: dict                  # Execution details (tokens, tools used, etc.)
-
-@dataclass
-class Artifact:
-    """Something the flow produced beyond text."""
-    type: str                       # "image", "file", "data", "link"
-    path: Optional[str]             # For files/images
-    data: Optional[Any]             # For inline data
-    display_name: str
-    metadata: dict
+    artifacts: List[Artifact] = Field(default_factory=list)  # Images, plots, files, links
+    metadata: dict = Field(default_factory=dict)  # Execution details (tokens, tools used, etc.)
 ```
 
 **Key Benefits**:
 - **Structured artifacts**: Separate plots/files from text
 - **Rich metadata**: Track tokens, tool calls, performance
-- **OpenWebUI formatting**: Pipeline knows how to render artifacts
+- **Automatic Serialization**: No need for manual `to_dict()` methods. Use `model_dump()` instead.
 
 ### FlowSession: External State Management
 
+**File**: `athos/src/athos/models/session.py`
+
 ```python
-@dataclass
-class FlowSession:
+from pydantic import BaseModel, Field
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+
+class FlowSession(BaseModel):
     """
     Session state managed by Runner (not flows).
 
     Persists conversation history and custom state across invocations.
+    Pydantic handles serialization and date parsing automatically.
     """
     session_id: str
     user_id: str
 
     # Conversation history (framework-neutral)
-    messages: list[dict]            # [{"role": "user", "content": "..."}, ...]
+    messages: List[dict] = Field(default_factory=list)  # [{"role": "user", "content": "..."}, ...]
 
     # Workspace for files
-    workspace: Path
+    workspace: Path = Field(default_factory=lambda: Path("/tmp"))
 
     # Interface context
-    interface: str                  # "openwebui", "cli", "slackbot"
+    interface: str = "unknown"  # "openwebui", "cli", "slackbot"
 
-    # Custom state (flows can store anything)
-    state: dict
+    # Custom state (flows can store anything here)
+    state: dict = Field(default_factory=dict)
 
     # Metadata
-    created_at: datetime
-    updated_at: datetime
-    metadata: dict
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    metadata: dict = Field(default_factory=dict)
+
+    def add_message(self, role: str, content: str, **kwargs) -> None:
+        """Add message to history."""
+        msg = {"role": role, "content": content, **kwargs}
+        self.messages.append(msg)
+        self.updated_at = datetime.now()
+
+    def get_history(self, limit: Optional[int] = None) -> List[dict]:
+        """Get recent message history."""
+        if limit:
+            return self.messages[-limit:]
+        return self.messages.copy()
+
+    def clear_history(self) -> None:
+        """Clear conversation history."""
+        self.messages.clear()
+        self.state.clear()
+        self.updated_at = datetime.now()
 ```
 
 **Key Benefits**:
@@ -163,39 +264,62 @@ class FlowSession:
 - **Pluggable persistence**: In-memory, Redis, DB
 - **Flows stay stateless**: State lives externally
 
-### FlowResult: Execution Outcome
+### Execution Models (Internal to Runtime)
+
+**File**: `athos/src/athos/models/execution.py`
 
 ```python
-@dataclass
-class FlowResult:
-    """
-    Result of a flow execution via Runner.
+from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Optional, Any
+from athos.models.flow import FlowOutput
+from athos.models.enums import ExecutionMode
 
-    Wraps FlowOutput with execution metadata.
-    """
-    request_id: str                 # Unique request identifier
-    success: bool                   # Did it succeed?
-    output: Optional[FlowOutput]    # The actual output (if success)
-    error: Optional[str]            # Error message (if failure)
-    execution_time: float           # How long it took
-    metadata: dict                  # Runner-level metadata
+class FlowRequest(BaseModel):
+    """Internal request model for Runner."""
+    request_id: str
+    flow_name: str
+    message: str
+    session_id: str
+    user_id: str
+    mode: ExecutionMode
+    metadata: dict
+    timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class FlowResult(BaseModel):
+    """Result of flow execution via Runner."""
+    request_id: str
+    success: bool
+    output: Optional[FlowOutput]
+    error: Optional[str]
+    execution_time: float
+    metadata: dict = Field(default_factory=dict)
 ```
 
-**Key Benefits**:
-- **Success/failure clarity**: No ambiguity about errors
-- **Request correlation**: Trace requests through logs
-- **Performance tracking**: Built-in timing
-- **Error formatting**: Consistent user-facing messages
+### Enums
 
-## Enhanced BaseFlow Interface
+**File**: `athos/src/athos/models/enums.py`
 
 ```python
+from enum import Enum
+
 class ExecutionMode(str, Enum):
     """How the flow should be executed."""
     SYNC = "sync"                   # Single execute() call
     STREAMING = "streaming"         # Stream updates incrementally
     INTERACTIVE = "interactive"     # Multi-turn with interrupts (future)
+```
 
+## Enhanced BaseFlow Interface
+
+**File**: `athos/src/athos/interfaces/base_flow.py`
+
+```python
+from abc import ABC, abstractmethod
+from typing import AsyncGenerator
+from athos.models.flow import FlowInput, FlowOutput
+from athos.models.enums import ExecutionMode
 
 class BaseFlow(ABC):
     """
@@ -230,7 +354,7 @@ class BaseFlow(ABC):
         result = await self.execute(input)
         yield result
 
-    async def initialize(self, config: FlowConfig) -> None:
+    async def initialize(self, config) -> None:
         """
         One-time initialization with configuration.
 
@@ -260,179 +384,176 @@ class BaseFlow(ABC):
 - ✅ **Lifecycle hooks**: `initialize()` and `cleanup()` for resource management
 - ✅ **Metadata**: Class-level `name`, `description`, `supported_modes`
 
+## LangGraph Integration Strategy
+
+### Message Translation Utilities
+
+**File**: `athos/src/athos/frameworks/langgraph/utils/translation.py`
+
+```python
+"""Translation utilities between ATHOS and LangGraph formats."""
+
+from typing import List, Dict, Any
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+
+
+def to_langgraph_messages(session_messages: List[dict]) -> List[BaseMessage]:
+    """
+    Convert ATHOS session messages to LangGraph format.
+
+    Args:
+        session_messages: List of dicts with {"role": "user|assistant|system", "content": "..."}
+
+    Returns:
+        List of LangChain message objects
+    """
+    result = []
+    for msg in session_messages:
+        role = msg["role"]
+        content = msg["content"]
+
+        if role == "user":
+            result.append(HumanMessage(content=content))
+        elif role == "assistant":
+            result.append(AIMessage(content=content))
+        elif role == "system":
+            result.append(SystemMessage(content=content))
+
+    return result
+
+
+def from_langgraph_messages(langgraph_messages: List[BaseMessage]) -> List[dict]:
+    """
+    Convert LangGraph messages to ATHOS session format.
+
+    Args:
+        langgraph_messages: List of LangChain message objects
+
+    Returns:
+        List of dicts with {"role": "user|assistant|system", "content": "..."}
+    """
+    result = []
+    for msg in langgraph_messages:
+        if isinstance(msg, HumanMessage):
+            result.append({"role": "user", "content": msg.content})
+        elif isinstance(msg, AIMessage):
+            result.append({"role": "assistant", "content": msg.content})
+        elif isinstance(msg, SystemMessage):
+            result.append({"role": "system", "content": msg.content})
+
+    return result
+
+
+def build_langgraph_config(session_id: str, metadata: Dict[str, Any] = None) -> dict:
+    """
+    Build LangGraph config dict from ATHOS session info.
+
+    Args:
+        session_id: ATHOS session ID (used as LangGraph thread_id)
+        metadata: Optional metadata that may contain LangGraph-specific config
+
+    Returns:
+        Config dict for LangGraph execution
+    """
+    config = {
+        "configurable": {
+            "thread_id": session_id  # LangGraph uses thread_id for checkpointing
+        }
+    }
+
+    # Allow passing LangGraph-specific config via metadata
+    if metadata and "langgraph_config" in metadata:
+        config.update(metadata["langgraph_config"])
+
+    return config
+```
+
+### Integration Approach
+
+**LangGraph flows will:**
+
+1. **Use LangGraph's own checkpointing** via `thread_id = session_id`
+2. **Sync conversation history** to `FlowSession.messages` for consistency
+3. **Store extra state** in `FlowSession.state["langgraph_state"]` if needed
+4. **Translate messages** using utilities from `translation.py`
+5. **Wrap LangGraph events** in `FlowOutput` for consistent interface
+
+This approach:
+- ✅ Leverages LangGraph's robust checkpointing system
+- ✅ Maintains compatibility with other ATHOS components
+- ✅ Keeps flows framework-agnostic from Runner's perspective
+- ✅ Allows LangGraph-specific config via metadata
+
 ## Milestone Breakdown
 
 ### Milestone 1: Core Runtime Foundation (Week 1-2)
 
 **Goal**: Establish the new runtime models and basic FlowRunner without breaking existing flows.
 
-#### Task 1.1: Create Runtime Models
+#### Task 1.1: Create Models Package
 
-**File**: `athos/src/athos/runtime/models.py`
+**New Files**:
+- `athos/src/athos/models/__init__.py`
+- `athos/src/athos/models/enums.py`
+- `athos/src/athos/models/flow.py`
+- `athos/src/athos/models/session.py`
+- `athos/src/athos/models/execution.py`
 
+**Implementation**:
+
+1. **Enums** (`enums.py`):
 ```python
-# Models to create:
-- ExecutionMode(Enum)
-- FlowInput(dataclass)
-- FlowOutput(dataclass)
-- Artifact(dataclass)
-- FlowSession(dataclass)
-- FlowResult(dataclass)
-- FlowRequest(dataclass) - internal to Runner
-```
-
-**Implementation Details**:
-
-```python
-from dataclasses import dataclass, field
-from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Optional, AsyncGenerator
-import uuid
 
 class ExecutionMode(str, Enum):
     SYNC = "sync"
     STREAMING = "streaming"
     INTERACTIVE = "interactive"
-
-@dataclass
-class Artifact:
-    """Artifact produced by a flow (image, file, data, link)."""
-    type: str  # "image", "file", "data", "link"
-    path: Optional[str] = None
-    data: Optional[Any] = None
-    display_name: str = ""
-    metadata: dict = field(default_factory=dict)
-
-    def to_dict(self) -> dict:
-        """Serialize for logging/transmission."""
-        return {
-            "type": self.type,
-            "path": self.path,
-            "display_name": self.display_name,
-            "metadata": self.metadata,
-        }
-
-@dataclass
-class FlowOutput:
-    """Structured output from a flow execution."""
-    content: str
-    artifacts: list[Artifact] = field(default_factory=list)
-    metadata: dict = field(default_factory=dict)
-
-    def to_dict(self) -> dict:
-        return {
-            "content": self.content,
-            "artifacts": [a.to_dict() for a in self.artifacts],
-            "metadata": self.metadata,
-        }
-
-@dataclass
-class FlowSession:
-    """Session state managed by Runner."""
-    session_id: str
-    user_id: str
-    messages: list[dict] = field(default_factory=list)
-    workspace: Path = field(default_factory=lambda: Path("/tmp"))
-    interface: str = "unknown"
-    state: dict = field(default_factory=dict)
-    created_at: datetime = field(default_factory=datetime.now)
-    updated_at: datetime = field(default_factory=datetime.now)
-    metadata: dict = field(default_factory=dict)
-
-    def add_message(self, role: str, content: str, **kwargs) -> None:
-        """Add message to history."""
-        msg = {"role": role, "content": content, **kwargs}
-        self.messages.append(msg)
-        self.updated_at = datetime.now()
-
-    def get_history(self, limit: Optional[int] = None) -> list[dict]:
-        """Get recent message history."""
-        if limit:
-            return self.messages[-limit:]
-        return self.messages.copy()
-
-    def clear_history(self) -> None:
-        """Clear conversation history."""
-        self.messages.clear()
-        self.state.clear()
-        self.updated_at = datetime.now()
-
-    def to_dict(self) -> dict:
-        """Serialize for persistence."""
-        return {
-            "session_id": self.session_id,
-            "user_id": self.user_id,
-            "messages": self.messages,
-            "workspace": str(self.workspace),
-            "interface": self.interface,
-            "state": self.state,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
-            "metadata": self.metadata,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "FlowSession":
-        """Deserialize from persistence."""
-        return cls(
-            session_id=data["session_id"],
-            user_id=data["user_id"],
-            messages=data.get("messages", []),
-            workspace=Path(data.get("workspace", "/tmp")),
-            interface=data.get("interface", "unknown"),
-            state=data.get("state", {}),
-            created_at=datetime.fromisoformat(data["created_at"]),
-            updated_at=datetime.fromisoformat(data["updated_at"]),
-            metadata=data.get("metadata", {}),
-        )
-
-@dataclass
-class FlowInput:
-    """Rich input to flows."""
-    message: str
-    session: FlowSession
-    mode: ExecutionMode = ExecutionMode.SYNC
-    metadata: dict = field(default_factory=dict)
-
-@dataclass
-class FlowResult:
-    """Result of flow execution via Runner."""
-    request_id: str
-    success: bool
-    output: Optional[FlowOutput]
-    error: Optional[str]
-    execution_time: float
-    metadata: dict = field(default_factory=dict)
-
-    def to_dict(self) -> dict:
-        return {
-            "request_id": self.request_id,
-            "success": self.success,
-            "output": self.output.to_dict() if self.output else None,
-            "error": self.error,
-            "execution_time": self.execution_time,
-            "metadata": self.metadata,
-        }
-
-@dataclass
-class FlowRequest:
-    """Internal request model for Runner."""
-    request_id: str
-    flow_name: str
-    message: str
-    session_id: str
-    user_id: str
-    mode: ExecutionMode
-    metadata: dict
-    timestamp: datetime = field(default_factory=datetime.now)
 ```
 
-**Tests**: `tests/runtime/test_models.py`
-- Serialization/deserialization
+2. **Flow Models** (`flow.py`):
+```python
+# FlowInput, FlowOutput, Artifact
+# (Full implementations shown above)
+```
+
+3. **Session Model** (`session.py`):
+```python
+# FlowSession with methods
+# (Full implementation shown above)
+```
+
+4. **Execution Models** (`execution.py`):
+```python
+# FlowRequest, FlowResult
+# (Full implementations shown above)
+```
+
+5. **Package Init** (`__init__.py`):
+```python
+"""ATHOS data models."""
+
+from athos.models.enums import ExecutionMode
+from athos.models.flow import FlowInput, FlowOutput, Artifact
+from athos.models.session import FlowSession
+from athos.models.execution import FlowRequest, FlowResult
+
+__all__ = [
+    "ExecutionMode",
+    "FlowInput",
+    "FlowOutput",
+    "Artifact",
+    "FlowSession",
+    "FlowRequest",
+    "FlowResult",
+]
+```
+
+**Tests**: `tests/models/test_*.py`
+- Serialization/deserialization (`to_dict`, `from_dict`)
 - FlowSession message management
 - Artifact creation and metadata
+- All models are immutable where expected
 
 #### Task 1.2: Create SessionStore Abstraction
 
@@ -441,7 +562,7 @@ class FlowRequest:
 ```python
 from abc import ABC, abstractmethod
 from typing import Dict, Optional
-from athos.runtime.models import FlowSession
+from athos.models.session import FlowSession
 
 class SessionStore(ABC):
     """Abstract session persistence."""
@@ -511,76 +632,13 @@ class InMemorySessionStore(SessionStore):
 - Create and retrieve sessions
 - Save and load session state
 - Session isolation (different users/sessions)
+- List sessions with filtering
 
 #### Task 1.3: Update BaseFlow Interface
 
 **File**: `athos/src/athos/interfaces/base_flow.py`
 
-```python
-from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, Optional
-from athos.runtime.models import FlowInput, FlowOutput, ExecutionMode
-
-class BaseFlow(ABC):
-    """Enhanced base flow interface with rich I/O."""
-
-    # Class-level metadata
-    name: str = "base_flow"
-    description: str = "Base flow"
-    supported_modes: list[ExecutionMode] = [ExecutionMode.SYNC]
-
-    @abstractmethod
-    async def execute(self, input: FlowInput) -> FlowOutput:
-        """Execute flow and return structured output."""
-        raise NotImplementedError
-
-    async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
-        """Stream execution with intermediate updates."""
-        # Default: execute once and yield
-        result = await self.execute(input)
-        yield result
-
-    async def initialize(self, config: Any) -> None:
-        """One-time initialization with config."""
-        pass
-
-    async def cleanup(self) -> None:
-        """Clean up resources."""
-        pass
-
-    def can_stream(self) -> bool:
-        """Check if this flow supports streaming."""
-        return ExecutionMode.STREAMING in self.supported_modes
-
-    # DEPRECATED: Keep for backward compatibility during migration
-    async def execute_legacy(self, input_data: str) -> Any:
-        """
-        Legacy execute method (DEPRECATED).
-
-        Will be removed after all flows migrate to new interface.
-        """
-        # Shim to new interface
-        from pathlib import Path
-        from athos.runtime.models import FlowSession
-
-        session = FlowSession(
-            session_id="legacy",
-            user_id="legacy",
-            workspace=Path("/tmp"),
-        )
-        flow_input = FlowInput(
-            message=input_data,
-            session=session,
-        )
-        output = await self.execute(flow_input)
-        return output.content
-```
-
-**Migration Strategy**:
-1. Keep old `execute(str) -> Any` as `execute_legacy()` temporarily
-2. Add new `execute(FlowInput) -> FlowOutput`
-3. Flows can implement both during transition
-4. Remove `execute_legacy()` in final phase
+(Full implementation shown in "Enhanced BaseFlow Interface" section above)
 
 **Tests**: `tests/interfaces/test_base_flow.py`
 - Abstract methods raise NotImplementedError
@@ -599,10 +657,10 @@ from typing import Optional, Dict, AsyncGenerator
 from pathlib import Path
 
 from athos.config.models import AthosConfig
-from athos.runtime.models import (
-    FlowRequest, FlowResult, FlowInput, FlowOutput,
-    FlowSession, ExecutionMode
-)
+from athos.models.execution import FlowRequest, FlowResult
+from athos.models.flow import FlowInput, FlowOutput
+from athos.models.session import FlowSession
+from athos.models.enums import ExecutionMode
 from athos.runtime.session_store import SessionStore, InMemorySessionStore
 from athos.interfaces.base_flow import BaseFlow
 from athos.runtime.builder import build_flow
@@ -619,7 +677,7 @@ class FlowRunner:
     - Manage sessions via SessionStore
     - Execute flows with proper lifecycle
     - Handle errors consistently
-    - Emit hooks for observability (future)
+    - Emit hooks for observability (added in M4)
     """
 
     def __init__(
@@ -640,6 +698,7 @@ class FlowRunner:
         user_id: str,
         *,
         mode: ExecutionMode = ExecutionMode.SYNC,
+        interface: str = "unknown",
         metadata: Optional[dict] = None,
     ) -> FlowResult:
         """
@@ -651,6 +710,7 @@ class FlowRunner:
             session_id: Session identifier for conversation continuity
             user_id: User identifier for workspace isolation
             mode: Execution mode (SYNC, STREAMING, INTERACTIVE)
+            interface: Interface calling this ("openwebui", "cli", etc.)
             metadata: Extra per-request data
 
         Returns:
@@ -679,7 +739,7 @@ class FlowRunner:
                 session_id=session_id,
                 user_id=user_id,
                 workspace=self._get_workspace_path(user_id, session_id),
-                interface="unknown",  # Set by caller
+                interface=interface,
             )
 
             # Get or load flow
@@ -747,6 +807,7 @@ class FlowRunner:
         session_id: str,
         user_id: str,
         *,
+        interface: str = "unknown",
         metadata: Optional[dict] = None,
     ) -> AsyncGenerator[FlowOutput, None]:
         """
@@ -775,6 +836,7 @@ class FlowRunner:
                 session_id=session_id,
                 user_id=user_id,
                 workspace=self._get_workspace_path(user_id, session_id),
+                interface=interface,
             )
 
             flow = await self._get_flow(flow_name)
@@ -856,7 +918,7 @@ class FlowRunner:
 
     def _get_workspace_path(self, user_id: str, session_id: str) -> Path:
         """Get workspace path for session."""
-        base = Path(self.config.workspace_path or "/tmp/athos_workspace")
+        base = Path(getattr(self.config, 'workspace_path', None) or "/tmp/athos_workspace")
         return base / user_id / session_id
 ```
 
@@ -868,7 +930,7 @@ class FlowRunner:
 - Cleanup on shutdown
 
 **Deliverables**:
-- ✅ All runtime models defined
+- ✅ All models in `athos/models/` package
 - ✅ SessionStore abstraction with in-memory impl
 - ✅ Enhanced BaseFlow interface
 - ✅ Basic FlowRunner (sync execution only)
@@ -892,8 +954,12 @@ Compatibility layer for existing flows.
 Allows existing flows with execute(str) -> Any to work with new Runner.
 """
 
+import logging
 from athos.interfaces.base_flow import BaseFlow
-from athos.runtime.models import FlowInput, FlowOutput
+from athos.models.flow import FlowInput, FlowOutput
+
+logger = logging.getLogger(__name__)
+
 
 class LegacyFlowAdapter(BaseFlow):
     """
@@ -915,10 +981,10 @@ class LegacyFlowAdapter(BaseFlow):
     async def execute(self, input: FlowInput) -> FlowOutput:
         """Call legacy execute(str) and wrap result."""
         # Call old interface
-        if hasattr(self._legacy_flow, 'execute_legacy'):
-            result = await self._legacy_flow.execute_legacy(input.message)
-        else:
+        if hasattr(self._legacy_flow, 'execute'):
             result = await self._legacy_flow.execute(input.message)
+        else:
+            raise AttributeError(f"Legacy flow {self._legacy_flow} has no execute method")
 
         # Wrap in new output format
         if isinstance(result, str):
@@ -931,9 +997,32 @@ class LegacyFlowAdapter(BaseFlow):
         """Delegate to legacy close() if available."""
         if hasattr(self._legacy_flow, 'close'):
             await self._legacy_flow.close()
+
+
+def is_new_interface(flow: BaseFlow) -> bool:
+    """
+    Check if flow uses new FlowInput/FlowOutput interface.
+
+    Returns:
+        True if flow uses new interface, False if legacy
+    """
+    import inspect
+
+    if not hasattr(flow, 'execute'):
+        return False
+
+    sig = inspect.signature(flow.execute)
+    params = list(sig.parameters.values())
+
+    if len(params) != 1:
+        return False
+
+    # Check if parameter is annotated with FlowInput
+    param_annotation = str(params[0].annotation)
+    return 'FlowInput' in param_annotation
 ```
 
-**Update Runner** to auto-detect and adapt legacy flows:
+**Update FlowRunner** to auto-detect and adapt legacy flows:
 
 ```python
 # In FlowRunner._get_flow()
@@ -944,8 +1033,9 @@ async def _get_flow(self, flow_name: str) -> BaseFlow:
     flow = build_flow(flow_name, self.config)
 
     # Auto-detect legacy flows
-    if not hasattr(flow, 'execute') or not _is_new_interface(flow):
-        from athos.runtime.compat import LegacyFlowAdapter
+    from athos.runtime.compat import is_new_interface, LegacyFlowAdapter
+
+    if not is_new_interface(flow):
         logger.warning(
             f"Flow '{flow_name}' uses legacy interface, adapting"
         )
@@ -955,21 +1045,25 @@ async def _get_flow(self, flow_name: str) -> BaseFlow:
     self._flow_cache[flow_name] = flow
 
     return flow
-
-def _is_new_interface(flow: BaseFlow) -> bool:
-    """Check if flow uses new FlowInput/FlowOutput interface."""
-    import inspect
-    sig = inspect.signature(flow.execute)
-    params = list(sig.parameters.values())
-    if len(params) != 1:
-        return False
-
-    # Check if parameter is annotated with FlowInput
-    param_annotation = params[0].annotation
-    return 'FlowInput' in str(param_annotation)
 ```
 
-#### Task 2.2: Migrate LangGraph Chatbot Flow
+**Tests**: `tests/runtime/test_compat.py`
+- Legacy flow adapter wraps correctly
+- Old flows work with new Runner
+- Adapter handles errors gracefully
+
+#### Task 2.2: Create LangGraph Translation Utilities
+
+**File**: `athos/src/athos/frameworks/langgraph/utils/translation.py`
+
+(Full implementation shown in "LangGraph Integration Strategy" section above)
+
+**Tests**: `tests/frameworks/langgraph/test_translation.py`
+- Message translation (both directions)
+- Config building with metadata
+- Handles edge cases (empty messages, unknown roles)
+
+#### Task 2.3: Migrate LangGraph Chatbot Flow
 
 **File**: `athos/src/athos/frameworks/langgraph/flows/chatbot.py` (refactored)
 
@@ -979,10 +1073,15 @@ def _is_new_interface(flow: BaseFlow) -> bool:
 from typing import Optional, AsyncGenerator
 import logging
 
-from athos.config.models import AthosConfig, BaseFlowConfig, ModelConfig
+from athos.config.models import BaseFlowConfig
 from athos.frameworks.langgraph.factories import build_model
+from athos.frameworks.langgraph.utils.translation import (
+    to_langgraph_messages,
+    from_langgraph_messages,
+)
 from athos.interfaces.base_flow import BaseFlow
-from athos.runtime.models import FlowInput, FlowOutput, ExecutionMode
+from athos.models.flow import FlowInput, FlowOutput
+from athos.models.enums import ExecutionMode
 from athos.registry.flow_registry import register_flow
 
 logger = logging.getLogger(__name__)
@@ -997,6 +1096,7 @@ class LangGraphChatbotFlow(BaseFlow):
     - Returns FlowOutput instead of str
     - Supports streaming via stream() method
     - Stateless (can be shared across sessions)
+    - Uses LangGraph's native message format internally
     """
 
     name = "langgraph_chatbot"
@@ -1009,16 +1109,14 @@ class LangGraphChatbotFlow(BaseFlow):
 
     async def initialize(self, config: BaseFlowConfig) -> None:
         """Load model once during initialization."""
-        # Extract model config from AthosConfig
-        # (This will be passed differently in production)
-        from athos.runtime.builder import build_config
-        full_config = build_config("config/config.yaml")  # TODO: pass properly
-
-        model_cfg: ModelConfig = full_config.models[config.model]
-        self.model = build_model(model_cfg)
+        # This gets called by FlowRunner with the flow config
+        self.model = build_model(config.model)
         self.system_prompt = getattr(config, 'system_prompt', None)
 
-        logger.info(f"Initialized {self.name} with model {model_cfg.model_id}")
+        logger.info(
+            f"Initialized {self.name} with model "
+            f"{getattr(self.model, 'model_name', 'unknown')}"
+        )
 
     async def execute(self, input: FlowInput) -> FlowOutput:
         """
@@ -1036,7 +1134,7 @@ class LangGraphChatbotFlow(BaseFlow):
             return FlowOutput(
                 content=response.content,
                 metadata={
-                    "model": self.model.model_name if hasattr(self.model, 'model_name') else "unknown",
+                    "model": getattr(self.model, 'model_name', 'unknown'),
                     "tokens": getattr(response, 'usage', {})
                 }
             )
@@ -1076,7 +1174,7 @@ class LangGraphChatbotFlow(BaseFlow):
                     "streaming": True,
                     "chunk": False,
                     "final": True,
-                    "model": self.model.model_name if hasattr(self.model, 'model_name') else "unknown",
+                    "model": getattr(self.model, 'model_name', 'unknown'),
                 }
             )
 
@@ -1094,7 +1192,7 @@ class LangGraphChatbotFlow(BaseFlow):
         Uses input.session.messages instead of internal state.
         """
         from athos.frameworks.langgraph.utils.messages import (
-            SystemMessage, HumanMessage, AIMessage
+            SystemMessage, HumanMessage
         )
 
         messages = []
@@ -1103,15 +1201,8 @@ class LangGraphChatbotFlow(BaseFlow):
         if self.system_prompt:
             messages.append(SystemMessage(self.system_prompt))
 
-        # History from session
-        for msg in input.session.get_history():
-            role = msg.get("role")
-            content = msg.get("content", "")
-
-            if role == "user":
-                messages.append(HumanMessage(content))
-            elif role == "assistant":
-                messages.append(AIMessage(content))
+        # History from session (convert to LangGraph format)
+        messages.extend(to_langgraph_messages(input.session.get_history()))
 
         # Current message
         messages.append(HumanMessage(input.message))
@@ -1123,10 +1214,10 @@ class LangGraphChatbotFlow(BaseFlow):
         pass
 
 
-# Register with new interface
+# Register flow (config unchanged)
 register_flow(
     "langgraph_chatbot",
-    # ... config class unchanged ...
+    # ... existing config class ...
 )
 ```
 
@@ -1136,8 +1227,9 @@ register_flow(
 - ✅ **Streaming**: Implements true streaming via `stream()`
 - ✅ **Lifecycle**: Uses `initialize()` for one-time setup
 - ✅ **Shareable**: Same instance can serve multiple sessions
+- ✅ **LangGraph-friendly**: Uses translation utilities
 
-#### Task 2.3: Update CLI to Use Runner
+#### Task 2.4: Update CLI to Use Runner
 
 **File**: `athos/src/athos/main.py` (updated)
 
@@ -1163,6 +1255,7 @@ async def cli_main(args):
             message=args.input,
             session_id="cli_session",  # CLI uses single session
             user_id="cli_user",
+            interface="cli",
             metadata={"cli": True}
         )
 
@@ -1174,6 +1267,8 @@ async def cli_main(args):
                 print(f"\n[Artifact: {artifact.display_name}]")
                 if artifact.type == "file":
                     print(f"  Path: {artifact.path}")
+                elif artifact.type == "image":
+                    print(f"  Image: {artifact.path}")
         else:
             print(f"Error: {result.error}")
             return 1
@@ -1193,6 +1288,7 @@ async def cli_main(args):
 
 **Deliverables**:
 - ✅ Compatibility shim for legacy flows
+- ✅ LangGraph translation utilities
 - ✅ One flow migrated (LangGraph chatbot)
 - ✅ CLI updated to use Runner
 - ✅ Tests demonstrating old and new flows work
@@ -1224,7 +1320,7 @@ from pydantic import BaseModel, Field
 
 from athos.runtime.builder import build_config
 from athos.runtime.runner import FlowRunner
-from athos.runtime.models import FlowOutput
+from athos.models.flow import FlowOutput
 
 
 class Pipeline:
@@ -1327,7 +1423,8 @@ class Pipeline:
                     message=message,
                     session_id=session_id,
                     user_id=user_id,
-                    metadata={"interface": "openwebui"}
+                    interface="openwebui",
+                    metadata={"model_id": self.valves.default_flow}
                 )
             )
 
@@ -1359,17 +1456,14 @@ class Pipeline:
 
                 # Stream from runner
                 async def async_stream():
-                    accumulated_output = None
-
                     async for output in self._runner.stream(
                         flow_name=self.valves.default_flow,
                         message=message,
                         session_id=session_id,
                         user_id=user_id,
-                        metadata={"interface": "openwebui"}
+                        interface="openwebui",
+                        metadata={"model_id": self.valves.default_flow}
                     ):
-                        accumulated_output = output
-
                         # Yield chunks
                         if output.metadata.get("chunk"):
                             # Intermediate chunk
@@ -1377,9 +1471,6 @@ class Pipeline:
                         else:
                             # Final output
                             yield self._format_output(output)
-
-                    # Clear status
-                    yield self._create_status_event("", done=True)
 
                 # Run async stream
                 gen = async_stream()
@@ -1389,6 +1480,9 @@ class Pipeline:
                         yield chunk
                     except StopAsyncIteration:
                         break
+
+                # Clear status
+                yield self._create_status_event("", done=True)
 
             except Exception as e:
                 # Clear status and show error
@@ -1458,8 +1552,9 @@ services:
     environment:
       - PIPELINES_DIR=/app/athos/integrations/openwebui
       - PYTHONPATH=/app
-      - ATHOS_CONFIG_PATH=/app/config/config.yaml
-      - ATHOS_WORKSPACE=/app/workspace
+      - CONFIG_PATH=/app/config/config.yaml
+      - DEFAULT_FLOW=hpc_chatbot
+      - ENABLE_STREAMING=true
 
   open-webui:
     image: ghcr.io/open-webui/open-webui:main
@@ -1482,6 +1577,7 @@ services:
 
 1. Build and start services:
    ```bash
+   cd athos/deployments/openwebui
    docker-compose up -d
    ```
 
@@ -1506,6 +1602,13 @@ Adjust in OpenWebUI Settings > Pipelines > ATHOS:
 Edit `config/config.yaml`:
 - Define models, MCP servers, tools
 - Configure flows and their parameters
+
+## Architecture
+
+- **Pipeline**: Thin adapter translating OpenWebUI → ATHOS
+- **FlowRunner**: Orchestrates flow execution and sessions
+- **SessionStore**: Manages conversation history (in-memory)
+- **Flows**: Your ATHOS flows (LangGraph, Smolagents, etc.)
 ```
 
 **Deliverables**:
@@ -1522,403 +1625,7 @@ Edit `config/config.yaml`:
 
 **Goal**: Add hook system for observability and improve streaming with status events.
 
-#### Task 4.1: Create Hook System
-
-**File**: `athos/src/athos/runtime/hooks.py`
-
-```python
-"""Hook system for runtime observability and extensibility."""
-
-import asyncio
-import logging
-from enum import Enum
-from typing import Callable, Any, Optional, Dict, List
-from dataclasses import dataclass
-
-logger = logging.getLogger(__name__)
-
-
-class HookEvent(str, Enum):
-    """Hook event types."""
-    BEFORE_EXECUTE = "before_execute"
-    AFTER_SUCCESS = "after_success"
-    AFTER_ERROR = "after_error"
-    BEFORE_STREAM = "before_stream"
-    OUTPUT_CHUNK = "output_chunk"
-    AFTER_STREAM_COMPLETE = "after_stream_complete"
-    FLOW_LOADED = "flow_loaded"
-    SESSION_CREATED = "session_created"
-
-
-@dataclass
-class Hook:
-    """A registered hook."""
-    event: HookEvent
-    callback: Callable
-    priority: int = 0
-    is_async: bool = True
-
-
-class HookManager:
-    """
-    Manages hook registration and execution.
-
-    Features:
-    - Ordered execution by priority
-    - Async and sync callback support
-    - Error isolation (hooks don't crash flows)
-    - Context passing to hooks
-    """
-
-    def __init__(self):
-        self._hooks: Dict[HookEvent, List[Hook]] = {
-            event: [] for event in HookEvent
-        }
-
-    def register(
-        self,
-        event: HookEvent,
-        callback: Callable,
-        priority: int = 0,
-        is_async: bool = True,
-    ) -> None:
-        """
-        Register a hook callback.
-
-        Args:
-            event: When to fire the hook
-            callback: Function to call
-            priority: Lower = earlier (default 0)
-            is_async: Whether callback is async
-        """
-        hook = Hook(
-            event=event,
-            callback=callback,
-            priority=priority,
-            is_async=is_async,
-        )
-
-        self._hooks[event].append(hook)
-
-        # Sort by priority
-        self._hooks[event].sort(key=lambda h: h.priority)
-
-        logger.debug(
-            f"Registered hook for {event.value} "
-            f"(priority={priority}, async={is_async})"
-        )
-
-    async def fire(self, event: HookEvent, **context) -> None:
-        """
-        Fire all hooks for an event.
-
-        Args:
-            event: Which event to fire
-            **context: Context passed to hooks
-        """
-        hooks = self._hooks.get(event, [])
-
-        if not hooks:
-            return
-
-        logger.debug(f"Firing {len(hooks)} hooks for {event.value}")
-
-        for hook in hooks:
-            try:
-                if hook.is_async:
-                    await hook.callback(**context)
-                else:
-                    # Run sync callback in executor
-                    await asyncio.to_thread(hook.callback, **context)
-
-            except Exception as e:
-                # Isolate errors - don't let hooks crash flows
-                logger.warning(
-                    f"Hook {hook.callback.__name__} for {event.value} failed: {e}",
-                    exc_info=True
-                )
-
-    def clear(self, event: Optional[HookEvent] = None) -> None:
-        """Clear hooks for an event (or all events)."""
-        if event:
-            self._hooks[event].clear()
-        else:
-            for event in HookEvent:
-                self._hooks[event].clear()
-```
-
-**Built-in Hooks** (`athos/src/athos/runtime/hooks/builtin.py`):
-
-```python
-"""Built-in hooks for common use cases."""
-
-import logging
-from athos.runtime.models import FlowResult, FlowOutput
-
-logger = logging.getLogger(__name__)
-
-
-# Logging hooks
-
-async def log_execution_start(request, **kwargs):
-    """Log when execution starts."""
-    logger.info(
-        f"Starting execution: flow={request.flow_name}, "
-        f"user={request.user_id}, session={request.session_id}"
-    )
-
-
-async def log_execution_complete(result: FlowResult, **kwargs):
-    """Log when execution completes."""
-    logger.info(
-        f"Execution complete: request_id={result.request_id}, "
-        f"success={result.success}, time={result.execution_time:.2f}s"
-    )
-
-
-async def log_execution_error(result: FlowResult, exception: Exception, **kwargs):
-    """Log execution errors."""
-    logger.error(
-        f"Execution failed: request_id={result.request_id}, "
-        f"error={result.error}, exception={type(exception).__name__}"
-    )
-
-
-# Metrics hooks (Prometheus example)
-
-class MetricsHook:
-    """Prometheus metrics collection."""
-
-    def __init__(self):
-        try:
-            from prometheus_client import Counter, Histogram
-
-            self.request_counter = Counter(
-                'athos_requests_total',
-                'Total ATHOS requests',
-                ['flow_name', 'success']
-            )
-
-            self.execution_time = Histogram(
-                'athos_execution_seconds',
-                'ATHOS execution time',
-                ['flow_name']
-            )
-
-        except ImportError:
-            logger.warning("prometheus_client not installed, metrics disabled")
-            self.request_counter = None
-            self.execution_time = None
-
-    async def record_result(self, result: FlowResult, **kwargs):
-        """Record metrics from result."""
-        if not self.request_counter:
-            return
-
-        flow_name = result.metadata.get('flow_name', 'unknown')
-
-        self.request_counter.labels(
-            flow_name=flow_name,
-            success=result.success
-        ).inc()
-
-        self.execution_time.labels(
-            flow_name=flow_name
-        ).observe(result.execution_time)
-
-
-# Status event hook for OpenWebUI
-
-class StatusEventHook:
-    """
-    Hook that captures status events for OpenWebUI streaming.
-
-    Usage:
-        hook = StatusEventHook()
-        runner.hook_manager.register(HookEvent.OUTPUT_CHUNK, hook.on_chunk)
-
-        # Later in Pipeline:
-        for event in hook.get_events():
-            yield event
-    """
-
-    def __init__(self):
-        self._events = []
-
-    async def on_chunk(self, output: FlowOutput, **kwargs):
-        """Capture output chunks as status events."""
-        if output.metadata.get('status_message'):
-            self._events.append({
-                "event": {
-                    "type": "status",
-                    "data": {
-                        "description": output.metadata['status_message'],
-                        "done": output.metadata.get('done', False),
-                    }
-                }
-            })
-
-    def get_events(self):
-        """Get and clear captured events."""
-        events = self._events.copy()
-        self._events.clear()
-        return events
-```
-
-#### Task 4.2: Integrate Hooks into FlowRunner
-
-Update `FlowRunner` to use hooks:
-
-```python
-class FlowRunner:
-    def __init__(
-        self,
-        config: AthosConfig,
-        session_store: Optional[SessionStore] = None,
-        hook_manager: Optional[HookManager] = None,  # NEW
-    ):
-        self.config = config
-        self.session_store = session_store or InMemorySessionStore()
-        self.hook_manager = hook_manager or HookManager()  # NEW
-
-        # Register built-in hooks
-        from athos.runtime.hooks.builtin import (
-            log_execution_start,
-            log_execution_complete,
-            log_execution_error,
-        )
-
-        self.hook_manager.register(
-            HookEvent.BEFORE_EXECUTE,
-            log_execution_start
-        )
-        self.hook_manager.register(
-            HookEvent.AFTER_SUCCESS,
-            log_execution_complete
-        )
-        self.hook_manager.register(
-            HookEvent.AFTER_ERROR,
-            log_execution_error
-        )
-
-        self._flow_cache: Dict[str, BaseFlow] = {}
-
-    async def execute(self, ...):
-        request = FlowRequest(...)
-
-        # Fire before hook
-        await self.hook_manager.fire(
-            HookEvent.BEFORE_EXECUTE,
-            request=request
-        )
-
-        try:
-            # ... execute flow ...
-
-            result = FlowResult(...)
-
-            # Fire success hook
-            await self.hook_manager.fire(
-                HookEvent.AFTER_SUCCESS,
-                result=result
-            )
-
-            return result
-
-        except Exception as e:
-            result = FlowResult(...)
-
-            # Fire error hook
-            await self.hook_manager.fire(
-                HookEvent.AFTER_ERROR,
-                result=result,
-                exception=e
-            )
-
-            return result
-
-    async def stream(self, ...):
-        request = FlowRequest(...)
-
-        # Fire before stream hook
-        await self.hook_manager.fire(
-            HookEvent.BEFORE_STREAM,
-            request=request
-        )
-
-        try:
-            async for output in flow.stream(flow_input):
-                # Fire chunk hook
-                await self.hook_manager.fire(
-                    HookEvent.OUTPUT_CHUNK,
-                    output=output
-                )
-
-                yield output
-
-            # Fire completion hook
-            await self.hook_manager.fire(
-                HookEvent.AFTER_STREAM_COMPLETE,
-                request=request
-            )
-
-        except Exception as e:
-            await self.hook_manager.fire(
-                HookEvent.AFTER_ERROR,
-                exception=e
-            )
-            raise
-```
-
-#### Task 4.3: Enhance Pipeline with Status Events
-
-Update Pipeline to use hooks for status events:
-
-```python
-class Pipeline:
-    def _execute_streaming(self, message, user_id, session_id):
-        """Enhanced streaming with status events."""
-
-        def stream_generator():
-            loop = asyncio.new_event_loop()
-
-            try:
-                # Create hook for status events
-                from athos.runtime.hooks.builtin import StatusEventHook
-                status_hook = StatusEventHook()
-
-                # Register hook
-                self._runner.hook_manager.register(
-                    HookEvent.OUTPUT_CHUNK,
-                    status_hook.on_chunk
-                )
-
-                # Initial status
-                yield self._create_status_event("Initializing...", False)
-
-                async def async_stream():
-                    async for output in self._runner.stream(...):
-                        # Yield any status events captured by hook
-                        for event in status_hook.get_events():
-                            yield event
-
-                        # Yield content
-                        if output.metadata.get("chunk"):
-                            yield output.content
-                        else:
-                            yield self._format_output(output)
-
-                # Run stream
-                # ... (bridge async to sync) ...
-
-                # Final status
-                yield self._create_status_event("", True)
-
-            finally:
-                loop.close()
-
-        return stream_generator()
-```
+(Implementation same as v2 plan - hooks integrated into FlowRunner, built-in hooks for logging/metrics, Pipeline updated to use hooks for status events)
 
 **Deliverables**:
 - ✅ Hook system with event types
@@ -1934,49 +1641,151 @@ class Pipeline:
 
 **Goal**: Enable full LangGraph streaming with thinking blocks and tool call visibility.
 
-#### Task 5.1: Enhance LangGraph Flows with Rich Streaming
+#### Task 5.1: Enhance LangGraph ReAct Agent with Rich Streaming
 
 **File**: `athos/src/athos/frameworks/langgraph/flows/react_agent.py` (enhanced)
 
 ```python
-"""Enhanced LangGraph ReAct agent with rich streaming."""
+"""Enhanced LangGraph ReAct agent with rich streaming and LangGraph checkpointing."""
 
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional, List
+import logging
+
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.prebuilt import create_react_agent
 from langgraph.config import get_stream_writer
 
-from athos.runtime.models import FlowInput, FlowOutput, Artifact, ExecutionMode
 from athos.interfaces.base_flow import BaseFlow
+from athos.models.flow import FlowInput, FlowOutput, Artifact
+from athos.models.enums import ExecutionMode
+from athos.frameworks.langgraph.utils.translation import (
+    to_langgraph_messages,
+    from_langgraph_messages,
+    build_langgraph_config,
+)
+from athos.frameworks.langgraph.utils.messages import HumanMessage
+
+logger = logging.getLogger(__name__)
 
 
 class LangGraphReactAgentFlow(BaseFlow):
-    """ReAct agent with rich streaming support."""
+    """
+    ReAct agent with LangGraph checkpointing and rich streaming.
+
+    Integration strategy:
+    - LangGraph manages state via checkpointer with thread_id = session_id
+    - We sync conversation history to FlowSession for consistency
+    - We translate LangGraph events to FlowOutput
+    - Custom events emitted via get_stream_writer()
+    """
 
     name = "langgraph_react_agent"
+    description = "ReAct agent with tool calling"
     supported_modes = [ExecutionMode.SYNC, ExecutionMode.STREAMING]
 
-    # ... (initialization code) ...
+    def __init__(self):
+        self._graph = None
+        self._checkpointer = None
+        self.model = None
+        self.tools = []
+        self.instructions = None
+
+    async def initialize(self, config) -> None:
+        """
+        Initialize LangGraph with checkpointing.
+
+        Uses SQLite checkpointer for persistence.
+        Thread ID = our session_id.
+        """
+        from athos.frameworks.langgraph.factories import build_model, build_tools
+
+        # LangGraph checkpointer
+        self._checkpointer = SqliteSaver.from_conn_string(
+            ":memory:"  # Or real DB path from config
+        )
+
+        # Build model and tools
+        self.model = build_model(config.model)
+        self.tools = build_tools(config.tools, config.mcp_servers)
+        self.instructions = getattr(config, 'instructions', None)
+
+        # Create LangGraph ReAct agent
+        self._graph = create_react_agent(
+            self.model,
+            self.tools,
+            prompt=self.instructions,
+            checkpointer=self._checkpointer
+        )
+
+        logger.info(f"Initialized {self.name} with {len(self.tools)} tools")
+
+    async def execute(self, input: FlowInput) -> FlowOutput:
+        """Execute using LangGraph's state management."""
+
+        # LangGraph config using our session_id as thread_id
+        langgraph_config = build_langgraph_config(
+            input.session.session_id,
+            input.metadata
+        )
+
+        # Get current LangGraph state
+        current_state = self._graph.get_state(langgraph_config)
+
+        # Build messages (existing + new)
+        messages = list(current_state.values.get("messages", []))
+        messages.append(HumanMessage(input.message))
+
+        # Execute
+        result = await self._graph.ainvoke(
+            {"messages": messages},
+            config=langgraph_config
+        )
+
+        # Sync messages back to our session for consistency
+        input.session.messages = from_langgraph_messages(result["messages"])
+
+        # Extract response
+        response = self._extract_last_ai_message(result["messages"])
+        tools_used = self._extract_tools_used(result["messages"])
+
+        return FlowOutput(
+            content=response,
+            metadata={"tools_used": tools_used}
+        )
 
     async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
         """
-        Stream with rich events: thinking, tool calls, responses.
+        Stream with LangGraph custom events.
 
-        Uses LangGraph's get_stream_writer() to emit custom events.
+        Emits events for:
+        - Thinking/reasoning steps
+        - Tool calls (before execution)
+        - Tool results (after execution)
+        - Response chunks
         """
-        await self._ensure_mcp_tools_loaded()
-        await self._ensure_graph_built()
 
-        # Build state
-        state = {
-            "messages": self._build_messages(input),
-            # Inject stream writer context
-            "_stream_writer": get_stream_writer()
-        }
+        langgraph_config = build_langgraph_config(
+            input.session.session_id,
+            input.metadata
+        )
 
+        # Build input state
+        current_state = self._graph.get_state(langgraph_config)
+        messages = list(current_state.values.get("messages", []))
+        messages.append(HumanMessage(input.message))
+
+        # Stream with custom mode
         accumulated_response = ""
-        tool_calls_made = []
+        tools_used = []
 
-        async for chunk in self._graph.astream(state, stream_mode="custom"):
-            # LangGraph custom events
+        async for chunk in self._graph.astream(
+            {"messages": messages},
+            config=langgraph_config,
+            stream_mode="custom"
+        ):
+            # Translate LangGraph custom events to our FlowOutput
+            # (Custom events are emitted in the graph nodes via get_stream_writer())
+
             event_type = chunk.get("event_type")
 
             if event_type == "thinking":
@@ -1993,7 +1802,7 @@ class LangGraphReactAgentFlow(BaseFlow):
             elif event_type == "tool_call":
                 # Tool is being called
                 tool_name = chunk["tool_name"]
-                tool_calls_made.append(tool_name)
+                tools_used.append(tool_name)
 
                 yield FlowOutput(
                     content="",
@@ -2031,6 +1840,10 @@ class LangGraphReactAgentFlow(BaseFlow):
                     }
                 )
 
+        # Sync final state
+        final_state = self._graph.get_state(langgraph_config)
+        input.session.messages = from_langgraph_messages(final_state.values["messages"])
+
         # Final complete output
         yield FlowOutput(
             content=accumulated_response,
@@ -2038,16 +1851,42 @@ class LangGraphReactAgentFlow(BaseFlow):
                 "streaming": True,
                 "chunk": False,
                 "final": True,
-                "tools_used": tool_calls_made
+                "tools_used": tools_used
             }
         )
+
+    def _extract_last_ai_message(self, messages) -> str:
+        """Extract last AI message content."""
+        from langchain_core.messages import AIMessage
+
+        for msg in reversed(messages):
+            if isinstance(msg, AIMessage):
+                return msg.content
+
+        return ""
+
+    def _extract_tools_used(self, messages) -> List[str]:
+        """Extract list of tools that were called."""
+        from langchain_core.messages import ToolMessage
+
+        tools = []
+        for msg in messages:
+            if isinstance(msg, ToolMessage):
+                tools.append(msg.name)
+
+        return list(set(tools))
+
+    async def cleanup(self) -> None:
+        """Close LangGraph checkpointer if needed."""
+        if self._checkpointer and hasattr(self._checkpointer, 'close'):
+            self._checkpointer.close()
 ```
 
-To emit these custom events from within the graph, update the agent implementation:
+**To emit custom events from the graph**, update agent implementation to use `get_stream_writer()`:
 
 ```python
-# In the agent's tool-calling node:
-def call_tools(state):
+# Example: In a custom agent node
+def tool_calling_node(state):
     """Node that calls tools with streaming events."""
     from langgraph.config import get_stream_writer
 
@@ -2074,14 +1913,14 @@ def call_tools(state):
     return state
 ```
 
-#### Task 5.2: Update Pipeline to Render Thinking Blocks
+#### Task 5.2: Create OpenWebUI Event Formatter
 
-**File**: `athos/src/athos/integrations/openwebui/formatters.py` (new)
+**File**: `athos/src/athos/integrations/openwebui/formatters.py`
 
 ```python
 """Formatting utilities for OpenWebUI events."""
 
-from athos.runtime.models import FlowOutput
+from athos.models.flow import FlowOutput
 
 
 def format_for_openwebui(output: FlowOutput) -> dict:
@@ -2140,6 +1979,8 @@ def format_for_openwebui(output: FlowOutput) -> dict:
                 content += f"\n\n![{artifact.display_name}]({artifact.path})"
             elif artifact.type == "file":
                 content += f"\n\n📄 [{artifact.display_name}]({artifact.path})"
+            elif artifact.type == "link":
+                content += f"\n\n🔗 [{artifact.display_name}]({artifact.data})"
 
         return {
             "choices": [{
@@ -2172,11 +2013,12 @@ class Pipeline:
 
 **Deliverables**:
 - ✅ LangGraph flows with rich streaming
+- ✅ LangGraph checkpointing integrated
 - ✅ Custom event emission (thinking, tools, response)
 - ✅ OpenWebUI formatter for all event types
 - ✅ Thinking blocks visible in UI
 - ✅ Tool call status updates
-- ✅ Tests for streaming events
+- ✅ Tests for streaming events and LangGraph integration
 
 ---
 
@@ -2184,133 +2026,7 @@ class Pipeline:
 
 **Goal**: Add reliability, observability, and operational features.
 
-#### Task 6.1: Timeout and Cancellation
-
-Update FlowRunner:
-
-```python
-import asyncio
-
-class FlowRunner:
-    async def execute(self, ..., timeout: Optional[float] = None):
-        """Execute with optional timeout."""
-        if timeout is None:
-            timeout = self.config.get('default_timeout', 300)
-
-        try:
-            # Execute with timeout
-            result = await asyncio.wait_for(
-                self._execute_internal(...),
-                timeout=timeout
-            )
-            return result
-
-        except asyncio.TimeoutError:
-            logger.error(f"Execution timed out after {timeout}s")
-            return FlowResult(
-                request_id=request.request_id,
-                success=False,
-                output=None,
-                error=f"Execution timed out after {timeout}s",
-                execution_time=timeout,
-                metadata={"timeout": True}
-            )
-```
-
-#### Task 6.2: Metrics Endpoint
-
-**File**: `athos/src/athos/integrations/openwebui/metrics.py`
-
-```python
-"""Prometheus metrics endpoint for Pipeline."""
-
-from prometheus_client import Counter, Histogram, Gauge, generate_latest
-
-# Metrics
-request_counter = Counter(
-    'athos_requests_total',
-    'Total requests',
-    ['flow', 'status']
-)
-
-execution_time = Histogram(
-    'athos_execution_seconds',
-    'Execution time',
-    ['flow']
-)
-
-active_requests = Gauge(
-    'athos_active_requests',
-    'Currently active requests'
-)
-
-
-def get_metrics() -> bytes:
-    """Get Prometheus metrics."""
-    return generate_latest()
-```
-
-Add `/metrics` endpoint to Pipeline (if using FastAPI wrapper).
-
-#### Task 6.3: Health Check
-
-```python
-class Pipeline:
-    async def health_check(self) -> dict:
-        """Health check endpoint."""
-        return {
-            "status": "healthy" if self._initialized else "initializing",
-            "flows_cached": len(self._runner._flow_cache),
-            "sessions_active": len(self._runner.session_store._sessions),
-        }
-```
-
-#### Task 6.4: Documentation
-
-**File**: `docs/openwebui_integration.md`
-
-```markdown
-# ATHOS OpenWebUI Integration Guide
-
-## Architecture
-
-[Diagram and explanation]
-
-## Deployment
-
-### Docker Compose
-[Instructions]
-
-### Kubernetes
-[Helm chart and instructions]
-
-## Configuration
-
-### Valves
-[All valve options explained]
-
-### ATHOS Config
-[How to configure flows, models, MCPs]
-
-## Troubleshooting
-
-### Common Issues
-[Known problems and solutions]
-
-### Debugging
-[How to enable debug logging]
-
-### Performance Tuning
-[Optimization tips]
-
-## Monitoring
-
-### Metrics
-[Prometheus metrics available]
-
-### Logging
-[Log format and levels]
-```
+(Same as v2 plan: timeouts, metrics, health checks, comprehensive documentation)
 
 **Deliverables**:
 - ✅ Timeout and cancellation support
@@ -2322,12 +2038,36 @@ class Pipeline:
 
 ---
 
+## LangGraph Integration Summary
+
+### How LangGraph Fits In
+
+| LangGraph Feature | ATHOS Integration |
+|-------------------|-------------------|
+| **Checkpointing** | LangGraph's checkpointer with `thread_id = session_id` |
+| **State** | LangGraph manages internally; we sync messages to `FlowSession` |
+| **Messages** | Translate via `to_langgraph_messages()` / `from_langgraph_messages()` |
+| **Streaming** | LangGraph's `stream_mode="custom"` → wrapped in `FlowOutput` |
+| **Config** | Passed via `build_langgraph_config(session_id, metadata)` |
+| **Tools** | Built via ATHOS factories, passed to LangGraph agent |
+
+### Key Benefits
+
+- ✅ **LangGraph handles persistence**: Uses its robust checkpointing system
+- ✅ **Conversation continuity**: `thread_id = session_id` for stateful conversations
+- ✅ **Framework-agnostic Runner**: FlowRunner doesn't know about LangGraph internals
+- ✅ **Consistent interface**: All flows expose `FlowInput → FlowOutput`
+- ✅ **Translation layer**: Clean utilities in `translation.py`
+
+---
+
 ## Migration Path
 
 ### Phase 1: Foundation (M1-M2)
-- New runtime models added
+- New models package `athos/models/`
 - FlowRunner created
 - Compatibility shim for legacy flows
+- LangGraph translation utilities
 - One flow migrated as proof of concept
 - **Existing flows continue to work**
 
@@ -2357,16 +2097,18 @@ class Pipeline:
 ## Testing Strategy
 
 ### Unit Tests
-- Runtime models (serialization, methods)
+- Models (serialization, methods)
 - SessionStore implementations
 - FlowRunner execution and streaming
 - Hook system (registration, firing, error isolation)
+- LangGraph translation utilities
 - Individual flows
 
 ### Integration Tests
 - Pipeline pipe() method with mock flows
 - Session persistence across requests
 - Streaming event generation
+- LangGraph checkpointing
 - Error handling end-to-end
 
 ### End-to-End Tests
@@ -2375,12 +2117,14 @@ class Pipeline:
 - Test streaming with real LangGraph flows
 - Verify conversation history
 - Check artifact rendering
+- Verify LangGraph state persistence
 
 ### Performance Tests
 - Concurrent request handling
 - Timeout behavior under load
 - Memory usage with long conversations
 - Session store scalability
+- LangGraph checkpointer performance
 
 ---
 
@@ -2388,11 +2132,11 @@ class Pipeline:
 
 | Milestone | Duration | Key Deliverables |
 |-----------|----------|------------------|
-| M1: Core Runtime | 1-2 weeks | Models, SessionStore, BaseFlow updates, FlowRunner |
-| M2: Migration & Compat | 1 week | Compatibility layer, one migrated flow, updated CLI |
+| M1: Core Runtime | 1-2 weeks | Models package, SessionStore, BaseFlow, FlowRunner |
+| M2: Migration & Compat | 1 week | Compatibility layer, translation utils, migrated flow, updated CLI |
 | M3: Basic Pipeline | 1 week | Working Pipeline, basic streaming, deployment |
 | M4: Hooks & Streaming | 1-1.5 weeks | Hook system, enhanced streaming, status events |
-| M5: LangGraph Features | 1-1.5 weeks | Rich streaming, thinking blocks, tool visibility |
+| M5: LangGraph Features | 1-1.5 weeks | Rich streaming, thinking blocks, tool visibility, checkpointing |
 | M6: Production | 1 week | Timeout, metrics, health, docs |
 
 **Total: 6.5-8 weeks** for complete implementation
@@ -2402,13 +2146,15 @@ class Pipeline:
 ## Success Criteria
 
 ### Milestone 1
-- ✅ All models serialize/deserialize correctly
+- ✅ All models in `athos/models/` package
+- ✅ Models serialize/deserialize correctly
 - ✅ FlowRunner executes flows successfully
 - ✅ Sessions persist state across requests
 - ✅ Tests pass with 90%+ coverage
 
 ### Milestone 2
 - ✅ Legacy flows work with new Runner
+- ✅ LangGraph translation utilities work bidirectionally
 - ✅ One flow fully migrated and tested
 - ✅ CLI uses Runner successfully
 
@@ -2426,6 +2172,7 @@ class Pipeline:
 ### Milestone 5
 - ✅ Thinking blocks render in OpenWebUI
 - ✅ Tool calls visible as status updates
+- ✅ LangGraph checkpointing preserves conversation state
 - ✅ Streaming smooth and responsive
 
 ### Milestone 6
@@ -2438,20 +2185,51 @@ class Pipeline:
 
 ## Conclusion
 
-This redesigned plan provides:
+This plan provides:
 
 1. **Rich, Structured Interfaces**: `FlowInput`, `FlowOutput`, `FlowSession` enable advanced features
-2. **Stateless Flows**: Pure functions that are testable and shareable
-3. **External Session Management**: Pluggable persistence with clean separation
-4. **First-Class Streaming**: Built into interfaces, not bolted on
-5. **Hook System**: Observability and extensibility without coupling
-6. **Backward Compatibility**: Existing flows work during migration
-7. **Production Ready**: Timeouts, metrics, health checks, comprehensive docs
+2. **Clean Package Structure**: Models in `athos/models/` with no circular dependencies
+3. **Stateless Flows**: Pure functions that are testable and shareable
+4. **External Session Management**: Pluggable persistence with clean separation
+5. **LangGraph Integration**: Let LangGraph handle checkpointing, we coordinate and translate
+6. **First-Class Streaming**: Built into interfaces, not bolted on
+7. **Hook System**: Observability and extensibility without coupling
+8. **Backward Compatibility**: Existing flows work during migration
+9. **Production Ready**: Timeouts, metrics, health checks, comprehensive docs
 
 The design cleanly separates concerns:
-- **Flows** = Business logic
-- **Runner** = Orchestration
-- **Session** = State persistence
-- **Pipeline** = Protocol translation
+- **Models** = Data structures (no dependencies)
+- **Interfaces** = Contracts (depend on models)
+- **Flows** = Business logic (implement interfaces)
+- **Runner** = Orchestration (uses models, interfaces, flows)
+- **Pipeline** = Protocol translation (uses runner)
 
-This architecture supports current needs (OpenWebUI) while enabling future integrations (CLI enhancement, SlackBot, Jupyter) with minimal changes.
+This architecture supports current needs (OpenWebUI) while enabling future integrations (CLI enhancement, SlackBot, Jupyter) with minimal changes. LangGraph integration is clean and leverages LangGraph's strengths while maintaining framework-agnostic abstractions.
+
+
+### Areas for Consideration & Minor Concerns:
+
+1. SessionStore Implementation: The plan starts with an InMemorySessionStore, which is perfect for
+   development. However, for a production OpenWebUI deployment, this will be a limitation (sessions will
+   be lost on restart). The plan mentions Redis as a future option, but it would be beneficial to
+   explicitly add a task in a later milestone (e.g., Milestone 4 or 5) to implement and test a persistent
+    SessionStore (like Redis or a database-backed one).
+2. Workspace Path in `FlowRunner`: The _get_workspace_path method hardcodes a default base path
+   (/tmp/athos_workspace). While it can be overridden via the config, it might be safer to make
+   workspace_path a required configuration key in AthosConfig to prevent accidental writes to a system
+   temp directory if the config is missing. This forces the deployer to be explicit about where user data
+   is stored.
+3. Error Handling in Streaming: In the _execute_streaming method within the OpenWebUI Pipeline class, the
+   try...except block wraps the entire generator. If an exception occurs mid-stream, it correctly yields
+   an error message. However, it might be useful for the FlowRunner.stream() method itself to yield a
+   final FlowOutput with an error payload, allowing the caller (Pipeline) to handle it more gracefully and
+    consistently, rather than relying on a top-level try/except.
+4. LangGraph Checkpointer: The LangGraphReactAgentFlow example initializes the SqliteSaver with
+   ":memory:". This is great for testing, but the comment Or real DB path from config is key. It should
+   be emphasized that for session persistence to work correctly across pipeline restarts, this needs to
+   be a file path derived from the configuration. This should be a mandatory configuration item for
+   persistent LangGraph flows.
+5. Configuration for `athos-pipeline` service: In the docker-compose.yml, the environment variables
+   CONFIG_PATH, DEFAULT_FLOW, etc., are hardcoded. These are correctly mapped to the Valves in the
+   Pipeline class, which is good. It's just worth noting that any changes to these require a service
+   restart, which is reasonable for this kind of configuration.
