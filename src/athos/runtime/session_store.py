@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from asyncio import Lock
+from typing import Optional
 
 from athos.models.session import FlowSession
 
@@ -37,7 +38,8 @@ class InMemorySessionStore(SessionStore):
     """In-memory session store suitable for tests and development."""
 
     def __init__(self) -> None:
-        self._sessions: Dict[str, FlowSession] = {}
+        self._sessions: dict[str, FlowSession] = {}
+        self._lock = Lock()
 
     async def get_or_create(
         self,
@@ -45,25 +47,31 @@ class InMemorySessionStore(SessionStore):
         user_id: str,
         **kwargs,
     ) -> FlowSession:
-        if session_id not in self._sessions:
-            self._sessions[session_id] = FlowSession(
-                session_id=session_id,
-                user_id=user_id,
-                **kwargs,
-            )
-        return self._sessions[session_id]
+        async with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None:
+                session = FlowSession(
+                    session_id=session_id,
+                    user_id=user_id,
+                    **kwargs,
+                )
+                self._sessions[session_id] = session
+            return session
 
     async def save(self, session: FlowSession) -> None:
-        self._sessions[session.session_id] = session
+        async with self._lock:
+            self._sessions[session.session_id] = session
 
     async def delete(self, session_id: str) -> None:
-        self._sessions.pop(session_id, None)
+        async with self._lock:
+            self._sessions.pop(session_id, None)
 
     async def list_sessions(self, user_id: Optional[str] = None) -> list[str]:
-        if user_id is None:
-            return list(self._sessions.keys())
-        return [
-            sid
-            for sid, session in self._sessions.items()
-            if session.user_id == user_id
-        ]
+        async with self._lock:
+            if user_id is None:
+                return sorted(self._sessions.keys())
+            return [
+                sid
+                for sid, session in self._sessions.items()
+                if session.user_id == user_id
+            ]
