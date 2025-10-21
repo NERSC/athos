@@ -61,7 +61,7 @@ class LangGraphChatbotFlow(BaseFlow):
         logger.info(
             "Initialized %s with model %s",
             self.name,
-            getattr(self.model, "model_name", model_cfg.model_id),
+            self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         )
 
     async def execute(self, input: FlowInput) -> FlowOutput:
@@ -81,7 +81,7 @@ class LangGraphChatbotFlow(BaseFlow):
 
         content = self._extract_response_content(response)
         metadata = {
-            "model": getattr(self.model, "model_name", "unknown"),
+            "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         }
 
         usage = getattr(response, "usage", None)
@@ -99,14 +99,10 @@ class LangGraphChatbotFlow(BaseFlow):
         if self.model is None:
             raise RuntimeError("Flow not initialized; model is unavailable")
 
-        if not self.model.supports_streaming:
-            logger.warning("Model does not support streaming; falling back to execute()")
-            yield await self.execute(input)
-            return
-
+        # ChatOpenAI (langchain-openai ~=1.0.0) always supports streaming via astream()
         accumulated = ""
         try:
-            async for chunk in stream_fn(messages):  # type: ignore[call-arg]
+            async for chunk in self.model.astream(messages):
                 chunk_text = self._coerce_chunk_content(chunk)
                 if not chunk_text:
                     continue
@@ -129,7 +125,7 @@ class LangGraphChatbotFlow(BaseFlow):
                 "streaming": True,
                 "chunk": False,
                 "final": True,
-                "model": getattr(self.model, "model_name", "unknown"),
+                "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
             },
         )
 
