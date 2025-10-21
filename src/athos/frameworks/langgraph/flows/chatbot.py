@@ -99,8 +99,7 @@ class LangGraphChatbotFlow(BaseFlow):
         if self.model is None:
             raise RuntimeError("Flow not initialized; model is unavailable")
 
-        stream_fn = getattr(self.model, "astream", None)
-        if stream_fn is None:
+        if not self.model.supports_streaming:
             logger.warning("Model does not support streaming; falling back to execute()")
             yield await self.execute(input)
             return
@@ -176,24 +175,12 @@ class LangGraphChatbotFlow(BaseFlow):
         return history
 
     async def _invoke_model(self, messages: Sequence[BaseMessage]) -> object:
-        """Invoke the underlying model, handling legacy LangChain APIs."""
+        """Invoke the underlying model."""
 
         if self.model is None:
             raise RuntimeError("Flow not initialized; model is unavailable")
 
-        ainvoke = getattr(self.model, "ainvoke", None)
-        if callable(ainvoke):
-            return await ainvoke(messages)
-
-        agenerate = getattr(self.model, "agenerate", None)
-        if callable(agenerate):
-            response = await agenerate([messages])
-            generations = getattr(response, "generations", None)
-            if generations:
-                return generations[0][0].message
-            return response
-
-        raise AttributeError("Model does not provide an async invocation method")
+        return await self.model.ainvoke(messages)
 
     def _extract_response_content(self, response: object) -> str:
         """Extract textual content from a LangChain response payload."""
