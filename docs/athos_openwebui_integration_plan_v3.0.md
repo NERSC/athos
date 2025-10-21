@@ -32,12 +32,12 @@ The integration leverages:
 ## Design Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      OpenWebUI Frontend                      │
-└────────────────────────┬────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                      OpenWebUI Frontend                    │
+└────────────────────────┬───────────────────────────────────┘
                          │ HTTP/SSE
-┌────────────────────────▼────────────────────────────────────┐
-│              OpenWebUI Pipelines Server                      │
+┌────────────────────────▼───────────────────────────────────┐
+│              OpenWebUI Pipelines Server                    │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │         athos_pipeline.py (Pipeline class)           │  │
 │  │  • pipe() method (OpenWebUI protocol)                │  │
@@ -47,7 +47,7 @@ The integration leverages:
 └─────────────────────────┼──────────────────────────────────┘
                           │
 ┌─────────────────────────▼──────────────────────────────────┐
-│                  ATHOS Runtime (NEW)                        │
+│                  ATHOS Runtime (NEW)                       │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │   FlowRunner (athos.runtime.runner)                  │  │
 │  │   • execute() - sync execution                       │  │
@@ -56,14 +56,14 @@ The integration leverages:
 │  │   • Hook system for observability                    │  │
 │  │   • Lifecycle orchestration                          │  │
 │  └──────────┬────────────────────────┬──────────────────┘  │
-│             │                        │                      │
+│             │                        │                     │
 │  ┌──────────▼─────────┐   ┌──────────▼──────────────────┐  │
 │  │  SessionStore      │   │   HookManager               │  │
 │  │  • In-memory       │   │   • BEFORE_EXECUTE          │  │
 │  │  • Redis (future)  │   │   • OUTPUT_CHUNK            │  │
 │  │  • Manages state   │   │   • AFTER_SUCCESS/ERROR     │  │
 │  └────────────────────┘   └─────────────────────────────┘  │
-│                                                              │
+│                                                            │
 │  ┌──────────────────────────────────────────────────────┐  │
 │  │   Enhanced BaseFlow Interface                        │  │
 │  │   • execute(FlowInput) -> FlowOutput                 │  │
@@ -71,15 +71,15 @@ The integration leverages:
 │  │   • initialize(config) - one-time setup              │  │
 │  │   • cleanup() - resource cleanup                     │  │
 │  └──────────────────────┬───────────────────────────────┘  │
-│                         │                                   │
+│                         │                                  │
 │  ┌──────────────────────▼───────────────────────────────┐  │
 │  │   Flow Implementations                               │  │
-│  │   • LangGraphReactAgentFlow                         │  │
-│  │   • LangGraphChatbotFlow                            │  │
+│  │   • LangGraphReactAgentFlow                          │  │
+│  │   • LangGraphChatbotFlow                             │  │
 │  │   • SmolAgentFlow                                    │  │
 │  │   • ChatbotFlow                                      │  │
 │  └──────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────┘
 ```
 
 ## Package Structure
