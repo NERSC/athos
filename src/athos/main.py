@@ -3,10 +3,12 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
 from dotenv import load_dotenv
 
-from athos import build_config, build_flow
+from athos.runtime.builder import build_config, build_flow
+from athos.runtime.runner import FlowRunner
 from athos.utils import parse_overrides
 
 # Only needed when launching a Gradio UI
@@ -136,6 +138,7 @@ async def main():
         parser.error(str(exc))
 
     flow = None
+    runner: Optional[FlowRunner] = None
     try:
         cfg = build_config(args.config, overrides)
         if args.log_level:
@@ -160,16 +163,45 @@ async def main():
             parser.error(
                 "--flow and --input are required unless --show-config or --gradio is used"
             )
-        flow = build_flow(args.flow, cfg)
-        result = await flow.execute(args.input)
-        print(f"Result: {result}")
+        runner = FlowRunner(cfg)
+        result = await runner.execute(
+            flow_name=args.flow,
+            message=args.input,
+            session_id="cli_session",
+            user_id="cli_user",
+            interface="cli",
+            metadata={"cli": True},
+        )
+
+        if not result.success or result.output is None:
+            print(f"Error: {result.error}")
+            return 1
+
+        print(result.output.content)
+
+        for artifact in result.output.artifacts:
+            print(f"\n[Artifact: {artifact.display_name or artifact.type}]")
+            if artifact.path:
+                print(f"  Path: {artifact.path}")
+            elif artifact.data is not None:
+                print(f"  Data: {artifact.data}")
     except Exception as e:
         logger.error(f"Execution failed: {e}")
         raise e
     finally:
-        if flow is not None:
+        if runner is not None:
             try:
-                await flow.close()
+                await runner.cleanup()
+            except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
+                logger.warning("Error during runner cleanup: %s", e)
+        if flow is not None:
+            cleanup = getattr(flow, "cleanup", None)
+            close = getattr(flow, "close", None)
+            try:
+                if callable(cleanup):
+                    await cleanup()
+                elif callable(close):
+                    await close()
             except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
                 logger.warning("Error during flow cleanup: %s", e)
 
