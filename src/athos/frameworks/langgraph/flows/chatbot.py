@@ -8,7 +8,8 @@ from typing import AsyncGenerator, List, Optional, Sequence, TYPE_CHECKING
 from pydantic import Field
 from typing_extensions import Literal
 
-from athos.config.models import AthosConfig, BaseFlowConfig, ModelConfig, ToolFramework
+from athos.config.models import AthosConfig, BaseFlowConfig, ToolFramework
+from athos.frameworks.langgraph.base import BaseLangGraphFlow
 from athos.frameworks.langgraph.factories import build_model
 from athos.frameworks.langgraph.utils.messages import (
     AIMessage,
@@ -17,7 +18,6 @@ from athos.frameworks.langgraph.utils.messages import (
     SystemMessage,
 )
 from athos.frameworks.langgraph.utils.translation import to_langgraph_messages
-from athos.interfaces.base_flow import BaseFlow
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.registry.flow_registry import register_flow
@@ -29,7 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover - only for static analysis
 logger = logging.getLogger(__name__)
 
 
-class LangGraphChatbotFlow(BaseFlow):
+class LangGraphChatbotFlow(BaseLangGraphFlow):
     """Chatbot flow that produces structured outputs and supports streaming."""
 
     name = "langgraph_chatbot"
@@ -37,7 +37,7 @@ class LangGraphChatbotFlow(BaseFlow):
     supported_modes = [ExecutionMode.SYNC, ExecutionMode.STREAMING]
 
     def __init__(self, full_config: Optional[AthosConfig] = None) -> None:
-        self._full_config = full_config
+        super().__init__(full_config)
         self.model: Optional["BaseLanguageModel"] = None
         self.system_prompt: Optional[str] = None
         self._initial_history: List[BaseMessage] = []
@@ -201,18 +201,6 @@ class LangGraphChatbotFlow(BaseFlow):
 
         return str(chunk) if chunk is not None else ""
 
-    def _get_model_config(self, model_name: str) -> ModelConfig:
-        """Retrieve the model configuration from the global ATHOS config."""
-
-        if self._full_config is None:
-            raise RuntimeError("Athos configuration is required to build the model")
-
-        try:
-            return self._full_config.models[model_name]
-        except KeyError as exc:  # pragma: no cover - validation safeguard
-            raise ValueError(
-                f"Unknown model '{model_name}' configured for {self.name}"
-            ) from exc
 
 
 class LangGraphChatbotFlowConfig(BaseFlowConfig):

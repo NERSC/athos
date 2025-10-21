@@ -18,6 +18,11 @@ class DummyGraph:
 
 @pytest.mark.asyncio
 async def test_langgraph_react_web_agent_demo_flow(monkeypatch):
+    from pathlib import Path
+    from athos.models.enums import ExecutionMode
+    from athos.models.flow import FlowInput
+    from athos.models.session import FlowSession
+
     monkeypatch.setenv("CBORG_API_URL", "https://api.example.com")
     monkeypatch.setenv("CBORG_API_KEY", "dummy-key")
 
@@ -28,7 +33,10 @@ async def test_langgraph_react_web_agent_demo_flow(monkeypatch):
     assert flow_cfg.tools == ["langchain_tavily_search"]
     assert flow_cfg.max_iterations == 8
 
-    dummy_model = object()
+    class DummyModel:
+        model_name = "test-model"
+
+    dummy_model = DummyModel()
     dummy_tool = object()
     dummy_graph = DummyGraph("example search summary")
     create_calls = []
@@ -49,12 +57,33 @@ async def test_langgraph_react_web_agent_demo_flow(monkeypatch):
 
     flow = build_flow("langgraph_react_web_agent_demo", cfg)
 
+    # Tools are built during initialize(), not during factory creation
+    assert flow.tools == []
+    assert flow.instructions is None
+
+    # Initialize the flow (this builds tools and sets instructions)
+    await flow.initialize(flow_cfg)
+
     assert flow.tools == [dummy_tool]
     assert flow.instructions is not None
     assert "web search tool" in flow.instructions
 
-    result = await flow.execute("Tell me about modern supercomputers")
-    assert result == "example search summary"
+    # Create FlowInput with session
+    session = FlowSession(
+        session_id="test_session",
+        user_id="test_user",
+        workspace=Path("/tmp/test"),
+    )
+
+    input_data = FlowInput(
+        message="Tell me about modern supercomputers",
+        session=session,
+        mode=ExecutionMode.SYNC,
+        metadata={},
+    )
+
+    result = await flow.execute(input_data)
+    assert result.content == "example search summary"
 
     assert create_calls == [
         {

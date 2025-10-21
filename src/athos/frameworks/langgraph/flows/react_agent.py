@@ -1,10 +1,10 @@
-"""LangGraph ReAct agent flow implementation."""
+"""LangGraph ReAct agent flow with new runtime interface."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, Iterable, List, Optional, Sequence, TYPE_CHECKING
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -12,11 +12,9 @@ from typing_extensions import Literal
 from athos.config.models import (
     AthosConfig,
     BaseFlowConfig,
-    MCPServerConfig,
-    ModelConfig,
-    ToolConfig,
     ToolFramework,
 )
+from athos.frameworks.langgraph.base import BaseLangGraphFlow
 from athos.frameworks.langgraph.factories import (
     build_mcp_client,
     build_model,
@@ -25,9 +23,10 @@ from athos.frameworks.langgraph.factories import (
 from athos.frameworks.langgraph.utils.messages import (
     BaseMessage,
     HumanMessage,
-    coerce_to_messages,
 )
-from athos.interfaces.base_flow import BaseFlow
+from athos.frameworks.langgraph.utils.translation import to_langgraph_messages
+from athos.models.enums import ExecutionMode
+from athos.models.flow import FlowInput, FlowOutput
 from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -40,6 +39,7 @@ try:  # pragma: no cover - optional dependency
     from langgraph.prebuilt import create_react_agent
 except Exception as exc:  # pragma: no cover - executed only when langgraph missing
     create_react_agent = None  # type: ignore[assignment]
+    AIMessage = None  # type: ignore[assignment]
     _CREATE_REACT_AGENT_IMPORT_ERROR: Optional[Exception] = exc
 else:  # pragma: no cover - executed when dependency is available
     _CREATE_REACT_AGENT_IMPORT_ERROR = None
@@ -47,77 +47,225 @@ else:  # pragma: no cover - executed when dependency is available
 logger = logging.getLogger(__name__)
 
 
-class LangGraphReactAgentFlow(BaseFlow):
-    """ReAct-style LangGraph agent flow."""
+class LangGraphReactAgentFlow(BaseLangGraphFlow):
+    """ReAct-style agent with tool calling capabilities.
 
-    def __init__(
-        self,
-        model: BaseLanguageModel,
-        tools: Sequence[BaseTool],
-        instructions: Optional[str] = None,
-        *,
-        mcp_clients: Optional[Sequence["MultiServerMCPClient"]] = None,
-        max_iterations: int = 20,
-        initial_state: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        self.model = model
-        self.tools = list(tools)
-        self.instructions = instructions
-        self.max_iterations = max_iterations
-        self.state: Dict[str, Any] = dict(initial_state or {})
-        initial_messages = self.state.pop("messages", None)
-        self._messages: List["BaseMessage"] = []
-        if initial_messages:
-            self._messages.extend(self._coerce_messages(initial_messages))
+    This flow uses LangGraph's create_react_agent to build an agent that can:
+    - Call tools (both regular and MCP-based)
+    - Reason about tool results
+    - Iterate until finding an answer
+    """
 
+    name = "langgraph_react_agent"
+    description = "ReAct agent with tool calling using LangGraph"
+    supported_modes = [ExecutionMode.SYNC, ExecutionMode.STREAMING]
+
+    def __init__(self, full_config: Optional[AthosConfig] = None) -> None:
+        super().__init__(full_config)
+        self.model: Optional["BaseLanguageModel"] = None
+        self.tools: List["BaseTool"] = []
+        self.instructions: Optional[str] = None
+        self.max_iterations: int = 20
         self._graph = None  # type: ignore[assignment]
         self._graph_lock = asyncio.Lock()
         self._graph_needs_rebuild = True
-
-        self._mcp_clients = list(mcp_clients or [])
+        self._mcp_clients: List["MultiServerMCPClient"] = []
         self._mcp_tool_sync_lock = asyncio.Lock()
         self._mcp_tools_loaded = False
 
-    async def execute(self, input_data: str) -> Any:
-        """Execute the LangGraph agent against ``input_data``."""
+    async def initialize(self, config: BaseFlowConfig) -> None:
+        """Initialize the agent with model, tools, and MCP clients."""
 
+        if self._full_config is None:
+            raise RuntimeError("ATHOS configuration is required to initialize the flow")
+
+        if not isinstance(config, LangGraphReactAgentFlowConfig):
+            raise TypeError(
+                "LangGraphReactAgentFlow requires LangGraphReactAgentFlowConfig during initialization"
+            )
+
+        # Build model
+        model_cfg = self._get_model_config(config.model)
+        self.model = build_model(model_cfg)
+
+        # Build regular tools
+        for tool_name in config.tools:
+            tool_cfg = self._get_tool_config(tool_name)
+            tool_instance = build_tool(tool_cfg)
+            self.tools.append(tool_instance)
+
+        # Build MCP clients (tools loaded lazily on first execute)
+        combined_instructions: List[str] = []
+        if config.instructions:
+            combined_instructions.append(config.instructions)
+
+        for mcp_name in config.mcp_servers:
+            mcp_cfg = self._get_mcp_server_config(mcp_name)
+            client = build_mcp_client(mcp_name, mcp_cfg)
+            self._mcp_clients.append(client)
+            if mcp_cfg.instructions:
+                combined_instructions.append(mcp_cfg.instructions)
+
+        self.instructions = (
+            "\n\n".join(combined_instructions) if combined_instructions else None
+        )
+        self.max_iterations = config.max_iterations
+
+        logger.info(
+            "Initialized %s with model %s, %d tools, %d MCP servers",
+            self.name,
+            self.model.model_name,
+            len(self.tools),
+            len(self._mcp_clients),
+        )
+
+    async def execute(self, input: FlowInput) -> FlowOutput:
+        """Execute the ReAct agent and return structured output."""
+
+        # Ensure MCP tools are loaded and graph is built
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
 
-        invocation_state = dict(self.state)
-        history = list(self._messages)
-        history.append(HumanMessage(input_data))
-        invocation_state["messages"] = history
-
-        graph = self._graph
-        if graph is None:  # pragma: no cover - defensive guard
-            raise RuntimeError("LangGraph agent graph is not available")
+        # Build messages from session history + new input
+        messages = self._build_messages(input)
 
         logger.debug(
-            "LangGraph ReAct agent invoking graph with %d messages", len(history)
+            "Invoking LangGraph ReAct agent with %d messages, %d tools",
+            len(messages),
+            len(self.tools),
         )
 
-        result_state = await graph.ainvoke(  # type: ignore[attr-defined]
-            invocation_state,
-            config={"recursion_limit": self.max_iterations},
+        # Invoke the graph
+        try:
+            result_state = await self._graph.ainvoke(  # type: ignore[attr-defined]
+                {"messages": messages},
+                config={"recursion_limit": self.max_iterations},
+            )
+        except Exception as exc:
+            logger.error("LangGraph ReAct agent execution failed: %s", exc)
+            return FlowOutput(
+                content=f"Error: {exc}",
+                metadata={"error": True, "exception_type": type(exc).__name__},
+            )
+
+        # Extract response
+        content = self._extract_response(result_state)
+        metadata = {
+            "model": self.model.model_name,
+            "tools_available": len(self.tools),
+            "max_iterations": self.max_iterations,
+        }
+
+        return FlowOutput(content=content, metadata=metadata)
+
+    async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
+        """Stream agent execution with intermediate updates.
+
+        Note: LangGraph ReAct agents can emit events for tool calls and reasoning.
+        For now, we use astream_events to get incremental updates.
+        """
+
+        # Ensure MCP tools are loaded and graph is built
+        await self._ensure_mcp_tools_loaded()
+        await self._ensure_graph_built()
+
+        # Build messages
+        messages = self._build_messages(input)
+
+        logger.debug(
+            "Streaming LangGraph ReAct agent with %d messages, %d tools",
+            len(messages),
+            len(self.tools),
         )
 
-        self._update_state(result_state)
-        return self._extract_response(result_state)
+        accumulated_content = ""
+        tool_calls_seen = []
 
-    async def close(self) -> None:
-        """Close any MCP client connections held by the flow."""
+        try:
+            # Stream events from the graph
+            async for event in self._graph.astream_events(  # type: ignore[attr-defined]
+                {"messages": messages},
+                config={"recursion_limit": self.max_iterations},
+                version="v2",
+            ):
+                event_type = event.get("event")
+                event_name = event.get("name", "")
+
+                # Tool call events
+                if event_type == "on_tool_start":
+                    tool_name = event.get("name", "unknown_tool")
+                    tool_calls_seen.append(tool_name)
+                    yield FlowOutput(
+                        content="",
+                        metadata={
+                            "streaming": True,
+                            "event_type": "tool_call",
+                            "tool_name": tool_name,
+                            "status_message": f"🔧 Using tool: {tool_name}",
+                        },
+                    )
+
+                # Model streaming chunks
+                elif event_type == "on_chat_model_stream":
+                    chunk_data = event.get("data", {})
+                    chunk = chunk_data.get("chunk")
+                    if chunk and hasattr(chunk, "content"):
+                        chunk_text = str(chunk.content)
+                        if chunk_text:
+                            accumulated_content += chunk_text
+                            yield FlowOutput(
+                                content=chunk_text,
+                                metadata={"streaming": True, "chunk": True},
+                            )
+
+        except Exception as exc:
+            logger.error("LangGraph ReAct agent streaming failed: %s", exc)
+            yield FlowOutput(
+                content=f"Error: {exc}",
+                metadata={"error": True, "streaming": True},
+            )
+            return
+
+        # Final output
+        yield FlowOutput(
+            content=accumulated_content or "Agent completed with no text output.",
+            metadata={
+                "streaming": True,
+                "final": True,
+                "model": self.model.model_name,
+                "tools_used": tool_calls_seen,
+            },
+        )
+
+    async def cleanup(self) -> None:
+        """Close MCP client connections and clean up resources."""
 
         for client in self._mcp_clients:
             try:
                 # MultiServerMCPClient uses async context manager protocol
-                if hasattr(client, '__aexit__'):
+                if hasattr(client, "__aexit__"):
                     await client.__aexit__(None, None, None)
                     logger.debug("Closed MCP client connection")
             except Exception:  # pragma: no cover - best-effort cleanup
                 logger.debug("Ignoring MCP client close error", exc_info=True)
 
         self._mcp_clients.clear()
+        self.model = None
+        self.tools.clear()
+        self._graph = None
+
+    def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
+        """Build message list from session history + new input."""
+
+        messages: List[BaseMessage] = []
+
+        # Add history from session
+        messages.extend(to_langgraph_messages(input.session.get_history()))
+
+        # Add current message
+        messages.append(HumanMessage(input.message))
+
+        return messages
 
     async def _ensure_mcp_tools_loaded(self) -> None:
         """Ensure tools from connected MCP servers are loaded into the flow."""
@@ -163,37 +311,19 @@ class LangGraphReactAgentFlow(BaseFlow):
                 ) from _CREATE_REACT_AGENT_IMPORT_ERROR
 
             prompt = self.instructions or None
-            self._graph = create_react_agent(self.model, list(self.tools), prompt=prompt)
+            self._graph = create_react_agent(
+                self.model, list(self.tools), prompt=prompt
+            )
             self._graph_needs_rebuild = False
 
-    def _coerce_messages(self, messages: Any) -> List["BaseMessage"]:
-        """Convert various message payloads into LangChain message objects.
-
-        This is a wrapper around the shared coerce_to_messages utility function.
-        """
-        return coerce_to_messages(messages)
-
-    def _update_state(self, result_state: Any) -> None:
-        """Persist the latest LangGraph state for subsequent invocations."""
-
-        if hasattr(result_state, "model_dump"):
-            raw_state = result_state.model_dump()
-        elif isinstance(result_state, dict):
-            raw_state = dict(result_state)
-        else:  # pragma: no cover - defensive guard
-            raise TypeError(
-                "Unexpected state returned from LangGraph agent: "
-                f"{type(result_state)!r}"
+            logger.debug(
+                "Built LangGraph ReAct agent graph with %d tools", len(self.tools)
             )
 
-        messages = raw_state.get("messages") or []
-        self._messages = list(messages)
-        raw_state["messages"] = self._messages
-        self.state = raw_state
+    def _extract_response(self, state: Any) -> str:
+        """Extract the agent's response from the LangGraph state."""
 
-    def _extract_response(self, state: Any) -> Any:
-        """Derive the flow response from the LangGraph state."""
-
+        # Try structured_response first (if custom state is used)
         if isinstance(state, dict):
             structured = state.get("structured_response")
         elif hasattr(state, "structured_response"):
@@ -202,17 +332,19 @@ class LangGraphReactAgentFlow(BaseFlow):
             structured = None
 
         if structured is not None:
-            return structured
+            return str(structured)
 
+        # Extract from messages
         messages: Sequence["BaseMessage"]
         if isinstance(state, dict):
             messages = state.get("messages", [])
         else:
             messages = getattr(state, "messages", [])
 
+        # Find last AI message
         for message in reversed(messages):
-            if isinstance(message, AIMessage):
-                return message.content
+            if AIMessage and isinstance(message, AIMessage):
+                return str(message.content)
 
         raise RuntimeError("LangGraph agent did not produce an AI message response")
 
@@ -221,8 +353,14 @@ class LangGraphReactAgentFlowConfig(BaseFlowConfig):
     """Configuration schema for :class:`LangGraphReactAgentFlow`."""
 
     type: Literal["langgraph_react_agent"]
-    tools: List[str] = Field(default_factory=list)
-    mcp_servers: List[str] = Field(default_factory=list)
+    tools: List[str] = Field(
+        default_factory=list,
+        description="List of tool names from config.tools to provide to the agent.",
+    )
+    mcp_servers: List[str] = Field(
+        default_factory=list,
+        description="List of MCP server names from config.mcp_servers to connect to.",
+    )
     instructions: Optional[str] = Field(
         default=None,
         description="Additional instructions injected into the agent context.",
@@ -232,10 +370,6 @@ class LangGraphReactAgentFlowConfig(BaseFlowConfig):
         gt=0,
         description="Maximum iterations allowed during ReAct execution.",
     )
-    initial_state: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Optional initial state provided to the LangGraph agent.",
-    )
 
 
 def create_langgraph_react_agent_flow(
@@ -243,39 +377,8 @@ def create_langgraph_react_agent_flow(
 ) -> LangGraphReactAgentFlow:
     """Factory for :class:`LangGraphReactAgentFlow`."""
 
-    tool_instances: List[BaseTool] = []
-    mcp_instances: List["MultiServerMCPClient"] = []
-    combined_instructions: List[str] = []
-
-    if cfg.instructions:
-        combined_instructions.append(cfg.instructions)
-
-    for tool_name in cfg.tools:
-        tool_cfg: ToolConfig = full_cfg.tools[tool_name]
-        tool_instances.append(build_tool(tool_cfg))
-
-    for mcp_name in cfg.mcp_servers:
-        mcp_cfg: MCPServerConfig = full_cfg.mcp_servers[mcp_name]
-        client = build_mcp_client(mcp_name, mcp_cfg)
-        mcp_instances.append(client)
-        if mcp_cfg.instructions:
-            combined_instructions.append(mcp_cfg.instructions)
-
-    model_cfg: ModelConfig = full_cfg.models[cfg.model]
-    model = build_model(model_cfg)
-
-    instructions: Optional[str] = (
-        "\n\n".join(combined_instructions) if combined_instructions else None
-    )
-
-    return LangGraphReactAgentFlow(
-        model=model,
-        tools=tool_instances,
-        instructions=instructions,
-        mcp_clients=mcp_instances,
-        max_iterations=cfg.max_iterations,
-        initial_state=cfg.initial_state,
-    )
+    # The FlowRunner will call ``initialize`` with the same configuration.
+    return LangGraphReactAgentFlow(full_config=full_cfg)
 
 
 register_flow(

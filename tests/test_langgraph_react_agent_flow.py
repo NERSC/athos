@@ -1,4 +1,5 @@
 import pytest
+from pathlib import Path
 
 from athos.config.models import (
     AthosConfig,
@@ -14,6 +15,9 @@ from athos.frameworks.langgraph.flows.react_agent import (
     LangGraphReactAgentFlowConfig,
     create_langgraph_react_agent_flow,
 )
+from athos.models.enums import ExecutionMode
+from athos.models.flow import FlowInput
+from athos.models.session import FlowSession
 
 
 class DummyGraph:
@@ -44,22 +48,70 @@ async def test_react_agent_flow_executes_and_tracks_history(monkeypatch):
     monkeypatch.setattr(react_agent, "create_react_agent", fake_create_react_agent)
 
     class DummyModel:
-        pass
+        model_name = "test-model"
+
+    def fake_build_model(cfg):
+        return DummyModel()
+
+    monkeypatch.setattr(react_agent, "build_model", fake_build_model)
 
     base_tool = object()
 
-    flow = LangGraphReactAgentFlow(
-        model=DummyModel(),
-        tools=[base_tool],
+    full_cfg = AthosConfig(
+        workspace_dir="/tmp",
+        models={"test": ModelConfig(model_id="test-model")},
+        tools={},
+        mcp_servers={},
+    )
+
+    cfg = LangGraphReactAgentFlowConfig(
+        type="langgraph_react_agent",
+        model="test",
+        tools=[],
         instructions="Be concise.",
         max_iterations=7,
     )
 
-    first = await flow.execute("Hello there")
-    second = await flow.execute("How are you?")
+    flow = create_langgraph_react_agent_flow(cfg, full_cfg)
+    flow.tools = [base_tool]  # Manually add tool for this test
+    await flow.initialize(cfg)
 
-    assert first == "first reply"
-    assert second == "second reply"
+    # Create sessions for conversation
+    session1 = FlowSession(
+        session_id="test_session",
+        user_id="test_user",
+        workspace=Path("/tmp/test"),
+    )
+    session2 = FlowSession(
+        session_id="test_session",
+        user_id="test_user",
+        workspace=Path("/tmp/test"),
+    )
+
+    input1 = FlowInput(
+        message="Hello there",
+        session=session1,
+        mode=ExecutionMode.SYNC,
+        metadata={},
+    )
+
+    first_result = await flow.execute(input1)
+
+    # Update session history as FlowRunner would
+    session2.add_message("user", "Hello there")
+    session2.add_message("assistant", first_result.content)
+
+    input2 = FlowInput(
+        message="How are you?",
+        session=session2,
+        mode=ExecutionMode.SYNC,
+        metadata={},
+    )
+
+    second_result = await flow.execute(input2)
+
+    assert first_result.content == "first reply"
+    assert second_result.content == "second reply"
 
     assert len(create_calls) == 1  # graph is reused after initial construction
     assert create_calls[0]["prompt"] == "Be concise."
@@ -87,13 +139,15 @@ async def test_react_agent_flow_executes_and_tracks_history(monkeypatch):
 async def test_react_agent_factory_combines_instructions_and_tools(monkeypatch):
     base_tool = object()
     mcp_tool = object()
-    dummy_model = object()
     dummy_graph = DummyGraph(["combined response"])
     create_calls = []
 
+    class DummyModel:
+        model_name = "demo-model"
+
     def fake_build_model(model_cfg):
         assert model_cfg.model_id == "demo-model"
-        return dummy_model
+        return DummyModel()
 
     def fake_build_tool(tool_cfg):
         assert tool_cfg.callable_name == "DemoTool"
@@ -103,8 +157,8 @@ async def test_react_agent_factory_combines_instructions_and_tools(monkeypatch):
         async def get_tools(self):
             return [mcp_tool]
 
-        def close(self):
-            self.closed = True
+        async def __aexit__(self, *args):
+            pass
 
     def fake_build_mcp_client(name, mcp_cfg):
         assert name == "demo_mcp"
@@ -151,11 +205,26 @@ async def test_react_agent_factory_combines_instructions_and_tools(monkeypatch):
     )
 
     flow = create_langgraph_react_agent_flow(cfg, full_cfg)
+    await flow.initialize(cfg)
 
     assert flow.instructions == "Primary instruction\n\nServer instruction"
 
-    reply = await flow.execute("Ping")
-    assert reply == "combined response"
+    session = FlowSession(
+        session_id="test_session",
+        user_id="test_user",
+        workspace=Path("/tmp/test"),
+    )
+
+    input_data = FlowInput(
+        message="Ping",
+        session=session,
+        mode=ExecutionMode.SYNC,
+        metadata={},
+    )
+
+    result = await flow.execute(input_data)
+    assert result.content == "combined response"
+    assert result.metadata["model"] == "demo-model"
 
     # MCP tools are fetched and included when constructing the graph
     assert len(create_calls) == 1

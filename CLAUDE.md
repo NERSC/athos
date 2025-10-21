@@ -265,7 +265,7 @@ The YAML configuration has four main sections:
 
 **LangGraph Flows** (registered in `src/athos/frameworks/langgraph/flows/`):
 - `langgraph_chatbot`: ✅ **MIGRATED** - Now uses `FlowInput`/`FlowOutput`, supports streaming
-- `langgraph_react_agent`: ⏳ **TODO**: Migrate to new interface with rich streaming events
+- `langgraph_react_agent`: ✅ **MIGRATED** - Full streaming with tool call events, uses new interface
 
 ### New vs Legacy Flow Interface
 
@@ -458,10 +458,12 @@ Log levels: DEBUG, INFO, WARNING, ERROR. Use `--log-level` CLI flag to override 
 - **Examples and evals**: Need updating to use new `FlowRunner` API
 - **Priority for migration**:
   1. ✅ LangGraph chatbot (complete)
-  2. ⏳ LangGraph ReAct agent
+  2. ✅ LangGraph ReAct agent (complete)
   3. ⏳ SmolAgents flows
   4. ⏳ Example scripts
   5. ⏳ Evaluation harness
+
+**LangGraph Note**: Both LangGraph flows now inherit from `BaseLangGraphFlow` which provides shared utilities like `_get_model_config()`. When creating new LangGraph flows, extend this base class for consistency.
 
 ## Refactoring Roadmap
 

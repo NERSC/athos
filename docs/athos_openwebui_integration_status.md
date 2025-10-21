@@ -20,9 +20,10 @@ _Last updated: 2025-10-20 21:10 UTC_
 | 2. Runtime Compatibility | 2.2 | LangGraph translation utilities. | ✅ Complete | Translation helpers implemented with metadata preservation tests. |
 | 2. Runtime Compatibility | 2.3 | Migrate LangGraph chatbot flow to new interfaces. | ✅ Complete | Flow now uses FlowInput/FlowOutput, streaming, and session-backed history. |
 | 2. Runtime Compatibility | 2.4 | Update CLI to use runner. | ✅ Complete | CLI now routes synchronous runs through FlowRunner. |
+| 2. Runtime Compatibility | 2.5 | Create shared BaseLangGraphFlow and migrate ReAct agent. | ✅ Complete | BaseLangGraphFlow provides common utilities; ReAct agent fully migrated with streaming support. |
 | 3. OpenWebUI Integration | 3.1 | Pipeline module bridging Runner ↔ OpenWebUI. | ⏳ Not Started | Scheduled post-Milestone 2. |
 | 3. OpenWebUI Integration | 3.2 | Deployment configuration & docs. | ⏳ Not Started | Post-integration hardening. |
-| 5. Enhancements | 5.1 | LangGraph ReAct agent streaming enhancements. | ⏳ Not Started | Requires baseline pipeline to be operational. |
+| 5. Enhancements | 5.1 | LangGraph ReAct agent streaming enhancements. | ✅ Complete | ReAct agent now has full streaming with tool call events via astream_events. |
 | 5. Enhancements | 5.2 | OpenWebUI event formatter. | ⏳ Not Started | Blocked by Milestones 2–3 completion. |
 
 ## Issues & Risks
