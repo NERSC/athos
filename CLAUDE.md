@@ -129,10 +129,10 @@ The following components are **fully implemented and tested**:
    - Supports get_or_create, save, delete, list_sessions operations
    - Ready for Redis/SQL backends (not yet implemented)
 
-5. **Compatibility Layer** (`athos/runtime/compat.py`):
-   - `LegacyFlowAdapter`: Wraps old-style flows to work with new Runner
-   - Auto-detection of legacy vs new interface flows
-   - Seamless migration path without breaking existing code
+5. **Flow Registration** (`athos/registry/flow_registry.py`):
+   - Simple registration via `register_flow(FlowClass)`
+   - Validates class metadata (name, config_class, framework)
+   - Ensures create() classmethod exists
 
 6. **LangGraph Integration Utilities** (`athos/frameworks/langgraph/utils/translation.py`):
    - `to_langgraph_messages()`: Convert ATHOS session messages to LangChain format
@@ -195,10 +195,9 @@ athos/
 │   └── base_flow.py              # BaseFlow protocol (imports from models)
 │
 ├── runtime/                       # 🔄 ENHANCED: Orchestration layer
-│   ├── builder.py                # Existing: builds flows from config
-│   ├── runner.py                 # NEW: FlowRunner orchestration
-│   ├── session_store.py          # NEW: Session persistence abstraction
-│   └── compat.py                 # NEW: Legacy flow adapter
+│   ├── builder.py                # Builds flows from config using create()
+│   ├── runner.py                 # FlowRunner orchestration
+│   └── session_store.py          # Session persistence abstraction
 │
 ├── frameworks/                    # Framework implementations
 │   ├── langgraph/
@@ -240,11 +239,11 @@ athos/
 └── main.py                        # ✅ UPDATED: CLI using FlowRunner
 ```
 
-**Key Benefits of New Structure**:
+**Key Benefits of Structure**:
 - ✅ **No circular dependencies**: `models/` has no imports from other ATHOS packages
 - ✅ **Clear layering**: Models → Interfaces → Runtime → Integrations
 - ✅ **Easy imports**: `from athos.models.flow import FlowInput, FlowOutput`
-- ✅ **Backward compatible**: Legacy flows work via `LegacyFlowAdapter`
+- ✅ **Type safety**: All flows use create() pattern with no Optional dependencies
 
 ### Configuration Structure
 
@@ -267,19 +266,43 @@ The YAML configuration has four main sections:
 - `langgraph_chatbot`: ✅ **MIGRATED** - Now uses `FlowInput`/`FlowOutput`, supports streaming
 - `langgraph_react_agent`: ✅ **MIGRATED** - Full streaming with tool call events, uses new interface
 
-### New vs Legacy Flow Interface
+### Flow Interface
 
-**New Interface** (all new flows should use this):
+All flows must implement the `BaseFlow` protocol with the following components:
+
 ```python
 from athos.interfaces.base_flow import BaseFlow
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.enums import ExecutionMode
+from athos.config.models import ToolFramework
 
 class MyNewFlow(BaseFlow):
+    # Class metadata (required)
     name = "my_flow"
     description = "Description"
+    config_class = MyFlowConfig  # Pydantic config model
+    framework = ToolFramework.LANGGRAPH
     supported_modes = [ExecutionMode.SYNC, ExecutionMode.STREAMING]
 
+    # Constructor with dependencies (no Optional types)
+    def __init__(self, model: BaseLanguageModel, config: AthosConfig):
+        self.model = model  # Required, not Optional
+        self.config = config
+
+    # Factory classmethod (required)
+    @classmethod
+    async def create(
+        cls,
+        flow_config: MyFlowConfig,
+        athos_config: AthosConfig
+    ) -> Self:
+        # Build all dependencies
+        model = build_model(athos_config.models[flow_config.model])
+
+        # Call constructor with fully-initialized dependencies
+        return cls(model=model, config=athos_config)
+
+    # Execute method (required)
     async def execute(self, input: FlowInput) -> FlowOutput:
         # Access user message
         message = input.message
@@ -287,8 +310,8 @@ class MyNewFlow(BaseFlow):
         # Access session history
         history = input.session.get_history()
 
-        # Do work...
-        result = await self.process(message, history)
+        # Do work (model is guaranteed to be available)
+        result = await self.model.generate(message)
 
         # Return structured output
         return FlowOutput(
@@ -297,6 +320,7 @@ class MyNewFlow(BaseFlow):
             metadata={"tokens": 100}  # Optional: execution metadata
         )
 
+    # Stream method (optional)
     async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
         """Optional: implement for true streaming"""
         # Yield intermediate updates
@@ -307,30 +331,27 @@ class MyNewFlow(BaseFlow):
         yield result
 ```
 
-**Legacy Interface** (automatically adapted):
-```python
-class MyLegacyFlow:
-    async def execute(self, input_data: str) -> str:
-        return f"Response to: {input_data}"
-```
-
-The `LegacyFlowAdapter` in `athos/runtime/compat.py` automatically wraps legacy flows, so they continue to work with `FlowRunner`. However, **all new flows should use the new interface** for access to:
-- Session history and state
-- Artifact support (images, files)
-- Rich metadata
-- True streaming capabilities
+Benefits of this pattern:
+- No uninitialized state - flows are valid immediately after construction
+- No Optional types - dependencies are guaranteed to exist
+- Type safety - no defensive `if self.model is None` checks needed
+- Session history and state accessible via `input.session`
+- Artifact support (images, files) via `FlowOutput.artifacts`
+- Rich metadata via `FlowOutput.metadata`
+- True streaming capabilities via `stream()` method
 
 ### Extending the Framework
 
-**Adding a New Flow Type** (using new interface):
+**Adding a New Flow Type**:
 1. Create a class implementing `BaseFlow` from `athos.interfaces.base_flow`
-2. Implement `execute(FlowInput) -> FlowOutput` (required)
-3. Optionally implement `stream(FlowInput) -> AsyncGenerator[FlowOutput]` for streaming
-4. Optionally implement `initialize(config)` for expensive setup
-5. Set class-level metadata: `name`, `description`, `supported_modes`
-6. Create a factory function: `(config: ConfigModel, flow_config: FlowConfig) -> BaseFlow`
-7. Call `register_flow("your_flow_type", factory_function)` at module import
-8. Add your flow to a config.yaml `flows:` section
+2. Set class-level metadata: `name`, `config_class`, `framework`, `description`, `supported_modes`
+3. Implement `__init__()` constructor that takes all dependencies (no Optional types)
+4. Implement `@classmethod async def create()` to build dependencies and call constructor
+5. Implement `async def execute(FlowInput) -> FlowOutput` (required)
+6. Optionally implement `async def stream(FlowInput) -> AsyncGenerator[FlowOutput]` for streaming
+7. Optionally implement `async def cleanup()` to release resources
+8. Call `register_flow(YourFlowClass)` at module import
+9. Add your flow to a config.yaml `flows:` section
 
 **Example**:
 ```python
@@ -338,26 +359,45 @@ The `LegacyFlowAdapter` in `athos/runtime/compat.py` automatically wraps legacy 
 from athos.interfaces.base_flow import BaseFlow
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.enums import ExecutionMode
+from athos.config.models import BaseFlowConfig, ToolFramework
 from athos.registry.flow_registry import register_flow
 
+class MyCustomFlowConfig(BaseFlowConfig):
+    type: str = "my_custom"
+    model: str
+
 class MyCustomFlow(BaseFlow):
+    # Class metadata
     name = "my_custom"
     description = "Custom flow example"
+    config_class = MyCustomFlowConfig
+    framework = ToolFramework.LANGGRAPH
     supported_modes = [ExecutionMode.SYNC]
 
-    async def initialize(self, config):
-        self.model = load_model(config.model)
+    # Constructor with dependencies
+    def __init__(self, model: BaseLanguageModel):
+        self.model = model  # No Optional - guaranteed to exist
 
+    # Factory classmethod
+    @classmethod
+    async def create(
+        cls,
+        flow_config: MyCustomFlowConfig,
+        athos_config: AthosConfig
+    ) -> Self:
+        # Build dependencies
+        model = build_model(athos_config.models[flow_config.model])
+
+        # Return fully initialized instance
+        return cls(model=model)
+
+    # Execute method
     async def execute(self, input: FlowInput) -> FlowOutput:
         response = await self.model.generate(input.message)
         return FlowOutput(content=response)
 
-# Factory function
-def create_my_custom_flow(config, flow_config):
-    return MyCustomFlow()
-
 # Register at module load
-register_flow("my_custom", create_my_custom_flow)
+register_flow(MyCustomFlow)
 ```
 
 **Adding a New Tool**:
@@ -396,7 +436,7 @@ LangGraph flows have special integration considerations:
   - ✅ Models: Serialization, validation, state management (`tests/models/`)
   - ✅ SessionStore: Concurrent access, session isolation (`tests/runtime/test_session_store.py`)
   - ✅ FlowRunner: Execution, caching, error handling (`tests/runtime/test_runner.py`)
-  - ✅ Compatibility: Legacy flow adaptation (`tests/runtime/test_compat.py`)
+  - ✅ Flow Registration: Metadata validation, create() enforcement (`tests/runtime/test_dual_interface.py`)
   - ✅ LangGraph translation: Message conversion, config building (`tests/frameworks/langgraph/test_translation.py`)
 - **Integration tests**: Test CLI execution and flow creation from configuration
   - ✅ CLI using FlowRunner (`tests/test_cli_integration.py`)
@@ -436,15 +476,15 @@ Log levels: DEBUG, INFO, WARNING, ERROR. Use `--log-level` CLI flag to override 
 - **MCP server lifecycle**: MCP clients manage server processes; ensure proper cleanup to avoid orphaned processes
 - **Tool instructions**: Use the `instructions` field in MCP server configs to provide agent-specific guidance on tool usage
 
-### New Runtime Architecture
+### Runtime Architecture
 - **FlowRunner manages sessions**: Don't create sessions manually; `FlowRunner.execute()` handles this
 - **Flows are stateless**: Never store conversation history in flow instance variables; always use `input.session`
 - **Pydantic models everywhere**: Use `.model_dump()` for serialization, not manual `to_dict()` methods
-- **Legacy flows work automatically**: `FlowRunner` detects and adapts old-style flows via `LegacyFlowAdapter`
+- **All flows use create() pattern**: No uninitialized state, no Optional dependencies
 - **Session persistence**: Current `InMemorySessionStore` loses data on restart; production deployments will need Redis/SQL backend
 
 ### Framework-Specific
-- **SmolAgents code agents**: The `additional_authorized_imports` field controls which Python modules can be imported in generated code (⏳ not yet migrated to new interface)
+- **SmolAgents code agents**: The `additional_authorized_imports` field controls which Python modules can be imported in generated code
 - **LangGraph checkpointing**:
   - LangGraph manages its own state using `thread_id = session_id`
   - Use `athos.frameworks.langgraph.utils.translation.build_langgraph_config()` to create config
@@ -452,16 +492,16 @@ Log levels: DEBUG, INFO, WARNING, ERROR. Use `--log-level` CLI flag to override 
   - For persistent checkpointing, configure a file-based `SqliteSaver` instead of `:memory:`
   - See `chatbot.py` for reference implementation
 
-### Migration Path
-- **All new flows**: Use `FlowInput`/`FlowOutput` interface from `athos.models.flow`
-- **Existing flows**: Continue to work but won't have access to sessions, artifacts, or streaming
-- **Examples and evals**: Need updating to use new `FlowRunner` API
-- **Priority for migration**:
+### Current Implementation Status
+- **All flows migrated**: All built-in flows use `FlowInput`/`FlowOutput` and create() pattern
+- **Migration complete**:
   1. ✅ LangGraph chatbot (complete)
   2. ✅ LangGraph ReAct agent (complete)
-  3. ⏳ SmolAgents flows
-  4. ⏳ Example scripts
-  5. ⏳ Evaluation harness
+  3. ✅ SmolAgents chatbot (complete)
+  4. ✅ SmolAgents agent (complete)
+- **Still TODO**:
+  - ⏳ Example scripts need updating to use new pattern
+  - ⏳ Evaluation harness needs updating for FlowRunner
 
 **LangGraph Note**: Both LangGraph flows now inherit from `BaseLangGraphFlow` which provides shared utilities like `_get_model_config()`. When creating new LangGraph flows, extend this base class for consistency.
 
@@ -534,21 +574,21 @@ The next major task is creating the OpenWebUI Pipeline adapter:
 - Check if component is migrated (✅), in progress (⏳), or not started
 - Refer to `docs/athos_openwebui_integration_plan_v3.0.md` for detailed design
 
-**2. Follow the new patterns**:
-- **All new flows**: Implement `BaseFlow` with `FlowInput`/`FlowOutput`
+**2. Follow the patterns**:
+- **All flows**: Implement `BaseFlow` with class metadata, create() classmethod, and `FlowInput`/`FlowOutput`
 - **All data models**: Use Pydantic BaseModel (already done in `athos/models/`)
 - **Session access**: Always use `input.session`, never store state in flow instances
 - **Artifacts**: Use `FlowOutput.artifacts` for images, files, links
 - **Metadata**: Use `FlowOutput.metadata` for execution details (tokens, tools used, etc.)
+- **No Optional dependencies**: All dependencies injected via constructor, guaranteed to exist
 
-**3. Maintain backward compatibility**:
-- Don't break existing flows during migration
-- Use `LegacyFlowAdapter` for old-style flows
-- Test both new and legacy flows work with FlowRunner
+**3. Type safety**:
+- Constructor takes all dependencies as required parameters (no Optional types)
+- Use create() classmethod to build dependencies before construction
+- No defensive `if self.model is None` checks needed
 
 **4. Testing requirements**:
 - Write unit tests for all new components
-- Update integration tests when changing interfaces
 - Ensure 90%+ coverage for new code
 - Test concurrent scenarios for session management
 
@@ -574,44 +614,63 @@ The next major task is creating the OpenWebUI Pipeline adapter:
 - Handle errors gracefully and return them in `FlowOutput`
 - Sync LangGraph state back to `FlowSession.messages` for consistency
 
-### Example: Migrating a Legacy Flow
+### Example: Creating a New Flow
 
-**Before** (legacy interface):
-```python
-class MyOldFlow:
-    def __init__(self):
-        self._history = []  # ❌ State in instance
-
-    async def execute(self, input_data: str) -> str:  # ❌ String I/O
-        self._history.append(input_data)
-        response = await self.process(input_data)
-        self._history.append(response)
-        return response
-```
-
-**After** (new interface):
+**Complete example with all required components**:
 ```python
 from athos.interfaces.base_flow import BaseFlow
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.enums import ExecutionMode
+from athos.config.models import BaseFlowConfig, ToolFramework
+from athos.registry.flow_registry import register_flow
 
-class MyNewFlow(BaseFlow):
+# Config model
+class MyFlowConfig(BaseFlowConfig):
+    type: str = "my_flow"
+    model: str
+
+# Flow implementation
+class MyFlow(BaseFlow):
+    # Class metadata (required)
     name = "my_flow"
-    description = "Migrated flow"
+    description = "Example flow"
+    config_class = MyFlowConfig
+    framework = ToolFramework.LANGGRAPH
     supported_modes = [ExecutionMode.SYNC]
 
-    async def execute(self, input: FlowInput) -> FlowOutput:  # ✅ Structured I/O
-        # ✅ Read history from session
+    # Constructor with dependencies (no Optional types)
+    def __init__(self, model: BaseLanguageModel):
+        self.model = model  # ✅ Required, not Optional
+
+    # Factory classmethod (required)
+    @classmethod
+    async def create(
+        cls,
+        flow_config: MyFlowConfig,
+        athos_config: AthosConfig
+    ) -> Self:
+        # Build dependencies
+        model = build_model(athos_config.models[flow_config.model])
+
+        # Return fully initialized instance
+        return cls(model=model)
+
+    # Execute method (required)
+    async def execute(self, input: FlowInput) -> FlowOutput:
+        # Access session history
         history = input.session.get_history()
 
-        # Do processing
-        response = await self.process(input.message, history)
+        # Do processing (model guaranteed to exist)
+        response = await self.model.generate(input.message)
 
-        # ✅ Return structured output
+        # Return structured output
         return FlowOutput(
             content=response,
             metadata={"history_length": len(history)}
         )
+
+# Register flow
+register_flow(MyFlow)
 ```
 
 ### Getting Help
