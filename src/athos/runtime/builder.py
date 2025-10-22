@@ -15,16 +15,14 @@ logger = logging.getLogger(__name__)
 
 
 async def build_flow(flow_name: str, config: AthosConfig) -> BaseFlow:
-    """Construct a flow instance from configuration.
-
-    Supports both new (classmethod create) and legacy (factory function) patterns.
+    """Construct a flow instance using its create() classmethod.
 
     Args:
         flow_name: Name of the flow from config.flows
         config: Full ATHOS configuration
 
     Returns:
-        Flow instance (fully initialized if using new pattern)
+        Fully initialized flow instance
 
     Raises:
         ValueError: If flow_name not found or flow type not registered
@@ -38,7 +36,7 @@ async def build_flow(flow_name: str, config: AthosConfig) -> BaseFlow:
         raise ValueError(f"Unknown flow type: {flow_cfg.type}")
 
     config_cls = registration.config_cls
-    creator = registration.creator
+    flow_class = registration.creator
 
     # Validate config type
     if not isinstance(flow_cfg, config_cls):
@@ -47,54 +45,22 @@ async def build_flow(flow_name: str, config: AthosConfig) -> BaseFlow:
             f"but expected {config_cls.__name__}"
         )
 
-    # ===== NEW PATTERN: Class with create() classmethod =====
-    if inspect.isclass(creator) and hasattr(creator, 'create'):
-        logger.debug(
-            "Building flow '%s' using new pattern (create classmethod)",
-            flow_name
-        )
-        flow = await creator.create(flow_cfg, config)
+    # All flows use create() classmethod
+    logger.debug("Building flow '%s' using create() classmethod", flow_name)
+    flow = await flow_class.create(flow_cfg, config)
 
-        # Mark that this flow was created via classmethod
-        # (FlowRunner uses this to skip calling initialize)
-        object.__setattr__(flow, '_created_via_classmethod', True)
-
-        logger.debug(
-            "Flow '%s' built and initialized via create()",
-            flow_name
-        )
-        return flow
-
-    # ===== LEGACY PATTERN: Factory function =====
-    logger.debug(
-        "Building flow '%s' using legacy pattern (factory function)",
-        flow_name
-    )
-
-    # Factory might be sync or async
-    result = creator(flow_cfg, config)
-    if inspect.isawaitable(result):
-        flow = await result
-    else:
-        flow = result
-
-    logger.debug(
-        "Flow '%s' built via factory (will need initialize() call)",
-        flow_name
-    )
+    logger.debug("Flow '%s' built and initialized", flow_name)
     return flow
 
 
 async def create_flows(config: AthosConfig) -> Dict[str, BaseFlow]:
     """Create all flows defined in the configuration.
 
-    Note: Legacy pattern flows will need initialize() called separately.
-
     Args:
         config: Full ATHOS configuration
 
     Returns:
-        Dictionary mapping flow names to flow instances
+        Dictionary mapping flow names to fully initialized flow instances
     """
     flows = {}
     for name in config.flows:

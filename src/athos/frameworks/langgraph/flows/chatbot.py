@@ -34,34 +34,75 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
 
     name = "langgraph_chatbot"
     description = "Simple conversational chatbot using LangGraph"
+    config_class = None  # Set after class definition
+    framework = ToolFramework.LANGGRAPH
     supported_modes = [ExecutionMode.SYNC, ExecutionMode.STREAMING]
 
-    def __init__(self, full_config: Optional[AthosConfig] = None) -> None:
+    def __init__(
+        self,
+        model: "BaseLanguageModel",
+        system_prompt: Optional[str],
+        initial_history: List[BaseMessage],
+        full_config: AthosConfig
+    ) -> None:
+        """Construct a chatbot flow with all dependencies.
+
+        Note: Use the create() classmethod in production.
+        This constructor is public to support testing with mocks.
+
+        Args:
+            model: LangChain chat model (required)
+            system_prompt: Optional system prompt
+            initial_history: Pre-seeded conversation messages
+            full_config: Full ATHOS configuration
+        """
         super().__init__(full_config)
-        self.model: Optional["BaseLanguageModel"] = None
-        self.system_prompt: Optional[str] = None
-        self._initial_history: List[BaseMessage] = []
+        self.model = model
+        self.system_prompt = system_prompt
+        self._initial_history = initial_history
 
-    async def initialize(self, config: BaseFlowConfig) -> None:
-        """Load the configured model and static prompts once."""
+    @classmethod
+    async def create(
+        cls,
+        flow_config: "LangGraphChatbotFlowConfig",
+        athos_config: AthosConfig
+    ) -> Self:
+        """Create and fully initialize a chatbot flow.
 
-        if self._full_config is None:
-            raise RuntimeError("Athos configuration is required to initialize the flow")
+        Builds the LangChain model and constructs the flow instance.
 
-        if not isinstance(config, LangGraphChatbotFlowConfig):
-            raise TypeError(
-                "LangGraphChatbotFlow requires LangGraphChatbotFlowConfig during initialization"
+        Args:
+            flow_config: Chatbot-specific configuration
+            athos_config: Full ATHOS configuration
+
+        Returns:
+            Fully initialized chatbot flow
+        """
+        # Get model config
+        if flow_config.model not in athos_config.models:
+            raise ValueError(
+                f"Model '{flow_config.model}' not found in configuration"
             )
+        model_cfg = athos_config.models[flow_config.model]
 
-        model_cfg = self._get_model_config(config.model)
-        self.model = build_model(model_cfg)
-        self.system_prompt = config.system_prompt
-        self._initial_history = self._build_initial_history(config.initial_history)
+        # Build model
+        model = build_model(model_cfg)
+
+        # Build initial history
+        initial_history = cls._build_initial_history_static(flow_config.initial_history)
 
         logger.info(
             "Initialized %s with model %s",
-            self.name,
-            self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
+            cls.name,
+            model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
+        )
+
+        # Construct flow with all dependencies
+        return cls(
+            model=model,
+            system_prompt=flow_config.system_prompt,
+            initial_history=initial_history,
+            full_config=athos_config
         )
 
     async def execute(self, input: FlowInput) -> FlowOutput:
@@ -96,9 +137,6 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         messages = self._build_messages(input)
         logger.debug("Streaming LangGraph chatbot with %d messages", len(messages))
 
-        if self.model is None:
-            raise RuntimeError("Flow not initialized; model is unavailable")
-
         # ChatOpenAI (langchain-openai ~=1.0.0) always supports streaming via astream()
         accumulated = ""
         try:
@@ -132,8 +170,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
     async def cleanup(self) -> None:
         """No-op cleanup hook for compatibility."""
 
-        self.model = None
-        self._initial_history = []
+        pass
 
     def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
         """Construct LangGraph messages from session history and the new prompt."""
@@ -150,8 +187,9 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         messages.append(HumanMessage(input.message))
         return messages
 
-    def _build_initial_history(
-        self, entries: Sequence[str]
+    @staticmethod
+    def _build_initial_history_static(
+        entries: Sequence[str]
     ) -> List[BaseMessage]:
         """Convert alternating user/assistant strings into LangChain messages."""
 
@@ -172,9 +210,6 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
 
     async def _invoke_model(self, messages: Sequence[BaseMessage]) -> object:
         """Invoke the underlying model."""
-
-        if self.model is None:
-            raise RuntimeError("Flow not initialized; model is unavailable")
 
         return await self.model.ainvoke(messages)
 
@@ -220,25 +255,14 @@ class LangGraphChatbotFlowConfig(BaseFlowConfig):
     )
 
 
-def create_langgraph_chatbot_flow(
-    cfg: LangGraphChatbotFlowConfig, full_cfg: AthosConfig
-) -> LangGraphChatbotFlow:
-    """Factory for :class:`LangGraphChatbotFlow`."""
+# Set config_class after class definition to avoid forward reference issues
+LangGraphChatbotFlow.config_class = LangGraphChatbotFlowConfig
 
-    # The FlowRunner will call ``initialize`` with the same configuration.
-    return LangGraphChatbotFlow(full_config=full_cfg)
-
-
-register_flow(
-    "langgraph_chatbot",
-    LangGraphChatbotFlowConfig,
-    create_langgraph_chatbot_flow,
-    framework=ToolFramework.LANGGRAPH,
-)
+# Register using new pattern
+register_flow(LangGraphChatbotFlow)
 
 
 __all__ = [
     "LangGraphChatbotFlow",
     "LangGraphChatbotFlowConfig",
-    "create_langgraph_chatbot_flow",
 ]

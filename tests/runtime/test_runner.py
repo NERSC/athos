@@ -32,36 +32,29 @@ class EchoFlowConfig(BaseFlowConfig):
 class TrackingEchoFlow(BaseFlow):
     """Simple flow that records lifecycle interactions for assertions."""
 
-    name = "tracking_echo"
+    name = TEST_FLOW_TYPE
+    config_class = EchoFlowConfig
+    framework = ToolFramework.SMOLAGENTS
     supported_modes = [ExecutionMode.SYNC]
 
-    initialize_calls = 0
     cleanup_calls = 0
     instances_created = 0
 
     def __init__(self, config: EchoFlowConfig) -> None:
         self._config = config
-        self._initialized = False
         TrackingEchoFlow.instances_created += 1
 
     @classmethod
-    async def create(cls, flow_config, athos_config):
-        """Create method - not used in legacy pattern."""
-        raise NotImplementedError("Legacy flow uses factory function")
+    async def create(cls, flow_config: EchoFlowConfig, athos_config: AthosConfig):
+        """Create and return fully initialized flow."""
+        return cls(flow_config)
 
     @classmethod
     def reset_counters(cls) -> None:
-        cls.initialize_calls = 0
         cls.cleanup_calls = 0
         cls.instances_created = 0
 
-    async def initialize(self, config: EchoFlowConfig) -> None:  # type: ignore[override]
-        self._initialized = True
-        TrackingEchoFlow.initialize_calls += 1
-
     async def execute(self, input: FlowInput) -> FlowOutput:  # type: ignore[override]
-        if not self._initialized:
-            raise RuntimeError("Flow must be initialized before execution")
         if self._config.should_fail:
             raise RuntimeError("Flow failure triggered")
         return FlowOutput(content=f"{self._config.response_text}: {input.message}")
@@ -97,22 +90,17 @@ async def _create_runner(
 
 def _ensure_flow_registered() -> None:
     if TEST_FLOW_TYPE not in FLOW_REGISTRY:
-        register_flow(
-            TEST_FLOW_TYPE,
-            EchoFlowConfig,
-            lambda cfg, _config: TrackingEchoFlow(cfg),
-            framework=ToolFramework.SMOLAGENTS,
-        )
+        register_flow(TrackingEchoFlow)
 
 
 @pytest.fixture(autouse=True)
 def register_test_flow() -> None:
     TrackingEchoFlow.reset_counters()
     _ensure_flow_registered()
-    # Reset registry entry to use fresh factory for each test run
+    # Reset registry entry
     FLOW_REGISTRY[TEST_FLOW_TYPE] = FlowRegistration(
         config_cls=EchoFlowConfig,
-        creator=lambda cfg, _config: TrackingEchoFlow(cfg),
+        creator=TrackingEchoFlow,
         framework=ToolFramework.SMOLAGENTS,
     )
 

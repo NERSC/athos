@@ -1,3 +1,4 @@
+import pytest
 import yaml
 from athos.runtime.builder import build_config, build_flow
 from athos.frameworks.smolagents.flows import ChatbotFlow
@@ -5,8 +6,12 @@ from athos.config import AthosConfig
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+# Import flows to ensure they are registered
+from athos.frameworks.smolagents import flows as smol_flows  # noqa: F401
 
-def test_build_config_and_flow(tmp_path, monkeypatch):
+
+@pytest.mark.asyncio
+async def test_build_config_and_flow(tmp_path, monkeypatch):
     cfg_yaml = """
 workspace_dir: "/tmp"
 models:
@@ -28,10 +33,11 @@ flows:
         lambda cfg: mock_model,
     )
     cfg = build_config(str(cfg_file))
-    flow = build_flow("chat", cfg)
+    flow = await build_flow("chat", cfg)
     assert isinstance(flow, ChatbotFlow)
 
 
+@pytest.mark.asyncio
 async def test_agent_flow_closes_mcp(tmp_path, monkeypatch):
     cfg_yaml = """
 workspace_dir: "/tmp"
@@ -60,8 +66,8 @@ flows:
         lambda n, c: dummy_client,
     )
     cfg = build_config(str(cfg_file))
-    flow = build_flow("agent", cfg)
-    await flow.close()
+    flow = await build_flow("agent", cfg)
+    await flow.cleanup()
     dummy_client.disconnect.assert_called_once()
 
 

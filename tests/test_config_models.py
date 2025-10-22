@@ -1,6 +1,9 @@
 import pytest
 
 from athos.config.models import AthosConfig
+# Import flows to ensure they are registered
+from athos.frameworks.smolagents import flows as smol_flows  # noqa: F401
+from athos.frameworks.langgraph import flows as lg_flows  # noqa: F401
 
 
 def test_smol_flow_rejects_langgraph_tool():

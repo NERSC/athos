@@ -15,7 +15,6 @@ from athos.models.execution import FlowRequest, FlowResult
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.session import FlowSession
 from athos.runtime.builder import build_flow
-from athos.runtime.compat import LegacyFlowAdapter, is_new_interface
 from athos.runtime.session_store import InMemorySessionStore, SessionStore
 
 logger = logging.getLogger(__name__)
@@ -234,8 +233,8 @@ class FlowRunner:
     async def _get_flow(self, flow_name: str) -> BaseFlow:
         """Return a cached flow instance or build a new one.
 
-        Handles both new pattern (classmethod create) and legacy pattern
-        (factory + initialize) flows transparently.
+        All flows are built using the create() classmethod pattern and are
+        fully initialized when returned from build_flow().
         """
 
         if flow_name in self._flow_cache:
@@ -244,35 +243,9 @@ class FlowRunner:
         if flow_name not in self.config.flows:
             raise ValueError(f"Unknown flow: {flow_name}")
 
-        flow_config = self.config.flows[flow_name]
-
-        # Build flow using appropriate pattern
+        # Build flow using create() classmethod
         logger.debug("Loading flow '%s'", flow_name)
         flow = await build_flow(flow_name, self.config)
-
-        # Apply legacy adapter if needed
-        if not is_new_interface(flow):
-            logger.warning(
-                "Flow '%s' uses legacy interface (str -> str); applying compatibility adapter",
-                flow_name,
-            )
-            flow = LegacyFlowAdapter(flow)
-
-        # Only call initialize() for legacy pattern flows
-        # (new pattern flows are already initialized by create())
-        created_via_classmethod = getattr(flow, '_created_via_classmethod', False)
-
-        if not created_via_classmethod:
-            logger.debug(
-                "Flow '%s' built via legacy pattern; calling initialize()",
-                flow_name
-            )
-            await flow.initialize(flow_config)
-        else:
-            logger.debug(
-                "Flow '%s' already initialized via create() classmethod",
-                flow_name
-            )
 
         self._flow_cache[flow_name] = flow
         logger.info("Flow '%s' loaded and cached", flow_name)

@@ -13,7 +13,6 @@ from athos.frameworks.langgraph.flows import react_agent
 from athos.frameworks.langgraph.flows.react_agent import (
     LangGraphReactAgentFlow,
     LangGraphReactAgentFlowConfig,
-    create_langgraph_react_agent_flow,
 )
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput
@@ -72,9 +71,8 @@ async def test_react_agent_flow_executes_and_tracks_history(monkeypatch):
         max_iterations=7,
     )
 
-    flow = create_langgraph_react_agent_flow(cfg, full_cfg)
+    flow = await LangGraphReactAgentFlow.create(cfg, full_cfg)
     flow.tools = [base_tool]  # Manually add tool for this test
-    await flow.initialize(cfg)
 
     # Create sessions for conversation
     session1 = FlowSession(
@@ -204,8 +202,7 @@ async def test_react_agent_factory_combines_instructions_and_tools(monkeypatch):
         },
     )
 
-    flow = create_langgraph_react_agent_flow(cfg, full_cfg)
-    await flow.initialize(cfg)
+    flow = await LangGraphReactAgentFlow.create(cfg, full_cfg)
 
     assert flow.instructions == "Primary instruction\n\nServer instruction"
 

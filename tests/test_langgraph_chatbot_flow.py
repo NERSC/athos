@@ -1,20 +1,25 @@
 import pytest
 
-from athos.config.models import ModelConfig
+from athos.config.models import AthosConfig, ModelConfig
 from athos.frameworks.langgraph.flows import chatbot
 from athos.frameworks.langgraph.flows.chatbot import (
     LangGraphChatbotFlow,
     LangGraphChatbotFlowConfig,
-    create_langgraph_chatbot_flow,
 )
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput
 from athos.models.session import FlowSession
 
 
-class DummyAthosConfig:
-    def __init__(self, model_cfg: ModelConfig) -> None:
-        self.models = {"demo": model_cfg}
+def create_dummy_config(model_cfg: ModelConfig) -> AthosConfig:
+    """Create a minimal AthosConfig for testing."""
+    return AthosConfig(
+        models={"demo": model_cfg},
+        flows={},
+        mcp_servers={},
+        tools={},
+        workspace_dir="/tmp/test_workspace",
+    )
 
 
 class DummyModel:
@@ -51,8 +56,8 @@ async def test_chatbot_flow_execute_returns_structured_output(monkeypatch):
         initial_history=["Hi", "Hello there"],
     )
 
-    flow = LangGraphChatbotFlow(DummyAthosConfig(ModelConfig(model_id="gpt-4o-mini")))
-    await flow.initialize(cfg)
+    athos_config = create_dummy_config(ModelConfig(model_id="gpt-4o-mini"))
+    flow = await LangGraphChatbotFlow.create(cfg, athos_config)
 
     session = FlowSession(session_id="s", user_id="u")
     session.add_message("user", "Previous question")
@@ -88,8 +93,8 @@ async def test_chatbot_flow_streams_chunks_then_final_response(monkeypatch):
         initial_history=[],
     )
 
-    flow = LangGraphChatbotFlow(DummyAthosConfig(ModelConfig(model_id="gpt-4o-mini")))
-    await flow.initialize(cfg)
+    athos_config = create_dummy_config(ModelConfig(model_id="gpt-4o-mini"))
+    flow = await LangGraphChatbotFlow.create(cfg, athos_config)
 
     session = FlowSession(session_id="s", user_id="u")
     flow_input = FlowInput(
@@ -122,8 +127,8 @@ async def test_chatbot_flow_handles_exceptions_gracefully(monkeypatch):
         initial_history=[],
     )
 
-    flow = LangGraphChatbotFlow(DummyAthosConfig(ModelConfig(model_id="gpt-4o-mini")))
-    await flow.initialize(cfg)
+    athos_config = create_dummy_config(ModelConfig(model_id="gpt-4o-mini"))
+    flow = await LangGraphChatbotFlow.create(cfg, athos_config)
 
     session = FlowSession(session_id="s", user_id="u")
     flow_input = FlowInput(
@@ -140,7 +145,12 @@ async def test_chatbot_flow_handles_exceptions_gracefully(monkeypatch):
     assert output.metadata["exception_type"] == "RuntimeError"
 
 
-def test_chatbot_factory_returns_flow_instance():
+@pytest.mark.asyncio
+async def test_chatbot_create_returns_flow_instance(monkeypatch):
+    """Test that create() classmethod returns a properly initialized flow."""
+    dummy_model = DummyModel()
+    monkeypatch.setattr(chatbot, "build_model", lambda cfg: dummy_model)
+
     cfg = LangGraphChatbotFlowConfig(
         type="langgraph_chatbot",
         model="demo",
@@ -148,9 +158,10 @@ def test_chatbot_factory_returns_flow_instance():
         initial_history=[],
     )
 
-    flow = create_langgraph_chatbot_flow(
-        cfg,
-        DummyAthosConfig(ModelConfig(model_id="gpt-4o-mini")),
-    )
+    athos_config = create_dummy_config(ModelConfig(model_id="gpt-4o-mini"))
+    flow = await LangGraphChatbotFlow.create(cfg, athos_config)
 
     assert isinstance(flow, LangGraphChatbotFlow)
+    assert flow.model == dummy_model
+    assert flow.system_prompt is None
+    assert flow._initial_history == []

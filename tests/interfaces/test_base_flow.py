@@ -7,17 +7,38 @@ from athos.models.session import FlowSession
 
 
 class IncompleteFlow(BaseFlow):
+    name = "incomplete"
+    config_class = object
+    framework = object
+
+    @classmethod
+    async def create(cls, flow_config, athos_config):
+        return cls()
+
     async def execute(self, input: FlowInput) -> FlowOutput:  # pragma: no cover - used for error path
         return await super().execute(input)
 
 
 class EchoFlow(BaseFlow):
+    name = "echo"
+    config_class = object
+    framework = object
+
+    @classmethod
+    async def create(cls, flow_config, athos_config):
+        return cls()
+
     async def execute(self, input: FlowInput) -> FlowOutput:
         return FlowOutput(content=input.message)
 
 
 class StreamingFlow(EchoFlow):
+    name = "streaming"
     supported_modes = [ExecutionMode.SYNC, ExecutionMode.STREAMING]
+
+    @classmethod
+    async def create(cls, flow_config, athos_config):
+        return cls()
 
 
 @pytest.fixture

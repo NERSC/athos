@@ -55,15 +55,9 @@ async def test_langgraph_react_web_agent_demo_flow(monkeypatch):
     monkeypatch.setattr(react_agent, "build_tool", fake_build_tool)
     monkeypatch.setattr(react_agent, "create_react_agent", fake_create_react_agent)
 
-    flow = build_flow("langgraph_react_web_agent_demo", cfg)
+    flow = await build_flow("langgraph_react_web_agent_demo", cfg)
 
-    # Tools are built during initialize(), not during factory creation
-    assert flow.tools == []
-    assert flow.instructions is None
-
-    # Initialize the flow (this builds tools and sets instructions)
-    await flow.initialize(flow_cfg)
-
+    # Tools and instructions are built during create(), not during factory creation
     assert flow.tools == [dummy_tool]
     assert flow.instructions is not None
     assert "web search tool" in flow.instructions

@@ -1,12 +1,13 @@
+import pytest
 from athos.frameworks.smolagents.flows.agent import (
     AgentFlow,
     AgentFlowConfig,
-    create_agent_flow,
 )
 from athos.config.models import AthosConfig, ModelConfig, MCPServerConfig, MCPType
 
 
-def test_create_agent_flow_appends_mcp_instructions(monkeypatch):
+@pytest.mark.asyncio
+async def test_create_agent_flow_appends_mcp_instructions(monkeypatch):
     instructions = "Please comply"
     mcp_instruction = "Use docs tool"
 
@@ -61,6 +62,7 @@ def test_create_agent_flow_appends_mcp_instructions(monkeypatch):
         workspace_dir="/tmp",
     )
 
-    flow = create_agent_flow(cfg, full_cfg)
+    # Use new create() classmethod pattern
+    flow = await AgentFlow.create(cfg, full_cfg)
     assert isinstance(flow, AgentFlow)
     assert flow.agent.instructions == instructions + "\n\n" + mcp_instruction

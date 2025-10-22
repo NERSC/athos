@@ -1,4 +1,4 @@
-"""Tests for dual-interface support (new classmethod pattern + legacy factory pattern)."""
+"""Tests for flow registration using classmethod create pattern."""
 
 from __future__ import annotations
 
@@ -25,13 +25,6 @@ from athos.config.models import AthosConfig, BaseFlowConfig, ToolFramework, Mode
 class NewPatternFlowConfig(BaseFlowConfig):
     """Config for new pattern test flow."""
     type: str = "new_pattern"
-    model: str = "test_model"
-    value: str = "default"
-
-
-class LegacyPatternFlowConfig(BaseFlowConfig):
-    """Config for legacy pattern test flow."""
-    type: str = "legacy_pattern"
     model: str = "test_model"
     value: str = "default"
 
@@ -71,50 +64,6 @@ class NewPatternFlow(BaseFlow):
         )
 
 
-class LegacyPatternFlow(BaseFlow):
-    """Flow using legacy pattern (factory function + initialize)."""
-
-    name = "legacy_pattern"
-    description = "Legacy pattern test flow"
-    config_class = LegacyPatternFlowConfig
-    framework = ToolFramework.LANGGRAPH
-    supported_modes = [ExecutionMode.SYNC]
-
-    def __init__(self):
-        """Constructor with no dependencies."""
-        self.value = None
-        self.initialized = False
-
-    @classmethod
-    async def create(cls, flow_config: Any, athos_config: Any):
-        """New pattern create method (not used in legacy mode)."""
-        # Should not be called for legacy registration
-        raise NotImplementedError("Should use initialize() instead")
-
-    async def initialize(self, config: BaseFlowConfig) -> None:
-        """Legacy initialization pattern."""
-        assert isinstance(config, LegacyPatternFlowConfig)
-        self.value = f"initialized_{config.value}"
-        self.initialized = True
-
-    async def execute(self, input: FlowInput) -> FlowOutput:
-        """Execute flow."""
-        if not self.initialized:
-            raise RuntimeError("Flow not initialized")
-        return FlowOutput(
-            content=f"{self.value}: {input.message}",
-            metadata={"initialized": self.initialized}
-        )
-
-
-def create_legacy_pattern_flow(
-    flow_config: LegacyPatternFlowConfig,
-    athos_config: AthosConfig
-) -> LegacyPatternFlow:
-    """Legacy factory function."""
-    return LegacyPatternFlow()
-
-
 # ===== Tests: Registration =====
 
 def test_new_pattern_registration():
@@ -130,27 +79,6 @@ def test_new_pattern_registration():
     registration = FLOW_REGISTRY["new_pattern"]
     assert registration.config_cls == NewPatternFlowConfig
     assert registration.creator == NewPatternFlow
-    assert registration.framework == ToolFramework.LANGGRAPH
-
-
-def test_legacy_pattern_registration():
-    """Test that legacy pattern flow registers correctly."""
-    # Clear registry
-    FLOW_REGISTRY.clear()
-
-    # Register using legacy pattern
-    register_flow(
-        "legacy_pattern",
-        LegacyPatternFlowConfig,
-        create_legacy_pattern_flow,
-        framework=ToolFramework.LANGGRAPH,
-    )
-
-    # Verify registration
-    assert "legacy_pattern" in FLOW_REGISTRY
-    registration = FLOW_REGISTRY["legacy_pattern"]
-    assert registration.config_cls == LegacyPatternFlowConfig
-    assert registration.creator == create_legacy_pattern_flow
     assert registration.framework == ToolFramework.LANGGRAPH
 
 
@@ -248,46 +176,8 @@ async def test_build_new_pattern_flow():
     # Build flow
     flow = await build_flow("test", config)
 
-    # Verify
+    # Verify flow is fully initialized
     assert isinstance(flow, NewPatternFlow)
-    assert hasattr(flow, '_created_via_classmethod')
-    assert flow._created_via_classmethod is True
-    assert flow.value == "initialized_test_value"
-    assert flow.initialized is True
-
-
-@pytest.mark.asyncio
-async def test_build_legacy_pattern_flow():
-    """Test that legacy pattern flow builds and needs initialize()."""
-    # Clear and register
-    FLOW_REGISTRY.clear()
-    register_flow(
-        "legacy_pattern",
-        LegacyPatternFlowConfig,
-        create_legacy_pattern_flow,
-        framework=ToolFramework.LANGGRAPH,
-    )
-
-    # Build config (flows as dictionaries)
-    config = AthosConfig(
-        flows={"test": {"type": "legacy_pattern", "model": "test_model", "value": "test_value"}},
-        models={"test_model": ModelConfig(model_id="test-model-id")},
-        mcp_servers={},
-        tools={},
-        workspace_dir="/tmp/athos_test"
-    )
-
-    # Build flow
-    flow = await build_flow("test", config)
-
-    # Verify
-    assert isinstance(flow, LegacyPatternFlow)
-    assert not hasattr(flow, '_created_via_classmethod') or flow._created_via_classmethod is False
-    assert flow.value is None  # Not initialized yet
-    assert flow.initialized is False
-
-    # Initialize
-    await flow.initialize(config.flows["test"])
     assert flow.value == "initialized_test_value"
     assert flow.initialized is True
 
@@ -327,93 +217,6 @@ async def test_runner_with_new_pattern_flow():
     assert "initialized_runner_test" in result.output.content
     assert result.output.metadata["initialized"] is True
 
-
-@pytest.mark.asyncio
-async def test_runner_with_legacy_pattern_flow():
-    """Test FlowRunner with legacy pattern flow (should call initialize)."""
-    # Clear and register
-    FLOW_REGISTRY.clear()
-    register_flow(
-        "legacy_pattern",
-        LegacyPatternFlowConfig,
-        create_legacy_pattern_flow,
-        framework=ToolFramework.LANGGRAPH,
-    )
-
-    # Build config (flows as dictionaries)
-    config = AthosConfig(
-        flows={"test": {"type": "legacy_pattern", "model": "test_model", "value": "runner_test"}},
-        models={"test_model": ModelConfig(model_id="test-model-id")},
-        mcp_servers={},
-        tools={},
-        workspace_dir="/tmp/athos_test"
-    )
-
-    # Create runner
-    runner = FlowRunner(config)
-
-    # Execute flow
-    result = await runner.execute(
-        flow_name="test",
-        message="hello",
-        session_id="session1",
-        user_id="user1",
-    )
-
-    # Verify
-    assert result.success is True
-    assert result.output is not None
-    assert "initialized_runner_test" in result.output.content
-    assert result.output.metadata["initialized"] is True
-
-
-@pytest.mark.asyncio
-async def test_both_patterns_work_together():
-    """Test that both patterns can coexist in same config."""
-    # Clear and register both
-    FLOW_REGISTRY.clear()
-    register_flow(NewPatternFlow)
-    register_flow(
-        "legacy_pattern",
-        LegacyPatternFlowConfig,
-        create_legacy_pattern_flow,
-        framework=ToolFramework.LANGGRAPH,
-    )
-
-    # Build config with both flows (as dictionaries)
-    config = AthosConfig(
-        flows={
-            "new": {"type": "new_pattern", "model": "test_model", "value": "new_val"},
-            "legacy": {"type": "legacy_pattern", "model": "test_model", "value": "legacy_val"},
-        },
-        models={"test_model": ModelConfig(model_id="test-model-id")},
-        mcp_servers={},
-        tools={},
-        workspace_dir="/tmp/athos_test"
-    )
-
-    # Create runner
-    runner = FlowRunner(config)
-
-    # Execute new pattern flow
-    result_new = await runner.execute(
-        flow_name="new",
-        message="test",
-        session_id="session1",
-        user_id="user1",
-    )
-    assert result_new.success is True
-    assert "initialized_new_val" in result_new.output.content
-
-    # Execute legacy pattern flow
-    result_legacy = await runner.execute(
-        flow_name="legacy",
-        message="test",
-        session_id="session2",
-        user_id="user1",
-    )
-    assert result_legacy.success is True
-    assert "initialized_legacy_val" in result_legacy.output.content
 
 
 # ===== Tests: get_flow_registration Helper =====

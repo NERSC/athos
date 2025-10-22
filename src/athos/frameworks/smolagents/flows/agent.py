@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import ClassVar, List, Optional
 from typing_extensions import Literal
 from enum import Enum
 import asyncio
@@ -14,6 +14,8 @@ from smolagents import (
 )
 
 from athos.interfaces.base_flow import BaseFlow
+from athos.models.flow import FlowInput, FlowOutput
+from athos.models.enums import ExecutionMode
 from athos.registry.flow_registry import register_flow
 from athos.config.models import (
     AthosConfig,
@@ -35,14 +37,36 @@ logger = logging.getLogger(__name__)
 class AgentFlow(BaseFlow):
     """General agent flow supporting multiple agent types."""
 
+    # ===== Class metadata (new pattern) =====
+    name: ClassVar[str] = "agent"
+    description: ClassVar[str] = "SmolAgents tool-calling or code-executing agent"
+    framework: ClassVar[ToolFramework] = ToolFramework.SMOLAGENTS
+    supported_modes: ClassVar[List[ExecutionMode]] = [ExecutionMode.SYNC]
+
     def __init__(
         self,
         model: OpenAIServerModel,
         tools: List[Tool],
-        agent_type: str = "code",
-        mcp_clients: Optional[List[MCPClient]] = None,
+        agent_type: str,
+        mcp_clients: Optional[List[MCPClient]],
+        full_config: AthosConfig,
         **agent_kwargs,
     ):
+        """
+        Construct an agent flow with all dependencies.
+
+        Note: Use the create() classmethod in production.
+        This constructor is public to support testing with mocks.
+
+        Args:
+            model: SmolAgents model (required)
+            tools: List of tools available to the agent
+            agent_type: Type of agent ("code" or "tool_calling")
+            mcp_clients: Optional list of MCP clients
+            full_config: Full ATHOS configuration
+            **agent_kwargs: Additional arguments for the agent
+        """
+        self._full_config = full_config
         self._mcp_clients = list(mcp_clients or [])
 
         # Fetch tools from any provided MCP servers
@@ -60,14 +84,103 @@ class AgentFlow(BaseFlow):
             self.agent = CodeAgent(tools=tools, model=model, **agent_kwargs)
             self.agent_type = "code"
 
-    async def execute(self, input_data: str):
+    @classmethod
+    async def create(
+        cls,
+        flow_config: "AgentFlowConfig",
+        athos_config: AthosConfig
+    ) -> "AgentFlow":
+        """
+        Create and fully initialize an agent flow.
+
+        Builds the model, tools, and MCP clients and constructs the flow instance.
+
+        Args:
+            flow_config: Agent-specific configuration
+            athos_config: Full ATHOS configuration
+
+        Returns:
+            Fully initialized agent flow
+        """
+        # Build model
+        if flow_config.model not in athos_config.models:
+            raise ValueError(
+                f"Model '{flow_config.model}' not found in configuration"
+            )
+        model_cfg = athos_config.models[flow_config.model]
+        model = build_model(model_cfg)
+
+        # Build tools
+        tool_instances: List[Tool] = []
+        for tool_name in flow_config.tools:
+            if tool_name not in athos_config.tools:
+                raise ValueError(
+                    f"Tool '{tool_name}' not found in configuration"
+                )
+            tool_cfg: ToolConfig = athos_config.tools[tool_name]
+            tool_instances.append(build_tool(tool_cfg))
+
+        # Build MCP clients
+        mcp_instances: List[MCPClient] = []
+        combined_instructions: List[str] = []
+        if flow_config.instructions:
+            combined_instructions.append(flow_config.instructions)
+
+        for mcp_name in flow_config.mcp_servers:
+            if mcp_name not in athos_config.mcp_servers:
+                raise ValueError(
+                    f"MCP server '{mcp_name}' not found in configuration"
+                )
+            mcp_cfg: MCPServerConfig = athos_config.mcp_servers[mcp_name]
+            client = build_mcp_client(mcp_name, mcp_cfg)
+            mcp_instances.append(client)
+            if mcp_cfg.instructions:
+                combined_instructions.append(mcp_cfg.instructions)
+
+        instructions = "\n\n".join(combined_instructions) if combined_instructions else None
+
+        # Construct flow with all dependencies
+        return cls(
+            model=model,
+            tools=tool_instances,
+            agent_type=flow_config.agent_type.value,
+            mcp_clients=mcp_instances,
+            full_config=athos_config,
+            max_steps=flow_config.max_steps,
+            verbosity_level=flow_config.verbosity_level,
+            additional_authorized_imports=flow_config.additional_authorized_imports,
+            instructions=instructions,
+        )
+
+    async def execute(self, input: FlowInput) -> FlowOutput:
+        """
+        Execute the agent flow once and return structured output.
+
+        Args:
+            input: FlowInput containing message and session
+
+        Returns:
+            FlowOutput with agent response
+        """
+        message = input.message
+
         try:
-            return await asyncio.to_thread(self.agent.run, input_data)
+            result = await asyncio.to_thread(self.agent.run, message)
+            return FlowOutput(
+                content=str(result),
+                metadata={
+                    "agent_type": self.agent_type,
+                    "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
+                }
+            )
         except Exception as e:
             logger.error("%s execution failed: %s", self.agent.__class__.__name__, e)
-            return f"Error: {e}"
+            return FlowOutput(
+                content=f"Error: {e}",
+                metadata={"error": str(e)}
+            )
 
-    async def close(self) -> None:
+    async def cleanup(self) -> None:
         """Disconnect any MCP clients held by this flow."""
         for client in self._mcp_clients:
             try:
@@ -96,42 +209,11 @@ class AgentFlowConfig(BaseFlowConfig):
     instructions: Optional[str] = Field(default=None)
 
 
-def create_agent_flow(cfg: AgentFlowConfig, full_cfg: AthosConfig) -> AgentFlow:
-    tool_instances: List[Tool] = []
-    mcp_instances: List[MCPClient] = []
-    combined_instructions: List[str] = []
-    if cfg.instructions:
-        combined_instructions.append(cfg.instructions)
-    for name in cfg.tools:
-        tool_cfg: ToolConfig = full_cfg.tools[name]
-        tool_instances.append(build_tool(tool_cfg))
-    for name in cfg.mcp_servers:
-        mcp_cfg: MCPServerConfig = full_cfg.mcp_servers[name]
-        client = build_mcp_client(name, mcp_cfg)
-        mcp_instances.append(client)
-        if mcp_cfg.instructions:
-            combined_instructions.append(mcp_cfg.instructions)
-    model_cfg: ModelConfig = full_cfg.models[cfg.model]
-    model = build_model(model_cfg)
-    instructions = "\n\n".join(combined_instructions) if combined_instructions else None
-    return AgentFlow(
-        model,
-        tool_instances,
-        cfg.agent_type.value,
-        mcp_clients=mcp_instances,
-        max_steps=cfg.max_steps,
-        verbosity_level=cfg.verbosity_level,
-        additional_authorized_imports=cfg.additional_authorized_imports,
-        instructions=instructions,
-    )
+# Set config_class on the flow class
+AgentFlow.config_class = AgentFlowConfig
+
+# Register using new pattern
+register_flow(AgentFlow)
 
 
-register_flow(
-    "agent",
-    AgentFlowConfig,
-    create_agent_flow,
-    framework=ToolFramework.SMOLAGENTS,
-)
-
-
-__all__ = ["AgentFlow", "AgentFlowConfig", "create_agent_flow"]
+__all__ = ["AgentFlow", "AgentFlowConfig"]

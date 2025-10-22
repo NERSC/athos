@@ -58,65 +58,119 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
 
     name = "langgraph_react_agent"
     description = "ReAct agent with tool calling using LangGraph"
+    config_class = None  # Set after class definition
+    framework = ToolFramework.LANGGRAPH
     supported_modes = [ExecutionMode.SYNC, ExecutionMode.STREAMING]
 
-    def __init__(self, full_config: Optional[AthosConfig] = None) -> None:
+    def __init__(
+        self,
+        model: "BaseLanguageModel",
+        tools: List["BaseTool"],
+        mcp_clients: List["MultiServerMCPClient"],
+        instructions: Optional[str],
+        max_iterations: int,
+        full_config: AthosConfig
+    ) -> None:
+        """Construct a ReAct agent flow with all dependencies.
+
+        Note: Use the create() classmethod in production.
+        This constructor is public to support testing with mocks.
+
+        Args:
+            model: LangChain chat model (required)
+            tools: List of regular tools (required, can be empty)
+            mcp_clients: List of MCP clients (required, can be empty)
+            instructions: Optional system instructions
+            max_iterations: Maximum ReAct iterations allowed
+            full_config: Full ATHOS configuration
+        """
         super().__init__(full_config)
-        self.model: Optional["BaseLanguageModel"] = None
-        self.tools: List["BaseTool"] = []
-        self.instructions: Optional[str] = None
-        self.max_iterations: int = 20
+        self.model = model
+        self.tools = tools
+        self._mcp_clients = mcp_clients
+        self.instructions = instructions
+        self.max_iterations = max_iterations
         self._graph = None  # type: ignore[assignment]
         self._graph_lock = asyncio.Lock()
         self._graph_needs_rebuild = True
-        self._mcp_clients: List["MultiServerMCPClient"] = []
         self._mcp_tool_sync_lock = asyncio.Lock()
         self._mcp_tools_loaded = False
 
-    async def initialize(self, config: BaseFlowConfig) -> None:
-        """Initialize the agent with model, tools, and MCP clients."""
+    @classmethod
+    async def create(
+        cls,
+        flow_config: "LangGraphReactAgentFlowConfig",
+        athos_config: AthosConfig
+    ) -> Self:
+        """Create and fully initialize a ReAct agent flow.
 
-        if self._full_config is None:
-            raise RuntimeError("ATHOS configuration is required to initialize the flow")
+        Builds the model, tools, and MCP clients.
 
-        if not isinstance(config, LangGraphReactAgentFlowConfig):
-            raise TypeError(
-                "LangGraphReactAgentFlow requires LangGraphReactAgentFlowConfig during initialization"
+        Args:
+            flow_config: React agent-specific configuration
+            athos_config: Full ATHOS configuration
+
+        Returns:
+            Fully initialized ReAct agent flow
+        """
+        # Get model config
+        if flow_config.model not in athos_config.models:
+            raise ValueError(
+                f"Model '{flow_config.model}' not found in configuration"
             )
+        model_cfg = athos_config.models[flow_config.model]
 
         # Build model
-        model_cfg = self._get_model_config(config.model)
-        self.model = build_model(model_cfg)
+        model = build_model(model_cfg)
 
         # Build regular tools
-        for tool_name in config.tools:
-            tool_cfg = self._get_tool_config(tool_name)
+        tools: List["BaseTool"] = []
+        for tool_name in flow_config.tools:
+            if tool_name not in athos_config.tools:
+                raise ValueError(
+                    f"Tool '{tool_name}' not found in configuration"
+                )
+            tool_cfg = athos_config.tools[tool_name]
             tool_instance = build_tool(tool_cfg)
-            self.tools.append(tool_instance)
+            tools.append(tool_instance)
 
         # Build MCP clients (tools loaded lazily on first execute)
+        mcp_clients: List["MultiServerMCPClient"] = []
         combined_instructions: List[str] = []
-        if config.instructions:
-            combined_instructions.append(config.instructions)
+        if flow_config.instructions:
+            combined_instructions.append(flow_config.instructions)
 
-        for mcp_name in config.mcp_servers:
-            mcp_cfg = self._get_mcp_server_config(mcp_name)
+        for mcp_name in flow_config.mcp_servers:
+            if mcp_name not in athos_config.mcp_servers:
+                raise ValueError(
+                    f"MCP server '{mcp_name}' not found in configuration"
+                )
+            mcp_cfg = athos_config.mcp_servers[mcp_name]
             client = build_mcp_client(mcp_name, mcp_cfg)
-            self._mcp_clients.append(client)
+            mcp_clients.append(client)
             if mcp_cfg.instructions:
                 combined_instructions.append(mcp_cfg.instructions)
 
-        self.instructions = (
+        instructions = (
             "\n\n".join(combined_instructions) if combined_instructions else None
         )
-        self.max_iterations = config.max_iterations
 
         logger.info(
             "Initialized %s with model %s, %d tools, %d MCP servers",
-            self.name,
-            self.model.model_name,
-            len(self.tools),
-            len(self._mcp_clients),
+            cls.name,
+            model.model_name,
+            len(tools),
+            len(mcp_clients),
+        )
+
+        # Construct flow with all dependencies
+        return cls(
+            model=model,
+            tools=tools,
+            mcp_clients=mcp_clients,
+            instructions=instructions,
+            max_iterations=flow_config.max_iterations,
+            full_config=athos_config
         )
 
     async def execute(self, input: FlowInput) -> FlowOutput:
@@ -249,11 +303,6 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
             except Exception:  # pragma: no cover - best-effort cleanup
                 logger.debug("Ignoring MCP client close error", exc_info=True)
 
-        self._mcp_clients.clear()
-        self.model = None
-        self.tools.clear()
-        self._graph = None
-
     def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
         """Build message list from session history + new input."""
 
@@ -372,25 +421,14 @@ class LangGraphReactAgentFlowConfig(BaseFlowConfig):
     )
 
 
-def create_langgraph_react_agent_flow(
-    cfg: LangGraphReactAgentFlowConfig, full_cfg: AthosConfig
-) -> LangGraphReactAgentFlow:
-    """Factory for :class:`LangGraphReactAgentFlow`."""
+# Set config_class after class definition to avoid forward reference issues
+LangGraphReactAgentFlow.config_class = LangGraphReactAgentFlowConfig
 
-    # The FlowRunner will call ``initialize`` with the same configuration.
-    return LangGraphReactAgentFlow(full_config=full_cfg)
-
-
-register_flow(
-    "langgraph_react_agent",
-    LangGraphReactAgentFlowConfig,
-    create_langgraph_react_agent_flow,
-    framework=ToolFramework.LANGGRAPH,
-)
+# Register using new pattern
+register_flow(LangGraphReactAgentFlow)
 
 
 __all__ = [
     "LangGraphReactAgentFlow",
     "LangGraphReactAgentFlowConfig",
-    "create_langgraph_react_agent_flow",
 ]

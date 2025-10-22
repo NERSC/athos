@@ -11,11 +11,9 @@ from athos.models.flow import FlowInput, FlowOutput
 
 
 class BaseFlow(ABC):
-    """Enhanced base interface for all flow implementations.
+    """Base interface for all flow implementations.
 
-    New Pattern (Recommended):
-    ---------------------------
-    Flows should implement the create() classmethod to build all dependencies
+    All flows must implement the create() classmethod to build all dependencies
     and call the constructor with fully-initialized objects. This eliminates
     uninitialized state and provides better type safety.
 
@@ -44,11 +42,6 @@ class BaseFlow(ABC):
                 # Use self.model safely without None checks
                 response = await self.model.generate(input.message)
                 return FlowOutput(content=response)
-
-    Legacy Pattern (Deprecated):
-    ----------------------------
-    The old pattern used factory functions and initialize() method.
-    This is still supported but will be removed in a future version.
     """
 
     # ===== Class-level metadata (required for new pattern) =====
@@ -126,17 +119,6 @@ class BaseFlow(ABC):
         yield result
 
     # ===== Lifecycle management =====
-    async def initialize(self, config: Any) -> None:
-        """[DEPRECATED] One-time initialization for expensive resources.
-
-        This method is deprecated in favor of the create() classmethod.
-        New flows should not implement this - all setup should happen
-        in create() before calling the constructor.
-
-        Will be removed in a future version.
-        """
-        pass  # Default no-op for new flows
-
     async def cleanup(self) -> None:
         """Release any resources held by the flow instance.
 
