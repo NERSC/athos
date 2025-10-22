@@ -21,9 +21,13 @@ import argparse
 import os
 import pprint
 from pathlib import Path
+from dotenv import load_dotenv
 
 from athos import build_config, build_flow
 from athos.models import ExecutionMode, FlowInput, FlowSession
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 async def demonstrate_basic_filesystem_tasks(flow, session: FlowSession):
