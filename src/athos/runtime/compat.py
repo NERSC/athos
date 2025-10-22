@@ -24,6 +24,11 @@ class LegacyFlowAdapter(BaseFlow):
         legacy_modes = getattr(legacy_flow, "supported_modes", self.supported_modes)
         self.supported_modes = list(legacy_modes)
 
+    @classmethod
+    async def create(cls, flow_config: Any, athos_config: Any):
+        """Create method - not used for adapters (they wrap existing flows)."""
+        raise NotImplementedError("LegacyFlowAdapter wraps existing flows, use constructor instead")
+
     async def execute(self, input: FlowInput) -> FlowOutput:  # type: ignore[override]
         """Invoke the legacy ``execute`` method and wrap its result."""
 

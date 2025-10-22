@@ -29,6 +29,11 @@ class LegacyEchoFlow(BaseFlow):
         self.cleaned = False
         self.initialized_with: Any | None = None
 
+    @classmethod
+    async def create(cls, flow_config: Any, athos_config: Any):
+        """Create method - not used in legacy pattern."""
+        raise NotImplementedError("Legacy flow uses factory function")
+
     async def initialize(self, config: Any) -> None:  # type: ignore[override]
         self.initialized_with = config
 
@@ -42,6 +47,11 @@ class LegacyEchoFlow(BaseFlow):
 
 class LegacyFlowOutputFlow(BaseFlow):
     """Legacy flow that already returns a ``FlowOutput`` instance."""
+
+    @classmethod
+    async def create(cls, flow_config: Any, athos_config: Any):
+        """Create method - not used in legacy pattern."""
+        raise NotImplementedError("Legacy flow uses factory function")
 
     async def execute(self, message: str) -> FlowOutput:  # type: ignore[override]
         return FlowOutput(content=message.upper(), metadata={"legacy": True})
@@ -96,6 +106,10 @@ async def test_adapter_preserves_flow_output(tmp_path: Path) -> None:
 
 def test_is_new_interface_detection() -> None:
     class NewStyleFlow(BaseFlow):
+        @classmethod
+        async def create(cls, flow_config: Any, athos_config: Any):
+            return cls()
+
         async def execute(self, input: FlowInput) -> FlowOutput:  # type: ignore[override]
             return FlowOutput(content=input.message)
 
@@ -122,7 +136,7 @@ async def test_runner_adapts_legacy_flows(tmp_path: Path) -> None:
     # Ensure registry entry is reset for the duration of the test.
     FLOW_REGISTRY[flow_type] = FlowRegistration(
         config_cls=LegacyConfig,
-        factory=factory,
+        creator=factory,
         framework=ToolFramework.SMOLAGENTS,
     )
 

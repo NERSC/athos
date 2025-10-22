@@ -45,6 +45,11 @@ class TrackingEchoFlow(BaseFlow):
         TrackingEchoFlow.instances_created += 1
 
     @classmethod
+    async def create(cls, flow_config, athos_config):
+        """Create method - not used in legacy pattern."""
+        raise NotImplementedError("Legacy flow uses factory function")
+
+    @classmethod
     def reset_counters(cls) -> None:
         cls.initialize_calls = 0
         cls.cleanup_calls = 0
@@ -107,7 +112,7 @@ def register_test_flow() -> None:
     # Reset registry entry to use fresh factory for each test run
     FLOW_REGISTRY[TEST_FLOW_TYPE] = FlowRegistration(
         config_cls=EchoFlowConfig,
-        factory=lambda cfg, _config: TrackingEchoFlow(cfg),
+        creator=lambda cfg, _config: TrackingEchoFlow(cfg),
         framework=ToolFramework.SMOLAGENTS,
     )
 

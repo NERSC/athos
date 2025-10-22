@@ -232,7 +232,11 @@ class FlowRunner:
         )
 
     async def _get_flow(self, flow_name: str) -> BaseFlow:
-        """Return a cached flow instance or build a new one."""
+        """Return a cached flow instance or build a new one.
+
+        Handles both new pattern (classmethod create) and legacy pattern
+        (factory + initialize) flows transparently.
+        """
 
         if flow_name in self._flow_cache:
             return self._flow_cache[flow_name]
@@ -240,20 +244,38 @@ class FlowRunner:
         if flow_name not in self.config.flows:
             raise ValueError(f"Unknown flow: {flow_name}")
 
-        logger.debug("Loading flow '%s'", flow_name)
-        flow = build_flow(flow_name, self.config)
+        flow_config = self.config.flows[flow_name]
 
+        # Build flow using appropriate pattern
+        logger.debug("Loading flow '%s'", flow_name)
+        flow = await build_flow(flow_name, self.config)
+
+        # Apply legacy adapter if needed
         if not is_new_interface(flow):
             logger.warning(
-                "Flow '%s' uses legacy interface; applying compatibility adapter",
+                "Flow '%s' uses legacy interface (str -> str); applying compatibility adapter",
                 flow_name,
             )
             flow = LegacyFlowAdapter(flow)
 
-        flow_config = self.config.flows[flow_name]
-        await flow.initialize(flow_config)
+        # Only call initialize() for legacy pattern flows
+        # (new pattern flows are already initialized by create())
+        created_via_classmethod = getattr(flow, '_created_via_classmethod', False)
+
+        if not created_via_classmethod:
+            logger.debug(
+                "Flow '%s' built via legacy pattern; calling initialize()",
+                flow_name
+            )
+            await flow.initialize(flow_config)
+        else:
+            logger.debug(
+                "Flow '%s' already initialized via create() classmethod",
+                flow_name
+            )
+
         self._flow_cache[flow_name] = flow
-        logger.debug("Flow '%s' loaded and initialized", flow_name)
+        logger.info("Flow '%s' loaded and cached", flow_name)
         return flow
 
     def _record_interaction(self, session: FlowSession, message: str, response: str) -> None:
