@@ -6,17 +6,20 @@ import pytest
 from unittest.mock import AsyncMock, Mock, patch
 
 from athos.main import main
+from athos.models.execution import FlowResult
+from athos.models.flow import FlowOutput
 
 
 @pytest.mark.asyncio
-@patch("athos.main.build_flow")
+@patch("athos.main.FlowRunner")
 @patch("athos.main.build_config")
-async def test_cli_log_level_override(mock_runtime, mock_build, monkeypatch):
-    flow = AsyncMock()
-    flow.execute.return_value = "OK"
-    flow.close = Mock()
-    mock_runtime.return_value = "CFG"
-    mock_build.return_value = flow
+async def test_cli_log_level_override(mock_build_config, mock_flow_runner, monkeypatch):
+    mock_build_config.return_value = "CFG"
+    mock_runner_instance = AsyncMock()
+    mock_runner_instance.execute.return_value = FlowResult(
+        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", execution_time=0.5
+    )
+    mock_flow_runner.return_value = mock_runner_instance
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.WARNING)
@@ -40,21 +43,29 @@ async def test_cli_log_level_override(mock_runtime, mock_build, monkeypatch):
     await main()
 
     assert root_logger.level == logging.DEBUG
-    mock_runtime.assert_called_once_with("cfg.yaml", None)
-    mock_build.assert_called_once_with("flow", "CFG")
-    flow.execute.assert_called_once_with("hello")
-    flow.close.assert_called_once_with()
+    mock_build_config.assert_called_once_with("cfg.yaml", None)
+    mock_flow_runner.assert_called_once_with("CFG")
+    mock_runner_instance.execute.assert_called_once_with(
+        flow_name="flow",
+        message="hello",
+        session_id="cli_session",
+        user_id="cli_user",
+        interface="cli",
+        metadata={"cli": True},
+    )
+    mock_runner_instance.cleanup.assert_called_once_with()
 
 
 @pytest.mark.asyncio
-@patch("athos.main.build_flow")
+@patch("athos.main.FlowRunner")
 @patch("athos.main.build_config")
-async def test_cli_log_level_default(mock_runtime, mock_build, monkeypatch):
-    flow = AsyncMock()
-    flow.execute.return_value = "OK"
-    flow.close = Mock()
-    mock_runtime.return_value = "CFG"
-    mock_build.return_value = flow
+async def test_cli_log_level_default(mock_build_config, mock_flow_runner, monkeypatch):
+    mock_build_config.return_value = "CFG"
+    mock_runner_instance = AsyncMock()
+    mock_runner_instance.execute.return_value = FlowResult(
+        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", execution_time=0.5
+    )
+    mock_flow_runner.return_value = mock_runner_instance
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.WARNING)
@@ -76,17 +87,24 @@ async def test_cli_log_level_default(mock_runtime, mock_build, monkeypatch):
     await main()
 
     assert root_logger.level == logging.WARNING
-    mock_runtime.assert_called_once_with("cfg.yaml", None)
-    mock_build.assert_called_once_with("flow", "CFG")
-    flow.execute.assert_called_once_with("hello")
-    flow.close.assert_called_once_with()
+    mock_build_config.assert_called_once_with("cfg.yaml", None)
+    mock_flow_runner.assert_called_once_with("CFG")
+    mock_runner_instance.execute.assert_called_once_with(
+        flow_name="flow",
+        message="hello",
+        session_id="cli_session",
+        user_id="cli_user",
+        interface="cli",
+        metadata={"cli": True},
+    )
+    mock_runner_instance.cleanup.assert_called_once_with()
 
 
 @pytest.mark.asyncio
 @patch("athos.main.build_flow")
 @patch("athos.main.build_config")
-async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
-    mock_runtime.return_value = SimpleNamespace(
+async def test_show_config(mock_build_config, mock_build_flow, monkeypatch, capsys):
+    mock_build_config.return_value = SimpleNamespace(
         models={
             "m": SimpleNamespace(model_id="id", description="Model description"),
         },
@@ -118,8 +136,8 @@ async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
     result = await main()
 
     assert result == 0
-    mock_runtime.assert_called_once_with("cfg.yaml", None)
-    mock_flow.assert_not_called()
+    mock_build_config.assert_called_once_with("cfg.yaml", None)
+    mock_build_flow.assert_not_called()
     captured = capsys.readouterr()
     assert "Models:" in captured.out
     assert "m: id" in captured.out
@@ -134,14 +152,15 @@ async def test_show_config(mock_runtime, mock_flow, monkeypatch, capsys):
 
 
 @pytest.mark.asyncio
-@patch("athos.main.build_flow")
+@patch("athos.main.FlowRunner")
 @patch("athos.main.build_config")
-async def test_cli_set_override(mock_runtime, mock_build, monkeypatch):
-    flow = AsyncMock()
-    flow.execute.return_value = "OK"
-    flow.close = Mock()
-    mock_runtime.return_value = "CFG"
-    mock_build.return_value = flow
+async def test_cli_set_override(mock_build_config, mock_flow_runner, monkeypatch):
+    mock_build_config.return_value = "CFG"
+    mock_runner_instance = AsyncMock()
+    mock_runner_instance.execute.return_value = FlowResult(
+        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", execution_time=0.5
+    )
+    mock_flow_runner.return_value = mock_runner_instance
 
     monkeypatch.setattr(
         sys,
@@ -163,19 +182,26 @@ async def test_cli_set_override(mock_runtime, mock_build, monkeypatch):
 
     await main()
 
-    mock_runtime.assert_called_once_with(
+    mock_build_config.assert_called_once_with(
         "cfg.yaml", {"models": {"test_model": {"temperature": 0.1, "max_tokens": 5}}}
     )
-    mock_build.assert_called_once_with("flow", "CFG")
-    flow.execute.assert_called_once_with("hello")
-    flow.close.assert_called_once_with()
+    mock_flow_runner.assert_called_once_with("CFG")
+    mock_runner_instance.execute.assert_called_once_with(
+        flow_name="flow",
+        message="hello",
+        session_id="cli_session",
+        user_id="cli_user",
+        interface="cli",
+        metadata={"cli": True},
+    )
+    mock_runner_instance.cleanup.assert_called_once_with()
 
 
 @pytest.mark.asyncio
 @patch("athos.main.build_flow")
 @patch("athos.main.build_config")
 async def test_gradio_keyboard_interrupt(mock_build_config, mock_build_flow, monkeypatch, caplog):
-    flow = SimpleNamespace(agent="agent", close=Mock())
+    flow = SimpleNamespace(agent="agent", cleanup=AsyncMock())
     mock_build_flow.return_value = flow
     mock_build_config.return_value = "CFG"
 
@@ -194,4 +220,4 @@ async def test_gradio_keyboard_interrupt(mock_build_config, mock_build_flow, mon
 
     assert result == 0
     assert "Gradio server stopped by user" in caplog.text
-    flow.close.assert_called_once_with()
+    flow.cleanup.assert_called_once_with()
