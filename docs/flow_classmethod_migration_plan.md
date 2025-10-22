@@ -1153,7 +1153,7 @@ async def create(cls, flow_config: AgentFlowConfig, athos_config: AthosConfig):
 1. **Keep it** - Allows users to create custom flows with old interface
 2. **Remove it** - Force all flows to use new interface
 
-**Recommendation:** Keep LegacyFlowAdapter for user extensions, document that built-in flows all use new interface.
+**Recommendation:** Remove LegacyFlowAdapter.
 
 ### 4.3 Update Documentation
 
@@ -1168,7 +1168,7 @@ async def create(cls, flow_config: AgentFlowConfig, athos_config: AthosConfig):
    - Update architecture diagrams if any
 
 3. `docs/athos_openwebui_integration_status.md`
-   - Mark all migration phases complete
+   - Mark migration phases complete
 
 4. Create `docs/flow_migration_guide.md`
    - Step-by-step guide for users migrating custom flows
