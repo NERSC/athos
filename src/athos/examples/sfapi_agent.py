@@ -6,13 +6,14 @@ import os
 import pprint
 from dotenv import load_dotenv
 
-from athos import build_config, build_flow
+from athos.runtime.builder import build_config
+from athos.runtime.runner import FlowRunner
 
 # Load environment variables from .env if present
 load_dotenv()
 
 
-async def demonstrate_systems_status(flow) -> bool:
+async def demonstrate_systems_status(runner: FlowRunner, flow_name: str, session_id: str) -> bool:
     """List available NERSC systems and their status."""
     print("\n🎯 Demonstrating Available Systems...")
     print("=" * 60)
@@ -26,10 +27,22 @@ async def demonstrate_systems_status(flow) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        result = await runner.execute(
+            flow_name=flow_name,
+            message=task,
+            session_id=session_id,
+            user_id="sfapi_demo",
+            interface="cli",
+            metadata={"task": "systems"}
+        )
+
+        if not result.success or result.output is None:
+            print(f"❌ Error getting system status: {result.error}")
+            return False
+
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.output.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error getting system status: {e}")
@@ -38,7 +51,7 @@ async def demonstrate_systems_status(flow) -> bool:
     return True
 
 
-async def demonstrate_outage_summary(flow) -> bool:
+async def demonstrate_outage_summary(runner: FlowRunner, flow_name: str, session_id: str) -> bool:
     """Summarize recent unscheduled major outages."""
     print("\n🎯 Demonstrating Outage Summary...")
     print("=" * 60)
@@ -53,10 +66,22 @@ async def demonstrate_outage_summary(flow) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        result = await runner.execute(
+            flow_name=flow_name,
+            message=task,
+            session_id=session_id,
+            user_id="sfapi_demo",
+            interface="cli",
+            metadata={"task": "outages"}
+        )
+
+        if not result.success or result.output is None:
+            print(f"❌ Error summarizing outages: {result.error}")
+            return False
+
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.output.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error summarizing outages: {e}")
@@ -65,7 +90,7 @@ async def demonstrate_outage_summary(flow) -> bool:
     return True
 
 
-async def demonstrate_project_membership(flow) -> bool:
+async def demonstrate_project_membership(runner: FlowRunner, flow_name: str, session_id: str) -> bool:
     """List NERSC projects for the authenticated user."""
     print("\n🎯 Demonstrating Project Membership...")
     print("=" * 60)
@@ -79,10 +104,22 @@ async def demonstrate_project_membership(flow) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        result = await runner.execute(
+            flow_name=flow_name,
+            message=task,
+            session_id=session_id,
+            user_id="sfapi_demo",
+            interface="cli",
+            metadata={"task": "projects"}
+        )
+
+        if not result.success or result.output is None:
+            print(f"❌ Error getting project membership: {result.error}")
+            return False
+
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.output.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error getting project membership: {e}")
@@ -138,34 +175,42 @@ async def main() -> None:
     print(f"\n🎯 Using flow: {args.flow}")
     pprint.pprint(cfg.flows[args.flow], indent=6)
 
-    flow = build_flow(args.flow, cfg)
+    runner = FlowRunner(cfg)
+    session_id = "sfapi_demo_session"
 
     selected_tasks = [t.strip() for t in args.tasks.split(',') if t.strip()]
 
     task_funcs = {
-        "systems": lambda: demonstrate_systems_status(flow),
-        "outages": lambda: demonstrate_outage_summary(flow),
-        "projects": lambda: demonstrate_project_membership(flow),
+        "systems": lambda: demonstrate_systems_status(runner, args.flow, session_id),
+        "outages": lambda: demonstrate_outage_summary(runner, args.flow, session_id),
+        "projects": lambda: demonstrate_project_membership(runner, args.flow, session_id),
     }
 
     success_count = 0
-    for name in selected_tasks:
-        func = task_funcs.get(name)
-        if not func:
-            print(f"⚠️  Unknown task: {name}")
-            continue
-        if await func():
-            success_count += 1
+    try:
+        for name in selected_tasks:
+            func = task_funcs.get(name)
+            if not func:
+                print(f"⚠️  Unknown task: {name}")
+                continue
+            if await func():
+                success_count += 1
 
-    total = len(selected_tasks)
+        total = len(selected_tasks)
 
-    print("\n🎉 Demo Summary")
-    print("=" * 60)
-    print(f"✅ Completed tasks: {success_count}/{total}")
-    if success_count == total:
-        print("🎊 All tasks completed successfully!")
-    else:
-        print("⚠️  Some tasks encountered errors - check the output above")
+        print("\n🎉 Demo Summary")
+        print("=" * 60)
+        print(f"✅ Completed tasks: {success_count}/{total}")
+        if success_count == total:
+            print("🎊 All tasks completed successfully!")
+        else:
+            print("⚠️  Some tasks encountered errors - check the output above")
+    finally:
+        # Cleanup runner resources
+        try:
+            await runner.cleanup()
+        except Exception as e:
+            print(f"⚠️  Error during cleanup: {e}")
 
 
 def run_demo():
