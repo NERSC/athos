@@ -8,6 +8,8 @@ from smolagents import ChatMessage
 import importlib.util
 from pathlib import Path
 
+from athos.models.flow import FlowOutput
+
 spec = importlib.util.spec_from_file_location(
     "revals",
     Path(__file__).resolve().parents[1] / "evals" / "run_evaluations.py",
@@ -27,10 +29,10 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
 
     created_flows = []
 
-    def _make_flow(*args, **kwargs):
+    async def _make_flow(*args, **kwargs):
         f = AsyncMock()
-        f.execute.return_value = "resp"
-        f.close = Mock()
+        f.execute.return_value = FlowOutput(content="resp")
+        f.cleanup = AsyncMock()
         created_flows.append(f)
         return f
 
@@ -50,6 +52,7 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
             "m1": SimpleNamespace(model_id="m1"),
             "m2": SimpleNamespace(model_id="m2"),
         },
+        workspace_path=str(tmp_path / "workspace"),
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
     monkeypatch.setattr(
@@ -79,7 +82,7 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
     # First two created flows correspond to the user flows
     for f in created_flows[:2]:
         assert f.execute.call_count == 1
-        assert f.close.call_count == 1
+        assert f.cleanup.call_count == 1
 
 
 def test_load_qa_cases(tmp_path):
@@ -121,6 +124,7 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
     dummy_cfg = SimpleNamespace(
         flows={"f1": DummyFlowCfg("m1")},
         models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
     monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
@@ -128,10 +132,10 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
 
     created_flows = []
 
-    def _make_flow(*args, **kwargs):
+    async def _make_flow(*args, **kwargs):
         f = AsyncMock()
-        f.execute.return_value = "resp"
-        f.close = Mock()
+        f.execute.return_value = FlowOutput(content="resp")
+        f.cleanup = AsyncMock()
         created_flows.append(f)
         return f
 

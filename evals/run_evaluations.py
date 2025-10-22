@@ -11,6 +11,9 @@ from smolagents import ChatMessage
 
 from athos import build_config, build_flow
 from athos.frameworks.smolagents import factories as smolagents_factories
+from athos.models.flow import FlowInput, FlowOutput
+from athos.models.session import FlowSession
+from athos.models.enums import ExecutionMode
 
 
 def load_test_cases(cases_dir: Path):
@@ -171,7 +174,9 @@ async def main():
         args.cases_dir = ["evals/test_cases"]
 
     cfg = build_config(args.config)
-    flows = {name: build_flow(name, cfg) for name in args.flow}
+    flows = {}
+    for name in args.flow:
+        flows[name] = await build_flow(name, cfg)
     print("Loaded flows:")
     print(flows)
 
@@ -210,8 +215,28 @@ async def main():
                 sol = case["solution"]
                 files_dir = case.get("files_dir")
                 input_data = build_input(desc, files_dir)
+
+                # Create a FlowSession for this test case
+                workspace_path = Path(cfg.workspace_path) / "eval" / flow_name / dataset_name / name
+                workspace_path.mkdir(parents=True, exist_ok=True)
+
+                session = FlowSession(
+                    session_id=f"eval_{flow_name}_{dataset_name}_{name}",
+                    user_id="evaluator",
+                    workspace=workspace_path,
+                    interface="evaluation"
+                )
+
+                # Create FlowInput with the message
+                flow_input = FlowInput(
+                    message=input_data,
+                    session=session,
+                    mode=ExecutionMode.SYNC
+                )
+
                 try:
-                    response = await flow.execute(input_data)
+                    output = await flow.execute(flow_input)
+                    response = output.content if isinstance(output, FlowOutput) else str(output)
                 except Exception as e:
                     response = f"Error executing flow: {e}"
                 score, feedback = evaluate_response(
@@ -252,9 +277,9 @@ async def main():
 
     for f in flows.values():
         try:
-            await f.close()
+            await f.cleanup()
         except Exception as e:  # pragma: no cover - cleanup errors ignored
-            print(f"Warning: failed to close flow: {e}")
+            print(f"Warning: failed to cleanup flow: {e}")
 
     if args.output:
         Path(args.output).write_text(json.dumps(all_results, indent=2))
