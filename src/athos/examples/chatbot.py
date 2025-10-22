@@ -7,6 +7,7 @@ import argparse
 import pprint
 
 from athos import build_config, build_flow
+from athos.models import ExecutionMode, FlowInput, FlowSession
 
 
 async def main():
@@ -19,6 +20,8 @@ async def main():
     cfg = build_config(args.config)
     chat_flow = await build_flow("hpc_chatbot", cfg)
 
+    session = FlowSession(session_id="demo", user_id="demo")
+
     # Print some info about available flows
     print("Available flows:")
     for name in cfg.flows:
@@ -28,20 +31,21 @@ async def main():
     pprint.pprint(cfg.flows["hpc_chatbot"])
 
     # Run some example questions in conversation
-    query = "What is NERSC?"
-    result = await chat_flow.execute(query)
-    print(f"Query: {query}")
-    print(f"Result: {result}")
-
-    query = "Where is it?"
-    result = await chat_flow.execute(query)
-    print(f"Query: {query}")
-    print(f"Result: {result}")
-
-    query = "What HPC systems do they have?"
-    result = await chat_flow.execute(query)
-    print(f"Query: {query}")
-    print(f"Result: {result}")
+    for query in [
+        "What is NERSC?",
+        "Where is it?",
+        "What HPC systems do they have?",
+    ]:
+        flow_input = FlowInput(
+            message=query,
+            session=session,
+            mode=ExecutionMode.SYNC,
+        )
+        result = await chat_flow.execute(flow_input)
+        session.add_message("user", query)
+        session.add_message("assistant", result.content)
+        print(f"Query: {query}")
+        print(f"Result: {result.content}")
 
 
 if __name__ == "__main__":
