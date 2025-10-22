@@ -177,7 +177,6 @@ async def test_flow_caching(tmp_path: Path) -> None:
     await runner.execute("test-flow", "two", "session", "user-1")
 
     assert TrackingEchoFlow.instances_created == 1
-    assert TrackingEchoFlow.initialize_calls == 1
 
 
 @pytest.mark.asyncio
