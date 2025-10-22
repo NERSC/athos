@@ -151,7 +151,7 @@ async def main():
                 parser.error("smolagents with Gradio support is required to use --gradio")
             if not args.flow:
                 parser.error("--flow is required when --gradio is used")
-            flow = build_flow(args.flow, cfg)
+            flow = await build_flow(args.flow, cfg)
             try:
                 GradioUI(flow.agent).launch(
                     server_name="0.0.0.0", server_port=args.port, share=False
