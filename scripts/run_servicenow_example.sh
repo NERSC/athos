@@ -8,7 +8,7 @@ echo "This demo shows ServiceNow operations using the ATHOS framework"
 echo ""
 
 tasks=summary #,triage,note,create
-incident=INC0247655
+incident=INC0247831
 #tasks=summary,create
 #incident=INC0247613
 
