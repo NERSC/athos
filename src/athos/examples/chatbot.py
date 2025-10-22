@@ -17,7 +17,7 @@ async def main():
     args = parser.parse_args()
 
     cfg = build_config(args.config)
-    chat_flow = build_flow("hpc_chatbot", cfg)
+    chat_flow = await build_flow("hpc_chatbot", cfg)
 
     # Print some info about available flows
     print("Available flows:")
