@@ -195,13 +195,8 @@ async def main() -> None:
             except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
                 logger.warning("Error during runner cleanup: %s", e)
         if flow is not None:
-            cleanup = getattr(flow, "cleanup", None)
-            close = getattr(flow, "close", None)
             try:
-                if callable(cleanup):
-                    await cleanup()
-                elif callable(close):
-                    await close()
+                await flow.cleanup()
             except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
                 logger.warning("Error during flow cleanup: %s", e)
 
