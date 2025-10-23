@@ -87,7 +87,7 @@ def _format_config(cfg):
 
 
 # CLI interface (basic example)
-async def main():
+async def main() -> None:
     """Main CLI interface for ATHOS"""
     import argparse
 
@@ -145,7 +145,7 @@ async def main():
             logging.getLogger().setLevel(getattr(logging, args.log_level))
         if args.show_config:
             print(_format_config(cfg))
-            return 0
+            return
         if args.gradio:
             if GradioUI is None:
                 parser.error("smolagents with Gradio support is required to use --gradio")
@@ -158,7 +158,7 @@ async def main():
                 )
             except KeyboardInterrupt:
                 logger.info("Gradio server stopped by user")
-            return 0
+            return
         if not args.flow or not args.input:
             parser.error(
                 "--flow and --input are required unless --show-config or --gradio is used"
@@ -174,8 +174,8 @@ async def main():
         )
 
         if not result.success or result.output is None:
-            print(f"Error: {result.error}")
-            return 1
+            logger.error(f"Flow execution failed: {result.error}")
+            return
 
         print(result.output.content)
 
@@ -186,8 +186,8 @@ async def main():
             elif artifact.data is not None:
                 print(f"  Data: {artifact.data}")
     except Exception as e:
-        logger.error(f"Execution failed: {e}")
-        raise e
+        logger.error(f"Execution failed: {e}", exc_info=True)
+        raise
     finally:
         if runner is not None:
             try:
@@ -204,8 +204,6 @@ async def main():
                     await close()
             except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
                 logger.warning("Error during flow cleanup: %s", e)
-
-    return 0
 
 
 def cli() -> None:
