@@ -1576,10 +1576,10 @@ services:
 ## Quick Start
 
 1. Build and start services:
-   ```bash
+   \`\`\`bash
    cd athos/deployments/openwebui
    docker-compose up -d
-   ```
+   \`\`\`
 
 2. Access OpenWebUI:
    - URL: http://localhost:3000
