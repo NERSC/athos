@@ -137,33 +137,49 @@ async def main() -> None:
     except ValueError as exc:
         parser.error(str(exc))
 
-    flow = None
-    runner: Optional[FlowRunner] = None
+    cfg = build_config(args.config, overrides)
+    if args.log_level:
+        logging.getLogger().setLevel(getattr(logging, args.log_level))
+    if args.show_config:
+        print(_format_config(cfg))
+        return
+
+    # Both Gradio and standard execution use FlowRunner
+    runner = FlowRunner(cfg)
     try:
-        cfg = build_config(args.config, overrides)
-        if args.log_level:
-            logging.getLogger().setLevel(getattr(logging, args.log_level))
-        if args.show_config:
-            print(_format_config(cfg))
-            return
         if args.gradio:
             if GradioUI is None:
                 parser.error("smolagents with Gradio support is required to use --gradio")
             if not args.flow:
                 parser.error("--flow is required when --gradio is used")
-            flow = await build_flow(args.flow, cfg)
+
+            # Get flow from runner (uses same initialization as standard execution)
+            flow = await runner._get_flow(args.flow)
+
+            # Check if flow supports Gradio (smolagents only for now)
+            from athos.config.models import ToolFramework
+            if flow.framework != ToolFramework.SMOLAGENTS:
+                parser.error(
+                    f"Gradio is only supported for smolagents flows, "
+                    f"but '{args.flow}' uses {flow.framework.value}"
+                )
+
+            if not hasattr(flow, 'agent'):
+                parser.error(f"Flow '{args.flow}' does not expose an agent for Gradio")
+
             try:
                 GradioUI(flow.agent).launch(
-                    server_name="0.0.0.0", server_port=args.port, share=False
+                    server_name="localhost", server_port=args.port, share=False
                 )
             except KeyboardInterrupt:
                 logger.info("Gradio server stopped by user")
             return
+
         if not args.flow or not args.input:
             parser.error(
                 "--flow and --input are required unless --show-config or --gradio is used"
             )
-        runner = FlowRunner(cfg)
+
         result = await runner.execute(
             flow_name=args.flow,
             message=args.input,
@@ -189,16 +205,10 @@ async def main() -> None:
         logger.error(f"Execution failed: {e}", exc_info=True)
         raise
     finally:
-        if runner is not None:
-            try:
-                await runner.cleanup()
-            except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
-                logger.warning("Error during runner cleanup: %s", e)
-        if flow is not None:
-            try:
-                await flow.cleanup()
-            except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
-                logger.warning("Error during flow cleanup: %s", e)
+        try:
+            await runner.cleanup()
+        except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
+            logger.warning("Error during runner cleanup: %s", e)
 
 
 def cli() -> None:
