@@ -5,7 +5,7 @@ _Last updated: 2025-10-20 21:10 UTC_
 ## Summary
 - **Integration phase**: Milestone 1 — Core Runtime Foundation.
 - **Overall status**: On track.
-- **Recent highlights**: SessionStore abstraction merged with concurrency-safe in-memory backend (Task 1.2), BaseFlow interface upgraded to structured models (Task 1.3), FlowRunner orchestration implemented with caching + error handling (Task 1.4), and CLI migrated to FlowRunner orchestration (Task 2.4).
+- **Recent highlights**: SessionStore abstraction merged with concurrency-safe in-memory backend (Task 1.2), BaseFlow interface upgraded to structured models (Task 1.3), FlowRunner orchestration implemented with caching + error handling (Task 1.4), CLI migrated to FlowRunner orchestration (Task 2.4), and OpenWebUI quickstart assets landed for the hello-world manifold pipeline.
 - **Upcoming focus**: Begin OpenWebUI pipeline bridge implementation (Task 3.1).
 
 ## Milestone & Task Progress
@@ -22,7 +22,7 @@ _Last updated: 2025-10-20 21:10 UTC_
 | 2. Runtime Compatibility | 2.4 | Update CLI to use runner. | ✅ Complete | CLI now routes synchronous runs through FlowRunner. |
 | 2. Runtime Compatibility | 2.5 | Create shared BaseLangGraphFlow and migrate ReAct agent. | ✅ Complete | BaseLangGraphFlow provides common utilities; ReAct agent fully migrated with streaming support. |
 | 3. OpenWebUI Integration | 3.1 | Pipeline module bridging Runner ↔ OpenWebUI. | ⏳ Not Started | Scheduled post-Milestone 2. |
-| 3. OpenWebUI Integration | 3.2 | Deployment configuration & docs. | ⏳ Not Started | Post-integration hardening. |
+| 3. OpenWebUI Integration | 3.2 | Deployment configuration & docs. | 🚧 In Progress | Hello-world compose stack + quickstart published. |
 | 5. Enhancements | 5.1 | LangGraph ReAct agent streaming enhancements. | ✅ Complete | ReAct agent now has full streaming with tool call events via astream_events. |
 | 5. Enhancements | 5.2 | OpenWebUI event formatter. | ⏳ Not Started | Blocked by Milestones 2–3 completion. |
 
@@ -41,4 +41,4 @@ _Last updated: 2025-10-20 21:10 UTC_
 ## Next Steps
 1. Document expectations for future persistence backends (Redis, SQL) building on the SessionStore interface.
 2. Identify regression scenarios for legacy flows now that the compatibility layer exists (Task 2.1 follow-up).
-3. Prototype the OpenWebUI pipeline bridge using FlowRunner streaming hooks (Task 3.1).
+3. Prototype the OpenWebUI pipeline bridge using FlowRunner streaming hooks (Task 3.1) building on the hello-world manifold sample.

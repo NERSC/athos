@@ -33,6 +33,14 @@ certificate details, and optional Iris or CBORG settings. The template enables
 the default shared workspace path (`${SCRATCH}/athos/workspace`) and leaves the
 remaining settings commented out so they can be customized as needed.
 
+## OpenWebUI Pipelines integration (preview)
+
+A hello-world OpenWebUI Pipelines stack is available for experimentation with
+official containers and a mock Athos manifold pipeline. Follow the
+[OpenWebUI Pipelines Quickstart](docs/openwebui_pipelines_quickstart.md) to spin
+up the demo, connect the UI to the pipelines service, and review next steps for
+bridging to real Athos flows.
+
 ## Shared Workspace
 
 ATHOS tools and MCP servers can share a common workspace directory so that
