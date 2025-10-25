@@ -1,0 +1,30 @@
+version: "3.9"
+
+services:
+  pipelines:
+    image: ghcr.io/open-webui/pipelines:main
+    container_name: athos-openwebui-pipelines
+    ports:
+      - "9099:9099"
+    environment:
+      - PIPELINES_API_KEY=0p3n-w3bu!
+      - PIPELINES_DIR=/app/pipelines
+    volumes:
+      - ./pipelines:/app/pipelines:ro
+    restart: unless-stopped
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: athos-openwebui-ui
+    depends_on:
+      - pipelines
+    ports:
+      - "3000:8080"
+    environment:
+      - WEBUI_AUTH=False
+    volumes:
+      - open-webui-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  open-webui-data:
