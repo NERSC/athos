@@ -14,6 +14,9 @@ services:
       - ATHOS_PIPELINE_ENABLED_FLOWS=hpc_chatbot,web_agent
       - ATHOS_PIPELINE_DEFAULT_FLOW=hpc_chatbot
       - ATHOS_WORKSPACE=/workspace/workspace
+      - CBORG_API_URL=${CBORG_API_URL:?must be set}
+      - CBORG_API_KEY=${CBORG_API_KEY:?must be set}
+
     volumes:
       - ./pipelines:/app/pipelines
       - ../../config:/workspace/config:ro
