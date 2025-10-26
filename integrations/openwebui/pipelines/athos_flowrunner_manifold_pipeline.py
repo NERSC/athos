@@ -23,9 +23,10 @@ from typing import (
 
 from pydantic import BaseModel, Field
 
+from athos.integrations.openwebui.formatters import format_for_openwebui
+from athos.models.flow import FlowOutput
 from athos.runtime.builder import build_config
 from athos.runtime.runner import FlowRunner
-from athos.models.flow import FlowOutput
 
 logger = logging.getLogger(__name__)
 
@@ -229,8 +230,11 @@ class Pipeline:
             logger.error("Flow '%s' execution failed: %s", flow_name, error_message)
             return self._build_error_response(flow_name, error_message)
 
-        content = self._format_output(result.output)
-        return self._build_sync_response(flow_name, content)
+        formatted = format_for_openwebui(result.output)
+        content, finish_reason = self._extract_content_and_finish(
+            formatted, result.output.content
+        )
+        return self._build_sync_response(flow_name, content, finish_reason)
 
     def _stream_flow(
         self,
@@ -267,21 +271,40 @@ class Pipeline:
                             break
                         except Exception as exc:  # noqa: BLE001 - propagate structured error event
                             logger.exception("Streaming flow '%s' failed", flow_name)
-                            yield self._build_stream_error(chunk_id, created, flow_name, str(exc))
+                            output = FlowOutput(
+                                content=f"Error: {exc}",
+                                metadata={"error": True},
+                            )
+
+                            event_payload = format_for_openwebui(output)
+                            payload = {
+                                "id": chunk_id,
+                                "object": "chat.completion.chunk",
+                                "created": created,
+                                "model": flow_name,
+                            }
+                            payload.update(event_payload)
+
+                            yield f"data: {json.dumps(payload)}\n\n"
                             break
+
+                        event_payload = format_for_openwebui(output)
+                        payload = {
+                            "id": chunk_id,
+                            "object": "chat.completion.chunk",
+                            "created": created,
+                            "model": flow_name,
+                        }
+                        payload.update(event_payload)
+
+                        yield f"data: {json.dumps(payload)}\n\n"
 
                         if output.metadata.get("error"):
-                            yield self._build_stream_error(chunk_id, created, flow_name, output.content)
                             break
 
-                        if output.metadata.get("streaming") and output.metadata.get("chunk"):
-                            if output.content:
-                                yield self._build_stream_chunk(chunk_id, created, flow_name, output.content)
-                            continue
-
-                        final_content = self._format_output(output)
-                        yield self._build_stream_final(chunk_id, created, flow_name, final_content)
-                        break
+                        choices = payload.get("choices") or []
+                        if any(choice.get("finish_reason") for choice in choices):
+                            break
                 finally:
                     with contextlib.suppress(Exception):
                         loop.run_until_complete(stream.aclose())
@@ -293,7 +316,7 @@ class Pipeline:
 
         return generator()
 
-    def _build_sync_response(self, model_id: str, content: str) -> dict:
+    def _build_sync_response(self, model_id: str, content: str, finish_reason: str) -> dict:
         return {
             "id": f"chatcmpl-{uuid.uuid4()}",
             "object": "chat.completion",
@@ -302,7 +325,7 @@ class Pipeline:
             "choices": [
                 {
                     "index": 0,
-                    "finish_reason": "stop",
+                    "finish_reason": finish_reason or "stop",
                     "message": {"role": "assistant", "content": content},
                 }
             ],
@@ -323,51 +346,17 @@ class Pipeline:
             ],
         }
 
-    def _build_stream_chunk(self, chunk_id: str, created: int, model_id: str, content: str) -> str:
-        data = {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": created,
-            "model": model_id,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"content": content},
-                    "finish_reason": None,
-                }
-            ],
-        }
-        return f"data: {json.dumps(data)}\n\n"
+    @staticmethod
+    def _extract_content_and_finish(event_payload: dict, fallback: str) -> tuple[str, str]:
+        choices = event_payload.get("choices") or []
+        if not choices:
+            return fallback, "stop"
 
-    def _build_stream_final(self, chunk_id: str, created: int, model_id: str, content: str) -> str:
-        data = {
-            "id": chunk_id,
-            "object": "chat.completion.chunk",
-            "created": created,
-            "model": model_id,
-            "choices": [
-                {
-                    "index": 0,
-                    "delta": {"content": content},
-                    "finish_reason": "stop",
-                }
-            ],
-        }
-        return f"data: {json.dumps(data)}\n\n"
-
-    def _build_stream_error(self, chunk_id: str, created: int, model_id: str, error: str) -> str:
-        return self._build_stream_final(chunk_id, created, model_id, f"Error: {error}")
-
-    def _format_output(self, output: FlowOutput) -> str:
-        parts = [output.content]
-        for artifact in output.artifacts:
-            if artifact.type == "image" and artifact.path:
-                parts.append(f"\n\n![{artifact.display_name or 'image'}]({artifact.path})")
-            elif artifact.type == "file" and artifact.path:
-                parts.append(f"\n\n📄 [{artifact.display_name or 'file'}]({artifact.path})")
-            elif artifact.type == "link" and artifact.data:
-                parts.append(f"\n\n🔗 [{artifact.display_name or 'link'}]({artifact.data})")
-        return "".join(parts)
+        first = choices[0]
+        delta = first.get("delta") or {}
+        content = delta.get("content", fallback)
+        finish_reason = first.get("finish_reason") or "stop"
+        return content, finish_reason
 
     def _format_flow_name(self, flow: str, description: Optional[str]) -> str:
         if description:
