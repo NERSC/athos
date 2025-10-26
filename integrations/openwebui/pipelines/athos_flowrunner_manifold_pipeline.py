@@ -55,7 +55,7 @@ class Pipeline:
 
     def __init__(self) -> None:
         self.type = "manifold"
-        self.name = "Athos FlowRunner"
+        self.name = "ATHOS"
         self.version = "0.2.0"
         self.description = "Expose configured Athos flows via the FlowRunner."
         self.author = "Athos Team"
@@ -159,7 +159,8 @@ class Pipeline:
         self.pipelines = [
             {
                 "id": flow,
-                "name": self._format_flow_name(flow, getattr(config.flows[flow], "description", None)),
+                "name": f": {flow}",
+                #"name": self._format_flow_name(flow, getattr(config.flows[flow], "description", None)),
             }
             for flow in enabled
         ]
