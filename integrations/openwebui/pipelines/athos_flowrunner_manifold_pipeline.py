@@ -1,5 +1,4 @@
 """OpenWebUI manifold pipeline backed by the Athos FlowRunner."""
-from __future__ import annotations
 
 import asyncio
 import contextlib
