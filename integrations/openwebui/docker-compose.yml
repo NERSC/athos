@@ -11,7 +11,7 @@ services:
       - PIPELINES_API_KEY=0p3n-w3bu!
       - PIPELINES_DIR=/app/pipelines
       - ATHOS_PIPELINE_CONFIG_PATH=/workspace/config/config.yaml
-      - ATHOS_PIPELINE_ENABLED_FLOWS=hpc_chatbot,web_agent
+      - ATHOS_PIPELINE_ENABLED_FLOWS=hpc_chatbot,web_agent,langgraph_chatbot_demo,langgraph_react_web_agent_demo
       - ATHOS_PIPELINE_DEFAULT_FLOW=hpc_chatbot
       - ATHOS_WORKSPACE=/workspace/workspace
       - CBORG_API_URL=${CBORG_API_URL:?must be set}
