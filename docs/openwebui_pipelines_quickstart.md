@@ -1,18 +1,24 @@
 # OpenWebUI Pipelines Quickstart
 
 This guide explains how to launch the official OpenWebUI Pipelines and UI
-containers alongside the Athos hello-world pipeline. The goal is to offer
-a concrete starting point before wiring real Athos flows into Pipelines.
+containers alongside two Athos pipeline implementations:
+
+- A FlowRunner-backed manifold pipeline that exposes real Athos flows as
+  selectable OpenWebUI models.
+- The original hello-world manifold pipeline that remains available as a
+  lightweight reference implementation.
 
 ## What the demo provides
 
-- **Hello-world manifold pipeline** – exposes two mock "models" that
-  respond with friendly or formal greetings so you can verify that
-  multiple pipeline models appear in OpenWebUI.
-- **Official container images** – uses `ghcr.io/open-webui/open-webui:main`
-  and `ghcr.io/open-webui/pipelines:main` straight from the OpenWebUI team.
-- **Minimal configuration** – a single `docker compose` file and a
-  mounted pipeline script.
+- **FlowRunner manifold pipeline** – bridges the Athos FlowRunner into
+  OpenWebUI so each configured flow can be surfaced as a pipeline model.
+  The pipeline honours `config/config.yaml`, streams responses when
+  supported, and formats `FlowOutput` artifacts for the chat UI.
+- **Hello-world manifold pipeline** – still available for quick
+  experimentation or as a template for new pipelines.
+- **Custom pipelines image** – a small derivative of
+  `ghcr.io/open-webui/pipelines:main` that pre-installs the Athos package,
+  ensuring FlowRunner dependencies are present at container start-up.
 
 ## Prerequisites
 
@@ -28,8 +34,9 @@ a concrete starting point before wiring real Athos flows into Pipelines.
    ```
 
    The compose file mounts `integrations/openwebui/pipelines` into the
-   Pipelines container, so any edits to the pipeline scripts are picked up
-   on the next container restart.
+   Pipelines container and rebuilds a local image that already includes the
+   Athos package. Any edits to the pipeline scripts are picked up on the
+   next container restart.
 
 2. **Open the UI** – navigate to <http://localhost:3000>. Authentication is
    disabled by default for the demo via `WEBUI_AUTH=False`.
@@ -43,13 +50,19 @@ a concrete starting point before wiring real Athos flows into Pipelines.
    - Set the **API Key** to `0p3n-w3bu!` (the Pipelines default).
    - Save the connection.
 
-4. **Chat using the demo models**
+4. **Chat using Athos flows**
 
-   - Create a new chat and select either `Athos Hello (Friendly)` or
-     `Athos Hello (Formal)` from the model selector.
-   - Send a prompt and observe the deterministic greeting that comes back.
-     Streaming is supported, so you should see tokens arrive incrementally
-     when the chat is configured for streaming responses.
+   - Create a new chat and select one of the models exposed by the
+     FlowRunner pipeline (for example `Chatbot that answers general HPC
+     questions (hpc_chatbot)`).
+   - Provide any required credentials (such as `CBORG_API_KEY`) in your
+     environment or `.env` file so the selected flow can reach its backing
+     model.
+   - Streaming responses are enabled by default; OpenWebUI will receive
+     incremental tokens whenever the underlying flow supports streaming.
+
+   The hello-world pipeline remains available if you want a deterministic
+   demonstration model while configuring Athos credentials.
 
 To stop the services, run `docker compose -f integrations/openwebui/docker-compose.yml down`.
 
@@ -57,28 +70,47 @@ To stop the services, run `docker compose -f integrations/openwebui/docker-compo
 
 ```
 integrations/openwebui/
-├── docker-compose.yml           # Launches the official UI + Pipelines containers
+├── Dockerfile.pipelines          # Builds a pipelines image with the Athos wheel pre-installed
+├── docker-compose.yml            # Launches the customized pipelines + official UI containers
 └── pipelines/
-    └── athos_hello_world_manifold_pipeline.py
+    ├── athos_flowrunner_manifold_pipeline.py   # FlowRunner-backed manifold pipeline
+    └── athos_hello_world_manifold_pipeline.py  # Reference hello-world pipeline
 ```
 
-The pipeline script follows the OpenWebUI Pipelines "manifold" protocol.
-It returns static responses today, but the structure mirrors what we will
-use when Athos flows are available.
+The repository-level `.dockerignore` keeps the build context lean when
+Compose rebuilds the pipelines image.
+
+The FlowRunner pipeline is a thin adapter that translates OpenWebUI
+requests into `FlowRunner.execute()` or `FlowRunner.stream()` calls and
+formats `FlowOutput` data for the UI. The hello-world script remains a
+simple example for experimentation.
+
+## Configuring Athos flows
+
+The FlowRunner pipeline reads the standard Athos configuration file.
+Update `config/config.yaml` and provide any required environment variables
+before launching the stack. Key valves exposed in OpenWebUI (and via
+environment variables with the `ATHOS_PIPELINE_` prefix) include:
+
+- `config_path` – absolute path to the Athos configuration file inside the
+  container (defaults to `/workspace/config/config.yaml`).
+- `enabled_flows` – comma-delimited list of flows to expose as models. If
+  left empty, every flow defined in the config becomes available.
+- `default_flow` – fallback flow used when the requested model ID is not
+  recognised.
+- `enable_streaming` – toggle streaming output if a flow should only return
+  full responses.
 
 ## Next steps toward Athos integration
 
-1. **Bridge to FlowRunner** – replace the static greeting logic with
-   calls into the Athos FlowRunner so that pipeline "models" correspond to
-   registered Athos flows.
-2. **Event formatting** – emit structured status and artifact events via
-   the pipelines streaming API to mirror Athos FlowOutput metadata.
-3. **Session persistence** – map OpenWebUI chat sessions onto Athos
-   `FlowSession` instances so that multi-turn state is preserved.
-4. **Valve-backed configuration** – allow the pipeline valves to control
-   FlowRunner configuration (e.g., selecting which flow to call or toggling
-   tracing providers).
-5. **Automated tests** – add integration tests that hit the pipeline
+1. **Artifact-rich streaming** – extend the streaming bridge to emit
+   structured status events and richer artifact metadata as new FlowRunner
+   hooks become available.
+2. **Session persistence** – replace the in-memory session store with a
+   persistent backend so conversations survive pipeline restarts.
+3. **Valve expansion** – expose additional FlowRunner controls (such as
+   tracing providers or tool access) through pipeline valves.
+4. **Automated tests** – add integration tests that hit the pipeline
    endpoints locally to validate streaming, error handling, and valve
    updates without needing the full UI.
 
