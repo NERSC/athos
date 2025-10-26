@@ -229,7 +229,7 @@ flows:
   langgraph_chatbot_demo:
     description: "Minimal LangGraph chatbot flow using the CBORG chat model"
     type: "langgraph_chatbot"
-    model: "cborg_chat"
+    model: "cborg_coder"
     system_prompt: |
       You are a friendly assistant helping users explore the LangGraph chatbot flow
       example. Provide concise, welcoming responses and let users know how you can help.
