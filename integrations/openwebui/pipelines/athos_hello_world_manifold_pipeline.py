@@ -27,7 +27,7 @@ class Pipeline:
 
     def __init__(self) -> None:
         self.type = "manifold"
-        self.name = "Athos Hello World"
+        self.name = "HelloWorld"
         self.version = "0.1.0"
         self.description = (
             "Demonstrates a simple manifold pipeline with two mock Athos"
@@ -42,11 +42,11 @@ class Pipeline:
         self.pipelines = [
             {
                 "id": "athos-hello-friendly",
-                "name": "Athos Hello (Friendly)",
+                "name": ": friendly",
             },
             {
                 "id": "athos-hello-formal",
-                "name": "Athos Hello (Formal)",
+                "name": ": formal",
             },
         ]
 
