@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from typing import AsyncGenerator, List, Optional, Sequence, TYPE_CHECKING
+from typing import AsyncGenerator, Iterable, List, Mapping, Optional, Sequence, TYPE_CHECKING
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -227,14 +227,53 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
     def _coerce_chunk_content(self, chunk: object) -> str:
         """Convert streaming chunks into textual content."""
 
-        if hasattr(chunk, "content") and getattr(chunk, "content"):
-            return getattr(chunk, "content")
+        if chunk is None:
+            return ""
+
+        if isinstance(chunk, str):
+            return chunk
+
+        # LangChain ``AIMessageChunk`` instances expose their incremental text via
+        # the ``content``/``text`` attributes. When ``output_version='v1'`` is
+        # enabled, ``content`` may be a list of "content block" dictionaries.
+        content = getattr(chunk, "content", None)
+        if isinstance(content, str) and content:
+            return content
+        if isinstance(content, Iterable) and not isinstance(content, (str, bytes)):
+            pieces: List[str] = []
+            for item in content:
+                if isinstance(item, Mapping):
+                    text = item.get("text")
+                    if isinstance(text, str):
+                        pieces.append(text)
+            if pieces:
+                return "".join(pieces)
+
+        text = getattr(chunk, "text", None)
+        if isinstance(text, str) and text:
+            return text
 
         delta = getattr(chunk, "delta", None)
-        if isinstance(delta, str):
+        if isinstance(delta, str) and delta:
             return delta
+        if hasattr(delta, "content"):
+            delta_content = getattr(delta, "content")
+            if isinstance(delta_content, str) and delta_content:
+                return delta_content
+            if isinstance(delta_content, Iterable) and not isinstance(delta_content, (str, bytes)):
+                pieces: List[str] = []
+                for item in delta_content:
+                    if isinstance(item, Mapping):
+                        text = item.get("text")
+                        if isinstance(text, str):
+                            pieces.append(text)
+                if pieces:
+                    return "".join(pieces)
 
-        return str(chunk) if chunk is not None else ""
+        # For unknown chunk shapes we prefer to omit the data rather than emit
+        # noisy ``repr`` strings in the UI. Downstream callers treat an empty
+        # string as "no chunk emitted".
+        return ""
 
 
 
