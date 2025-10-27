@@ -199,7 +199,8 @@ class Pipeline:
 
     @staticmethod
     def _resolve_session_id(body: dict) -> str:
-        chat_id = body.get("chat_id")
+        metadata = body.get("metadata", {})
+        chat_id = metadata.get("chat_id") or body.get("chat_id")
         if chat_id:
             return str(chat_id)
         return f"chat-{int(time.time())}"
