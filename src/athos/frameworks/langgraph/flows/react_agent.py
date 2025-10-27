@@ -282,7 +282,7 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
 
         # Final output
         yield FlowOutput(
-            content=accumulated_content or "Agent completed with no text output.",
+            content="",
             metadata={
                 "streaming": True,
                 "final": True,
