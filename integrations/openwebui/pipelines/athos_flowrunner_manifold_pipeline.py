@@ -141,6 +141,8 @@ class Pipeline:
 
         config_path = self.valves.config_path
         logger.info("Loading ATHOS configuration from %s", config_path)
+        logger.info("ENV CHECK: TAVILY_API_KEY %s", os.getenv("TAVILY_API_KEY"))
+        logger.info("ENV CHECK: ATHOS_WORKSPACE %s", os.getenv("ATHOS_WORKSPACE"))
 
         config = build_config(config_path)
         if not config.flows:
