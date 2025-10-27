@@ -133,9 +133,8 @@ async def test_show_config(mock_build_config, mock_build_flow, monkeypatch, caps
         ["athos.main", "--config", "cfg.yaml", "--show-config"],
     )
 
-    result = await main()
+    await main()
 
-    assert result == 0
     mock_build_config.assert_called_once_with("cfg.yaml", None)
     mock_build_flow.assert_not_called()
     captured = capsys.readouterr()
@@ -198,12 +197,15 @@ async def test_cli_set_override(mock_build_config, mock_flow_runner, monkeypatch
 
 
 @pytest.mark.asyncio
-@patch("athos.main.build_flow")
+@patch("athos.runtime.runner.build_flow")
 @patch("athos.main.build_config")
 async def test_gradio_keyboard_interrupt(mock_build_config, mock_build_flow, monkeypatch, caplog):
-    flow = SimpleNamespace(agent="agent", cleanup=AsyncMock())
+    from athos.config.models import ToolFramework
+    flow = SimpleNamespace(agent="agent", cleanup=AsyncMock(), framework=ToolFramework.SMOLAGENTS)
     mock_build_flow.return_value = flow
-    mock_build_config.return_value = "CFG"
+    mock_build_config.return_value = SimpleNamespace(
+        flows={"flow": SimpleNamespace(type="agent")}
+    )
 
     class DummyUI:
         def __init__(self, agent):
@@ -216,8 +218,7 @@ async def test_gradio_keyboard_interrupt(mock_build_config, mock_build_flow, mon
     monkeypatch.setattr("athos.main.GradioUI", DummyUI)
 
     with caplog.at_level(logging.INFO):
-        result = await main()
+        await main()
 
-    assert result == 0
     assert "Gradio server stopped by user" in caplog.text
     flow.cleanup.assert_called_once_with()

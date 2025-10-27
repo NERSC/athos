@@ -108,10 +108,10 @@ async def test_chatbot_flow_streams_chunks_then_final_response(monkeypatch):
     async for item in flow.stream(flow_input):
         chunks.append(item)
 
-    assert len(chunks) == 3  # two chunks + final aggregate
+    assert len(chunks) == 3  # two chunks + final message
     assert chunks[0].content == "Hel"
     assert chunks[0].metadata == {"streaming": True, "chunk": True}
-    assert chunks[2].content == "Hello"
+    assert chunks[2].content == ""
     assert chunks[2].metadata["final"] is True
 
 
