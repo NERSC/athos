@@ -1,4 +1,4 @@
-"""OpenWebUI manifold pipeline backed by the Athos FlowRunner."""
+"""OpenWebUI manifold pipeline backed by the ATHOS FlowRunner."""
 
 import asyncio
 import contextlib
@@ -31,14 +31,14 @@ logger = logging.getLogger(__name__)
 
 
 class Pipeline:
-    """Expose multiple Athos flows as OpenWebUI models."""
+    """Expose multiple ATHOS flows as OpenWebUI models."""
 
     class Valves(BaseModel):
         """User-configurable settings surfaced in the Pipelines UI."""
 
         config_path: str = Field(
             default="/workspace/config/config.yaml",
-            description="Absolute path to the Athos configuration file.",
+            description="Absolute path to the ATHOS configuration file.",
         )
         default_flow: str = Field(
             default="hpc_chatbot",
@@ -55,10 +55,10 @@ class Pipeline:
 
     def __init__(self) -> None:
         self.type = "manifold"
-        self.name = "Athos FlowRunner"
+        self.name = "ATHOS"
         self.version = "0.2.0"
-        self.description = "Expose configured Athos flows via the FlowRunner."
-        self.author = "Athos Team"
+        self.description = "Expose configured ATHOS flows via the FlowRunner."
+        self.author = "ATHOS team"
 
         self.valves = self.Valves(**self._read_env_overrides())
 
@@ -68,7 +68,7 @@ class Pipeline:
         self._initialized = False
 
     async def on_startup(self) -> None:
-        """Load Athos configuration and prepare the FlowRunner."""
+        """Load ATHOS configuration and prepare the FlowRunner."""
 
         await self._initialize_runner()
 
@@ -106,7 +106,7 @@ class Pipeline:
             try:
                 self._run_in_loop(self._initialize_runner())
             except Exception as exc:  # noqa: BLE001 - surface initialization errors to the UI
-                logger.exception("Failed to initialize Athos FlowRunner pipeline")
+                logger.exception("Failed to initialize ATHOS FlowRunner pipeline")
                 model = model_id or self.valves.default_flow
                 return self._build_error_response(model, f"Initialization error: {exc}")
 
@@ -140,11 +140,13 @@ class Pipeline:
             return
 
         config_path = self.valves.config_path
-        logger.info("Loading Athos configuration from %s", config_path)
+        logger.info("Loading ATHOS configuration from %s", config_path)
+        logger.info("ENV CHECK: TAVILY_API_KEY %s", os.getenv("TAVILY_API_KEY"))
+        logger.info("ENV CHECK: ATHOS_WORKSPACE %s", os.getenv("ATHOS_WORKSPACE"))
 
         config = build_config(config_path)
         if not config.flows:
-            raise RuntimeError("Athos configuration does not define any flows")
+            raise RuntimeError("ATHOS configuration does not define any flows")
 
         if self._runner is not None:
             await self._runner.cleanup()
@@ -159,7 +161,8 @@ class Pipeline:
         self.pipelines = [
             {
                 "id": flow,
-                "name": self._format_flow_name(flow, getattr(config.flows[flow], "description", None)),
+                "name": f": {flow}",
+                #"name": self._format_flow_name(flow, getattr(config.flows[flow], "description", None)),
             }
             for flow in enabled
         ]
@@ -177,7 +180,7 @@ class Pipeline:
             self.valves.default_flow = first_flow
 
         self._initialized = True
-        logger.info("Athos FlowRunner pipeline initialized with flows: %s", ", ".join(self._flow_ids))
+        logger.info("ATHOS FlowRunner pipeline initialized with flows: %s", ", ".join(self._flow_ids))
 
     @property
     def _flow_ids(self) -> List[str]:
