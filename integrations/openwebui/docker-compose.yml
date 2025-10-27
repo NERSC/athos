@@ -16,6 +16,7 @@ services:
       - ATHOS_WORKSPACE=/workspace/workspace
       - CBORG_API_URL=${CBORG_API_URL:?must be set}
       - CBORG_API_KEY=${CBORG_API_KEY:?must be set}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:?must be set}
 
     volumes:
       - ./pipelines:/app/pipelines
