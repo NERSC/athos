@@ -294,19 +294,44 @@ class Pipeline:
                             yield self._build_stream_error(chunk_id, created, flow_name, str(exc))
                             break
 
-                        if output.metadata.get("error"):
+                        metadata = output.metadata or {}
+
+                        if metadata.get("error"):
                             yield self._build_stream_error(chunk_id, created, flow_name, output.content)
                             break
 
-                        if output.metadata.get("streaming") and output.metadata.get("chunk"):
-                            if output.content:
-                                yield self._build_stream_chunk(chunk_id, created, flow_name, output.content)
-                            continue
+                        is_final = bool(metadata.get("final"))
+                        is_streaming = bool(metadata.get("streaming"))
+                        status_message = metadata.get("status_message")
 
-                        final_content = self._format_output(output)
-                        yield self._build_stream_final(chunk_id, created, flow_name, final_content)
-                        break
+                        if is_final or not is_streaming:
+                            if status_message and not output.content:
+                                yield self._build_stream_chunk(
+                                    chunk_id,
+                                    created,
+                                    flow_name,
+                                    status_message,
+                                )
+
+                            final_content = self._format_output(output)
+                            yield self._build_stream_final(chunk_id, created, flow_name, final_content)
+                            break
+
+                        chunk_content = output.content or ""
+                        if not chunk_content and status_message:
+                            chunk_content = status_message
+
+                        if chunk_content:
+                            yield self._build_stream_chunk(chunk_id, created, flow_name, chunk_content)
                 finally:
+                    with contextlib.suppress(Exception):
+                        while True:
+                            try:
+                                loop.run_until_complete(stream.__anext__())
+                            except StopAsyncIteration:
+                                break
+                            except Exception:
+                                break
                     with contextlib.suppress(Exception):
                         loop.run_until_complete(stream.aclose())
             finally:
