@@ -85,6 +85,18 @@ class Pipeline:
 
         await self._initialize_runner(force_reload=True)
 
+    async def inlet(self, body: dict, user: dict) -> dict:
+        # This function is called before the OpenAI API request is made. You can modify the form data before it is sent to the OpenAI API.
+        logger.info(f"inlet:{__name__}")
+
+        logger.info(body)
+        logger.info(user)
+
+        # Add chat_id to body to make it available in pipe for session management
+        body["chat_id"] = body.get("metadata", {}).get("chat_id")
+
+        return body
+
     def pipe(
         self,
         user_message: str,
@@ -101,6 +113,8 @@ class Pipeline:
         """Entrypoint invoked by OpenWebUI for every chat completion request."""
 
         del messages  # FlowRunner tracks history via FlowSession persistence.
+
+        logger.info("Pipe received body: %s", body)
 
         if not self._initialized:
             try:
@@ -141,8 +155,6 @@ class Pipeline:
 
         config_path = self.valves.config_path
         logger.info("Loading ATHOS configuration from %s", config_path)
-        logger.info("ENV CHECK: TAVILY_API_KEY %s", os.getenv("TAVILY_API_KEY"))
-        logger.info("ENV CHECK: ATHOS_WORKSPACE %s", os.getenv("ATHOS_WORKSPACE"))
 
         config = build_config(config_path)
         if not config.flows:
@@ -200,10 +212,18 @@ class Pipeline:
     @staticmethod
     def _resolve_session_id(body: dict) -> str:
         metadata = body.get("metadata", {})
-        chat_id = metadata.get("chat_id") or body.get("chat_id")
+        chat_id_from_metadata = metadata.get("chat_id")
+        chat_id_from_body = body.get("chat_id")
+        logger.info(f"Resolving session_id: chat_id from metadata='{chat_id_from_metadata}', chat_id from body='{chat_id_from_body}'")
+
+        chat_id = chat_id_from_metadata or chat_id_from_body
         if chat_id:
+            logger.info(f"Using existing chat_id for session: {chat_id}")
             return str(chat_id)
-        return f"chat-{int(time.time())}"
+
+        new_session_id = f"chat-{int(time.time())}"
+        logger.warning(f"No chat_id found in request body, creating new session_id: {new_session_id}")
+        return new_session_id
 
     def _run_sync_flow(
         self,
