@@ -112,6 +112,9 @@ class Pipeline:
     ]:
         """Entrypoint invoked by OpenWebUI for every chat completion request."""
 
+        if messages:
+            user_message = messages[-1].get("content") or user_message
+
         del messages  # FlowRunner tracks history via FlowSession persistence.
 
         logger.info("Pipe received body: %s", body)
