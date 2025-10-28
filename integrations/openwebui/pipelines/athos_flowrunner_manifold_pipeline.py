@@ -284,6 +284,7 @@ class Pipeline:
                     metadata=metadata,
                 )
                 try:
+                    last_status_message: Optional[str] = None
                     while True:
                         try:
                             output = loop.run_until_complete(stream.__anext__())
@@ -313,18 +314,23 @@ class Pipeline:
                             and not output.content
                             and not (is_final or is_streaming_false)
                         ):
-                            yield self._build_stream_chunk(
-                                chunk_id,
-                                created,
-                                flow_name,
-                                status_message,
+                            yield self._build_stream_status(
+                                description=status_message,
+                                done=False,
                             )
+                            last_status_message = status_message
 
                         if is_final or is_streaming_false:
                             final_content = self._format_output(output)
                             if not final_content and status_message:
                                 final_content = status_message
                             yield self._build_stream_final(chunk_id, created, flow_name, final_content)
+                            completion_message = status_message or last_status_message
+                            if completion_message:
+                                yield self._build_stream_status(
+                                    description=completion_message,
+                                    done=True,
+                                )
                             break
 
                         chunk_content = output.content or ""
@@ -414,6 +420,15 @@ class Pipeline:
 
     def _build_stream_error(self, chunk_id: str, created: int, model_id: str, error: str) -> str:
         return self._build_stream_final(chunk_id, created, model_id, f"Error: {error}")
+
+    def _build_stream_status(self, *, description: str, done: bool) -> str:
+        data = {
+            "event": {
+                "type": "status",
+                "data": {"description": description, "done": done},
+            }
+        }
+        return f"data: {json.dumps(data)}\n\n"
 
     def _format_output(self, output: FlowOutput) -> str:
         parts = [output.content]
