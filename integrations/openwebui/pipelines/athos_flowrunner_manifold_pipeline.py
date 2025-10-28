@@ -294,32 +294,40 @@ class Pipeline:
                             yield self._build_stream_error(chunk_id, created, flow_name, str(exc))
                             break
 
-                        metadata = output.metadata or {}
+                        event_metadata = output.metadata or {}
 
-                        if metadata.get("error"):
+                        if event_metadata.get("error"):
                             yield self._build_stream_error(chunk_id, created, flow_name, output.content)
                             break
 
-                        is_final = bool(metadata.get("final"))
-                        is_streaming = bool(metadata.get("streaming"))
-                        status_message = metadata.get("status_message")
+                        is_final = bool(event_metadata.get("final"))
+                        streaming_flag = event_metadata.get("streaming")
+                        is_streaming_false = streaming_flag is False or (
+                            isinstance(streaming_flag, str)
+                            and streaming_flag.lower() == "false"
+                        )
+                        status_message = event_metadata.get("status_message")
 
-                        if is_final or not is_streaming:
-                            if status_message and not output.content:
-                                yield self._build_stream_chunk(
-                                    chunk_id,
-                                    created,
-                                    flow_name,
-                                    status_message,
-                                )
+                        if (
+                            status_message
+                            and not output.content
+                            and not (is_final or is_streaming_false)
+                        ):
+                            yield self._build_stream_chunk(
+                                chunk_id,
+                                created,
+                                flow_name,
+                                status_message,
+                            )
 
+                        if is_final or is_streaming_false:
                             final_content = self._format_output(output)
+                            if not final_content and status_message:
+                                final_content = status_message
                             yield self._build_stream_final(chunk_id, created, flow_name, final_content)
                             break
 
                         chunk_content = output.content or ""
-                        if not chunk_content and status_message:
-                            chunk_content = status_message
 
                         if chunk_content:
                             yield self._build_stream_chunk(chunk_id, created, flow_name, chunk_content)
