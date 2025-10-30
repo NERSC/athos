@@ -326,10 +326,9 @@ class Pipeline:
                             )
 
                         if is_final or is_streaming_false:
-                            final_content = self._format_output(output)
-                            if not final_content and status_message:
-                                final_content = status_message
-                            yield self._build_stream_final(chunk_id, created, flow_name, final_content)
+                            # The final event's content is for history, not for display.
+                            # Send an empty final chunk to prevent duplicate output in the UI.
+                            yield self._build_stream_final(chunk_id, created, flow_name, "")
                             break
 
                         chunk_content = output.content or ""

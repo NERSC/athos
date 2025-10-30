@@ -286,7 +286,7 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
 
         # Final output
         yield FlowOutput(
-            content="",
+            content=accumulated_content,
             metadata={
                 "streaming": True,
                 "final": True,
