@@ -328,7 +328,13 @@ class Pipeline:
                         if is_final or is_streaming_false:
                             # The final event's content is for history, not for display.
                             # Send an empty final chunk to prevent duplicate output in the UI.
-                            yield self._build_stream_final(chunk_id, created, flow_name, "")
+                            yield self._build_stream_final(
+                                chunk_id,
+                                created,
+                                flow_name,
+                                "",
+                                metadata=event_metadata,
+                            )
                             break
 
                         chunk_content = output.content or ""
@@ -400,8 +406,26 @@ class Pipeline:
         }
         return f"data: {json.dumps(data)}\n\n"
 
-    def _build_stream_final(self, chunk_id: str, created: int, model_id: str, content: str) -> str:
-        data = {
+    def _build_stream_final(
+        self,
+        chunk_id: str,
+        created: int,
+        model_id: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        delta: Dict[str, Any] = {"content": content}
+
+        if metadata:
+            tool_calls = metadata.get("tool_calls")
+            if tool_calls is not None:
+                delta["tool_calls"] = tool_calls
+
+            role = metadata.get("role")
+            if role:
+                delta["role"] = role
+
+        data: Dict[str, Any] = {
             "id": chunk_id,
             "object": "chat.completion.chunk",
             "created": created,
@@ -409,11 +433,25 @@ class Pipeline:
             "choices": [
                 {
                     "index": 0,
-                    "delta": {"content": content},
+                    "delta": delta,
                     "finish_reason": "stop",
                 }
             ],
         }
+
+        if metadata:
+            model_override = metadata.get("model") or metadata.get("model_id")
+            if model_override:
+                data["model"] = model_override
+
+            usage = metadata.get("usage") or metadata.get("tokens")
+            if usage is not None:
+                data["usage"] = usage
+
+            finish_reason = metadata.get("finish_reason")
+            if finish_reason:
+                data["choices"][0]["finish_reason"] = finish_reason
+
         return f"data: {json.dumps(data)}\n\n"
 
     def _build_stream_error(self, chunk_id: str, created: int, model_id: str, error: str) -> str:
