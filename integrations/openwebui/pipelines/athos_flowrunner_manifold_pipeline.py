@@ -86,11 +86,11 @@ class Pipeline:
         await self._initialize_runner(force_reload=True)
 
     async def inlet(self, body: dict, user: dict) -> dict:
-        # This function is called before the OpenAI API request is made. You can modify the form data before it is sent to the OpenAI API.
-        logger.info(f"inlet:{__name__}")
-
-        logger.info(body)
-        logger.info(user)
+        # This function is called before the OpenAI API request is made.
+        # You can modify the form data before it is sent to the OpenAI API.
+        #logger.info(f"inlet:{__name__}")
+        #logger.info(body)
+        #logger.info(user)
 
         # Add chat_id to body to make it available in pipe for session management
         body["chat_id"] = body.get("metadata", {}).get("chat_id")
@@ -112,12 +112,14 @@ class Pipeline:
     ]:
         """Entrypoint invoked by OpenWebUI for every chat completion request."""
 
+        #logger.info("Pipe received body: %s", body)
+        logger.info("Pipe received user_message: %s", user_message)
+        logger.info("Pipe recieved messages: %s", messages)
         if messages:
             user_message = messages[-1].get("content") or user_message
+        logger.info("Pipe resolved user_message: %s", user_message)
 
         del messages  # FlowRunner tracks history via FlowSession persistence.
-
-        logger.info("Pipe received body: %s", body)
 
         if not self._initialized:
             try:

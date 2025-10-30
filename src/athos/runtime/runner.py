@@ -72,6 +72,7 @@ class FlowRunner:
                 interface=interface,
             )
             flow = await self._get_flow(flow_name)
+            logger.info(f"FlowRunner.execute history: {session.get_history()}")
             flow_input = FlowInput(
                 message=message,
                 session=session,
@@ -162,6 +163,8 @@ class FlowRunner:
             interface=interface,
         )
         flow = await self._get_flow(flow_name)
+
+        logger.info(f"FlowRunner.stream history: {session.get_history()}")
 
         if not flow.can_stream():
             logger.warning(

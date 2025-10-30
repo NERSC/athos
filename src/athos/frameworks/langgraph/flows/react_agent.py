@@ -176,6 +176,8 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
     async def execute(self, input: FlowInput) -> FlowOutput:
         """Execute the ReAct agent and return structured output."""
 
+        logger.info(f"LangGraphReactAgentFlow.execute message: {input.message}")
+
         # Ensure MCP tools are loaded and graph is built
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -183,7 +185,7 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
         # Build messages from session history + new input
         messages = self._build_messages(input)
 
-        logger.debug(
+        logger.info(
             "Invoking LangGraph ReAct agent with %d messages, %d tools",
             len(messages),
             len(self.tools),
@@ -219,6 +221,8 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
         For now, we use astream_events to get incremental updates.
         """
 
+        logger.info(f"LangGraphReactAgentFlow.stream message: {input.message}")
+
         # Ensure MCP tools are loaded and graph is built
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -226,7 +230,7 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
         # Build messages
         messages = self._build_messages(input)
 
-        logger.debug(
+        logger.info(
             "Streaming LangGraph ReAct agent with %d messages, %d tools",
             len(messages),
             len(self.tools),
@@ -305,6 +309,8 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
 
     def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
         """Build message list from session history + new input."""
+
+        logger.info(f"LangGraphReactAgentFlow._build_messages history: {input.session.get_history()}")
 
         messages: List[BaseMessage] = []
 
