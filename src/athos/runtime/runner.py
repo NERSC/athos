@@ -185,7 +185,6 @@ class FlowRunner:
             yield output
             return
 
-        last_output: Optional[FlowOutput] = None
         flow_input = FlowInput(
             message=message,
             session=session,
@@ -193,18 +192,23 @@ class FlowRunner:
             metadata=metadata or {},
         )
 
+        buffered_chunks: list[str] = []
+        emitted_any_chunk = False
         try:
             async for output in flow.stream(flow_input):
-                last_output = output
+                emitted_any_chunk = True
+                if output.content:
+                    buffered_chunks.append(output.content)
                 yield output
         except Exception:
             logger.exception("[%s] Streaming flow '%s' failed", request.request_id, flow_name)
             raise
         else:
-            if last_output is not None:
-                self._record_interaction(session, message, last_output.content)
-                await self.session_store.save(session)
             logger.info("[%s] Streaming flow '%s' completed", request.request_id, flow_name)
+        finally:
+            if emitted_any_chunk:
+                self._record_interaction(session, message, "".join(buffered_chunks))
+                await self.session_store.save(session)
 
     async def cleanup(self) -> None:
         """Cleanup all cached flow instances."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import AsyncGenerator
 
 import pytest
 
@@ -19,6 +20,7 @@ from athos.runtime.runner import FlowRunner
 from athos.runtime.session_store import InMemorySessionStore
 
 TEST_FLOW_TYPE = "test.echo"
+STREAM_FLOW_TYPE = "test.streaming"
 
 
 class EchoFlowConfig(BaseFlowConfig):
@@ -63,6 +65,54 @@ class TrackingEchoFlow(BaseFlow):
         TrackingEchoFlow.cleanup_calls += 1
 
 
+class StreamingFlowConfig(BaseFlowConfig):
+    """Configuration for the incremental streaming test flow."""
+
+    type: str = STREAM_FLOW_TYPE
+    model: str = "stream-model"
+    parts: list[str] = ["chunk"]
+    fail_after_chunks: int | None = None
+
+
+class IncrementalStreamingFlow(BaseFlow):
+    """Flow that emits only incremental streaming deltas for testing."""
+
+    name = STREAM_FLOW_TYPE
+    config_class = StreamingFlowConfig
+    framework = ToolFramework.SMOLAGENTS
+    supported_modes = [ExecutionMode.STREAMING]
+
+    def __init__(self, config: StreamingFlowConfig) -> None:
+        self._config = config
+
+    @classmethod
+    async def create(
+        cls, flow_config: StreamingFlowConfig, athos_config: AthosConfig
+    ) -> "IncrementalStreamingFlow":
+        return cls(flow_config)
+
+    async def execute(self, input: FlowInput) -> FlowOutput:  # type: ignore[override]
+        return FlowOutput(content="".join(self._config.parts))
+
+    async def stream(
+        self, input: FlowInput
+    ) -> AsyncGenerator[FlowOutput, None]:  # type: ignore[override]
+        for idx, part in enumerate(self._config.parts):
+            if (
+                self._config.fail_after_chunks is not None
+                and idx == self._config.fail_after_chunks
+            ):
+                raise RuntimeError("Stream failure triggered")
+            yield FlowOutput(
+                content=part,
+                metadata={"streaming": True, "chunk": True},
+            )
+        yield FlowOutput(
+            content="",
+            metadata={"streaming": True, "final": True},
+        )
+
+
 async def _create_runner(
     tmp_path: Path,
     *,
@@ -91,6 +141,8 @@ async def _create_runner(
 def _ensure_flow_registered() -> None:
     if TEST_FLOW_TYPE not in FLOW_REGISTRY:
         register_flow(TrackingEchoFlow)
+    if STREAM_FLOW_TYPE not in FLOW_REGISTRY:
+        register_flow(IncrementalStreamingFlow)
 
 
 @pytest.fixture(autouse=True)
@@ -101,6 +153,11 @@ def register_test_flow() -> None:
     FLOW_REGISTRY[TEST_FLOW_TYPE] = FlowRegistration(
         config_cls=EchoFlowConfig,
         creator=TrackingEchoFlow,
+        framework=ToolFramework.SMOLAGENTS,
+    )
+    FLOW_REGISTRY[STREAM_FLOW_TYPE] = FlowRegistration(
+        config_cls=StreamingFlowConfig,
+        creator=IncrementalStreamingFlow,
         framework=ToolFramework.SMOLAGENTS,
     )
 
@@ -188,3 +245,75 @@ async def test_cleanup_invokes_flow_cleanup(tmp_path: Path) -> None:
 
     assert TrackingEchoFlow.cleanup_calls == 1
     assert runner._flow_cache == {}
+
+
+@pytest.mark.asyncio
+async def test_streaming_flow_records_incremental_history(tmp_path: Path) -> None:
+    config = AthosConfig(
+        workspace_dir=str(tmp_path),
+        models={"stream-model": ModelConfig(model_id="stream-model")},
+        flows={
+            "stream-flow": {
+                "type": STREAM_FLOW_TYPE,
+                "parts": ["Hel", "lo"],
+            }
+        },
+    )
+    object.__setattr__(config, "workspace_path", tmp_path)
+
+    runner = FlowRunner(config, session_store=InMemorySessionStore())
+
+    chunks = []
+    async for output in runner.stream(
+        flow_name="stream-flow",
+        message="hello",
+        session_id="stream-session",
+        user_id="stream-user",
+    ):
+        chunks.append(output)
+
+    assert [chunk.content for chunk in chunks] == ["Hel", "lo", ""]
+    assert chunks[-1].metadata.get("final") is True
+
+    session = await runner.session_store.get_or_create("stream-session", "stream-user")
+    assert session.get_history() == [
+        {"role": "user", "content": "hello"},
+        {"role": "assistant", "content": "Hello"},
+    ]
+
+
+@pytest.mark.asyncio
+async def test_streaming_flow_records_partial_history_on_error(tmp_path: Path) -> None:
+    config = AthosConfig(
+        workspace_dir=str(tmp_path),
+        models={"stream-model": ModelConfig(model_id="stream-model")},
+        flows={
+            "stream-fail": {
+                "type": STREAM_FLOW_TYPE,
+                "parts": ["Hi", " there"],
+                "fail_after_chunks": 1,
+            }
+        },
+    )
+    object.__setattr__(config, "workspace_path", tmp_path)
+
+    runner = FlowRunner(config, session_store=InMemorySessionStore())
+
+    stream = runner.stream(
+        flow_name="stream-fail",
+        message="uh oh",
+        session_id="fail-session",
+        user_id="stream-user",
+    )
+
+    first_chunk = await anext(stream)
+    assert first_chunk.content == "Hi"
+
+    with pytest.raises(RuntimeError, match="Stream failure triggered"):
+        await anext(stream)
+
+    session = await runner.session_store.get_or_create("fail-session", "stream-user")
+    assert session.get_history() == [
+        {"role": "user", "content": "uh oh"},
+        {"role": "assistant", "content": "Hi"},
+    ]

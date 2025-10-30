@@ -236,7 +236,6 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
             len(self.tools),
         )
 
-        accumulated_content = ""
         tool_calls_seen = []
 
         try:
@@ -270,7 +269,6 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
                     if chunk and hasattr(chunk, "content"):
                         chunk_text = str(chunk.content)
                         if chunk_text:
-                            accumulated_content += chunk_text
                             yield FlowOutput(
                                 content=chunk_text,
                                 metadata={"streaming": True, "chunk": True},
@@ -286,7 +284,7 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
 
         # Final output
         yield FlowOutput(
-            content=accumulated_content,
+            content="",
             metadata={
                 "streaming": True,
                 "final": True,
