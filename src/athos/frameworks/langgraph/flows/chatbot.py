@@ -138,13 +138,11 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         logger.debug("Streaming LangGraph chatbot with %d messages", len(messages))
 
         # ChatOpenAI (langchain-openai ~=1.0.0) always supports streaming via astream()
-        accumulated = ""
         try:
             async for chunk in self.model.astream(messages):
                 chunk_text = self._coerce_chunk_content(chunk)
                 if not chunk_text:
                     continue
-                accumulated += chunk_text
                 yield FlowOutput(
                     content=chunk_text,
                     metadata={"streaming": True, "chunk": True},
@@ -158,7 +156,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             return
 
         yield FlowOutput(
-            content=accumulated,
+            content="",
             metadata={
                 "streaming": True,
                 "chunk": False,
