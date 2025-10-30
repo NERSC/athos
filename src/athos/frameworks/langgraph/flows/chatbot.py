@@ -158,7 +158,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             return
 
         yield FlowOutput(
-            content="",
+            content=accumulated,
             metadata={
                 "streaming": True,
                 "chunk": False,
