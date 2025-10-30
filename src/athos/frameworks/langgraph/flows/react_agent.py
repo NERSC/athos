@@ -259,7 +259,7 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
                             "streaming": True,
                             "event_type": "tool_call",
                             "tool_name": tool_name,
-                            "status_message": f"🔧 Using tool: {tool_name}",
+                            "status_message": f"🔧 Using tool: {tool_name}\n\n",
                         },
                     )
 
