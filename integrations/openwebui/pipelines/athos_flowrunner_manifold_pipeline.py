@@ -326,13 +326,9 @@ class Pipeline:
                                 status_message,
                             )
 
-                        final_content: Optional[str] = None
                         chunk_content = output.content or ""
 
-                        if is_terminal:
-                            if chunk_content:
-                                final_content = chunk_content
-                        elif chunk_content:
+                        if chunk_content and not is_terminal:
                             yield self._build_stream_chunk(
                                 chunk_id,
                                 created,
@@ -341,12 +337,12 @@ class Pipeline:
                             )
 
                         if is_terminal:
-                            if final_content:
+                            if chunk_content:
                                 yield self._build_stream_chunk(
                                     chunk_id,
                                     created,
                                     flow_name,
-                                    final_content,
+                                    chunk_content,
                                 )
 
                             # The final event's content is for history, not for display.
