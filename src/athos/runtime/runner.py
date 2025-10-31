@@ -207,6 +207,8 @@ class FlowRunner:
                 emitted_any_chunk = True
                 if output.content:
                     buffered_chunks.append(output.content)
+                # Refer to docs/athos_openwebui_integration_plan_v3.0.md#streaming-contract
+                # for the expected metadata flags emitted with each FlowOutput chunk.
                 yield output
         except Exception:
             logger.exception("[%s] Streaming flow '%s' failed", request.request_id, flow_name)
