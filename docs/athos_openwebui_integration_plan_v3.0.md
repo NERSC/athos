@@ -82,6 +82,33 @@ The integration leverages:
 └────────────────────────────────────────────────────────────┘
 ```
 
+## Streaming Contract
+
+OpenWebUI integrations **must adhere to a shared streaming contract** so that flows, the runtime, and pipeline adapters interpret streamed events consistently across LangGraph and future frameworks.
+
+### Metadata Flags
+
+Every `FlowOutput` produced during streaming **MUST** include the following metadata flags:
+
+| Flag | Type | Description |
+| --- | --- | --- |
+| `streaming` | `bool` (or string-y bool) | `True` when additional chunks may follow. A missing flag defaults to `True`. The runtime converts sync flows into a single chunk with `streaming=False`. |
+| `final` | `bool` | Indicates that no further chunks follow. The final chunk's textual content is used for transcript persistence only; UI responses should be empty to avoid duplication. |
+| `error` | `Optional[str]` | Populated when the chunk conveys a failure condition. Pipelines translate this into a terminal SSE error event. |
+| `status_message` | `Optional[str]` | Optional human-readable status updates (e.g., "initializing retriever"). These are emitted as ephemeral SSE messages and **MUST NOT** be persisted to history. |
+| `history_includes_prompt` | `bool` | Signals whether the produced chunk already includes the originating prompt. When `False`, the runtime concatenates buffered chunks before updating session history. |
+
+Additional metadata MAY be attached, but consumers must not rely on unspecified keys. Booleans serialized as strings (`"true"`/`"false"`) are tolerated for legacy compatibility, but new producers should emit canonical booleans.
+
+### History Handling
+
+1. **Session Retrieval** – `FlowRunner.stream()` retrieves or creates a `FlowSession` via the configured `SessionStore`. The LangGraph flows rely on this for conversational memory.
+2. **Buffering** – The runner buffers the textual `content` of each streamed chunk until a terminal event (`final=True` or `streaming=False`). The concatenated text is appended to history exactly once to keep transcripts clean. Status-only chunks (with `status_message` but empty `content`) are not stored.
+3. **Persistence** – After emitting the final event, the runner persists the session to the `SessionStore`. Pipelines **must not** rehydrate history from OpenWebUI's message list; instead they rely on the runner's saved state.
+4. **Error Propagation** – If a chunk includes `error`, the pipeline emits a terminal SSE error payload and stops iteration. The runner does not persist buffered content when an error flag is encountered.
+
+Downstream maintainers (especially LangGraph flow authors) should implement the contract above to guarantee predictable streaming semantics in OpenWebUI and other interfaces.
+
 ## Package Structure
 
 Following the **flat models package** pattern for clean separation of concerns:

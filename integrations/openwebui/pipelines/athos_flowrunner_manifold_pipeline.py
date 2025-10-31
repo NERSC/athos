@@ -301,6 +301,9 @@ class Pipeline:
 
                         event_metadata = output.metadata or {}
 
+                        # Streaming metadata contract documented in
+                        # docs/athos_openwebui_integration_plan_v3.0.md#streaming-contract
+                        # governs how we interpret these flags.
                         if event_metadata.get("error"):
                             yield self._build_stream_error(chunk_id, created, flow_name, output.content)
                             break
