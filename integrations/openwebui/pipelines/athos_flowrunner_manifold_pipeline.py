@@ -314,37 +314,28 @@ class Pipeline:
                         is_terminal = is_final or is_streaming_false
                         status_message = event_metadata.get("status_message")
 
+                        chunk_to_emit: Optional[str] = None
+
                         if (
                             status_message
                             and not output.content
                             and not is_terminal
                         ):
-                            yield self._build_stream_chunk(
-                                chunk_id,
-                                created,
-                                flow_name,
-                                status_message,
-                            )
+                            chunk_to_emit = status_message
 
                         chunk_content = output.content or ""
+                        if chunk_content:
+                            chunk_to_emit = chunk_content
 
-                        if chunk_content and not is_terminal:
+                        if chunk_to_emit:
                             yield self._build_stream_chunk(
                                 chunk_id,
                                 created,
                                 flow_name,
-                                chunk_content,
+                                chunk_to_emit,
                             )
 
                         if is_terminal:
-                            if chunk_content:
-                                yield self._build_stream_chunk(
-                                    chunk_id,
-                                    created,
-                                    flow_name,
-                                    chunk_content,
-                                )
-
                             # The final event's content is for history, not for display.
                             # Send an empty final chunk to prevent duplicate output in the UI.
                             yield self._build_stream_final(
