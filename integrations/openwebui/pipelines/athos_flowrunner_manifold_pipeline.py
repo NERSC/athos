@@ -121,7 +121,7 @@ class Pipeline:
 
         if not self._initialized:
             try:
-                asyncio.run(self._initialize_runner())
+                self._run_in_loop(self._initialize_runner())
             except Exception as exc:  # noqa: BLE001 - surface initialization errors to the UI
                 logger.exception("Failed to initialize ATHOS FlowRunner pipeline")
                 model = model_id or self.valves.default_flow
@@ -241,7 +241,7 @@ class Pipeline:
         if self._runner is None:
             raise RuntimeError("FlowRunner is not initialized")
 
-        result = asyncio.run(
+        result = self._run_in_loop(
             self._runner.execute(
                 flow_name=flow_name,
                 message=message,
@@ -472,6 +472,15 @@ class Pipeline:
             return f"{description} ({flow})"
         return flow.replace("_", " ").title()
 
+    @staticmethod
+    def _run_in_loop(coro: Awaitable[Any]) -> Any:
+        loop = asyncio.new_event_loop()
+        try:
+            asyncio.set_event_loop(loop)
+            return loop.run_until_complete(coro)
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
 
     def _read_env_overrides(self) -> Dict[str, Any]:
         overrides: Dict[str, Any] = {}
