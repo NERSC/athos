@@ -325,6 +325,11 @@ class Pipeline:
                                 status_message,
                             )
 
+                        chunk_content = output.content or ""
+
+                        if chunk_content:
+                            yield self._build_stream_chunk(chunk_id, created, flow_name, chunk_content)
+
                         if is_final or is_streaming_false:
                             # The final event's content is for history, not for display.
                             # Send an empty final chunk to prevent duplicate output in the UI.
@@ -336,11 +341,6 @@ class Pipeline:
                                 metadata=event_metadata,
                             )
                             break
-
-                        chunk_content = output.content or ""
-
-                        if chunk_content:
-                            yield self._build_stream_chunk(chunk_id, created, flow_name, chunk_content)
                 finally:
                     with contextlib.suppress(Exception):
                         while True:
