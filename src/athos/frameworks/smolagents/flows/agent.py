@@ -165,7 +165,7 @@ class AgentFlow(BaseFlow):
         message = input.message
 
         try:
-            result = await asyncio.to_thread(self.agent.run, message)
+            result = await asyncio.to_thread(self.agent.run, message, reset=False)
             return FlowOutput(
                 content=str(result),
                 metadata={
