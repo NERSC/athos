@@ -180,9 +180,17 @@ class FlowRunner:
                     metadata=metadata or {},
                 )
             )
+            output_metadata = dict(output.metadata)
+            output_metadata.setdefault("streaming", False)
+            output_metadata["final"] = True
+            final_output = FlowOutput(
+                content=output.content,
+                artifacts=list(output.artifacts),
+                metadata=output_metadata,
+            )
             self._record_interaction(session, message, output.content)
             await self.session_store.save(session)
-            yield output
+            yield final_output
             return
 
         flow_input = FlowInput(
