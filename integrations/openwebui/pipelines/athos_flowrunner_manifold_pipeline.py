@@ -311,12 +311,13 @@ class Pipeline:
                             isinstance(streaming_flag, str)
                             and streaming_flag.lower() == "false"
                         )
+                        is_terminal = is_final or is_streaming_false
                         status_message = event_metadata.get("status_message")
 
                         if (
                             status_message
                             and not output.content
-                            and not (is_final or is_streaming_false)
+                            and not is_terminal
                         ):
                             yield self._build_stream_chunk(
                                 chunk_id,
@@ -325,12 +326,29 @@ class Pipeline:
                                 status_message,
                             )
 
+                        final_content: Optional[str] = None
                         chunk_content = output.content or ""
 
-                        if chunk_content:
-                            yield self._build_stream_chunk(chunk_id, created, flow_name, chunk_content)
+                        if is_terminal:
+                            if chunk_content:
+                                final_content = chunk_content
+                        elif chunk_content:
+                            yield self._build_stream_chunk(
+                                chunk_id,
+                                created,
+                                flow_name,
+                                chunk_content,
+                            )
 
-                        if is_final or is_streaming_false:
+                        if is_terminal:
+                            if final_content:
+                                yield self._build_stream_chunk(
+                                    chunk_id,
+                                    created,
+                                    flow_name,
+                                    final_content,
+                                )
+
                             # The final event's content is for history, not for display.
                             # Send an empty final chunk to prevent duplicate output in the UI.
                             yield self._build_stream_final(

@@ -81,10 +81,18 @@ def test_non_streamable_flow_emits_final_chunk_with_stop() -> None:
 
     assert chunks[-1] == "data: [DONE]\n\n"
 
-    message_chunk = _load_payload(chunks[0])
-    assert message_chunk["choices"][0]["delta"]["content"] == "final response"
-    assert message_chunk["choices"][0]["finish_reason"] is None
+    payloads = [_load_payload(chunk) for chunk in chunks[:-1]]
 
-    final_chunk = _load_payload(chunks[-2])
+    content_deltas = [
+        choice["delta"].get("content", "")
+        for payload in payloads
+        for choice in payload["choices"]
+    ]
+
+    non_empty_contents = [delta for delta in content_deltas if delta]
+    assert non_empty_contents == ["final response"]
+
+    final_chunk = payloads[-1]
+    assert final_chunk["choices"][0]["delta"].get("content", "") == ""
     assert final_chunk["choices"][0]["finish_reason"] == "stop"
     assert final_chunk["usage"] == output.metadata["usage"]
