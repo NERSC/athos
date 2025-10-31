@@ -86,15 +86,14 @@ class Pipeline:
         await self._initialize_runner(force_reload=True)
 
     async def inlet(self, body: dict, user: dict) -> dict:
-        # This function is called before the OpenAI API request is made.
-        # You can modify the form data before it is sent to the OpenAI API.
-        #logger.info(f"inlet:{__name__}")
-        #logger.info(body)
-        #logger.info(user)
+        """Pre-processes the request body before it reaches the main `pipe` method.
 
-        # Add chat_id to body to make it available in pipe for session management
+        This hook is called by the OpenWebUI pipeline before the main completion
+        logic. It is used here to extract the `chat_id` from the request metadata
+        and place it in the top-level `body` dictionary for easier access during
+        session management.
+        """
         body["chat_id"] = body.get("metadata", {}).get("chat_id")
-
         return body
 
     def pipe(
@@ -112,7 +111,6 @@ class Pipeline:
     ]:
         """Entrypoint invoked by OpenWebUI for every chat completion request."""
 
-        #logger.info("Pipe received body: %s", body)
         logger.info("Pipe received user_message: %s", user_message)
         logger.info("Pipe recieved messages: %s", messages)
         if messages:
@@ -123,7 +121,7 @@ class Pipeline:
 
         if not self._initialized:
             try:
-                self._run_in_loop(self._initialize_runner())
+                asyncio.run(self._initialize_runner())
             except Exception as exc:  # noqa: BLE001 - surface initialization errors to the UI
                 logger.exception("Failed to initialize ATHOS FlowRunner pipeline")
                 model = model_id or self.valves.default_flow
@@ -216,18 +214,19 @@ class Pipeline:
 
     @staticmethod
     def _resolve_session_id(body: dict) -> str:
-        metadata = body.get("metadata", {})
-        chat_id_from_metadata = metadata.get("chat_id")
-        chat_id_from_body = body.get("chat_id")
-        logger.info(f"Resolving session_id: chat_id from metadata='{chat_id_from_metadata}', chat_id from body='{chat_id_from_body}'")
+        """Resolve OpenWebUI chat_id to a session ID.
 
-        chat_id = chat_id_from_metadata or chat_id_from_body
+        The `inlet` method is expected to have already populated `body["chat_id"]`
+        from the request metadata. If it's missing, we create a new session ID.
+        """
+        chat_id = body.get("chat_id")
         if chat_id:
-            logger.info(f"Using existing chat_id for session: {chat_id}")
+            logger.info("Using existing chat_id for session: %s", chat_id)
             return str(chat_id)
 
-        new_session_id = f"chat-{int(time.time())}"
-        logger.warning(f"No chat_id found in request body, creating new session_id: {new_session_id}")
+        # Fallback for cases where chat_id is missing.
+        new_session_id = f"chat-{uuid.uuid4()}"
+        logger.warning("No chat_id in request body; creating new session: %s", new_session_id)
         return new_session_id
 
     def _run_sync_flow(
@@ -242,7 +241,7 @@ class Pipeline:
         if self._runner is None:
             raise RuntimeError("FlowRunner is not initialized")
 
-        result = self._run_in_loop(
+        result = asyncio.run(
             self._runner.execute(
                 flow_name=flow_name,
                 message=message,
@@ -310,25 +309,17 @@ class Pipeline:
 
                         is_final = bool(event_metadata.get("final"))
                         streaming_flag = event_metadata.get("streaming")
-                        is_streaming_false = streaming_flag is False or (
+                        is_streaming_disabled = streaming_flag is False or (
                             isinstance(streaming_flag, str)
                             and streaming_flag.lower() == "false"
                         )
-                        is_terminal = is_final or is_streaming_false
+                        is_terminal = is_final or is_streaming_disabled
                         status_message = event_metadata.get("status_message")
 
-                        chunk_to_emit: Optional[str] = None
-
-                        if (
-                            status_message
-                            and not output.content
-                            and not is_terminal
-                        ):
+                        # Prefer content, but send status message if content is empty and not terminal
+                        chunk_to_emit = output.content
+                        if not chunk_to_emit and status_message and not is_terminal:
                             chunk_to_emit = status_message
-
-                        chunk_content = output.content or ""
-                        if chunk_content:
-                            chunk_to_emit = chunk_content
 
                         if chunk_to_emit:
                             yield self._build_stream_chunk(
@@ -481,15 +472,6 @@ class Pipeline:
             return f"{description} ({flow})"
         return flow.replace("_", " ").title()
 
-    @staticmethod
-    def _run_in_loop(coro: Awaitable[Any]) -> Any:
-        loop = asyncio.new_event_loop()
-        try:
-            asyncio.set_event_loop(loop)
-            return loop.run_until_complete(coro)
-        finally:
-            asyncio.set_event_loop(None)
-            loop.close()
 
     def _read_env_overrides(self) -> Dict[str, Any]:
         overrides: Dict[str, Any] = {}
