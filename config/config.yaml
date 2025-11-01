@@ -248,6 +248,17 @@ flows:
       Summarize the findings concisely in your reply.
     max_iterations: 8
 
+  langchain_web_agent:
+    description: "LangChain create_agent demo that mirrors the ReAct web agent"
+    type: "langchain_agent"
+    model: "cborg_coder"
+    tools: ["langchain_tavily_search"]
+    instructions: |
+      You are a helpful research assistant. Use the web search tool when it would add
+      useful, current information to your answer. Cite the sources you rely on and keep
+      replies concise and actionable.
+    max_iterations: 8
+
 
 # Logging configuration
 logging_config:
