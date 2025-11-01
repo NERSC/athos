@@ -24,6 +24,7 @@ def test_flow_result_contains_output_metadata():
     output = FlowOutput(content="done")
     result = FlowResult(
         request_id="req-1",
+        session_id="sess-1",
         success=True,
         output=output,
         error=None,
@@ -54,6 +55,7 @@ def test_flow_request_is_immutable():
 def test_flow_result_is_immutable():
     result = FlowResult(
         request_id="req-3",
+        session_id="sess-3",
         success=False,
         output=None,
         error="boom",

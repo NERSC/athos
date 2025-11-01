@@ -17,7 +17,7 @@ async def test_cli_log_level_override(mock_build_config, mock_flow_runner, monke
     mock_build_config.return_value = "CFG"
     mock_runner_instance = AsyncMock()
     mock_runner_instance.execute.return_value = FlowResult(
-        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", execution_time=0.5
+        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", session_id="cli_session", execution_time=0.5
     )
     mock_flow_runner.return_value = mock_runner_instance
 
@@ -63,7 +63,7 @@ async def test_cli_log_level_default(mock_build_config, mock_flow_runner, monkey
     mock_build_config.return_value = "CFG"
     mock_runner_instance = AsyncMock()
     mock_runner_instance.execute.return_value = FlowResult(
-        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", execution_time=0.5
+        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", session_id="cli_session", execution_time=0.5
     )
     mock_flow_runner.return_value = mock_runner_instance
 
@@ -157,7 +157,7 @@ async def test_cli_set_override(mock_build_config, mock_flow_runner, monkeypatch
     mock_build_config.return_value = "CFG"
     mock_runner_instance = AsyncMock()
     mock_runner_instance.execute.return_value = FlowResult(
-        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", execution_time=0.5
+        success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", session_id="cli_session", execution_time=0.5
     )
     mock_flow_runner.return_value = mock_runner_instance
 
