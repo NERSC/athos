@@ -5,14 +5,11 @@ from __future__ import annotations
 import argparse
 import asyncio
 import pprint
-from pathlib import Path
 
 from dotenv import load_dotenv
 
-from athos import build_config, build_flow
-from athos.models.enums import ExecutionMode
-from athos.models.flow import FlowInput
-from athos.models.session import FlowSession
+from athos import build_config
+from athos.runtime.runner import FlowRunner
 
 
 async def run_demo(*, config_path: str, flow_name: str) -> None:
@@ -34,29 +31,27 @@ async def run_demo(*, config_path: str, flow_name: str) -> None:
     print("\nSelected flow configuration:")
     pprint.pprint(cfg.flows[flow_name].model_dump())
 
-    flow = await build_flow(flow_name, cfg)
-
     query = "What are some upcoming or ongoing training events at NERSC?"
+    runner = FlowRunner(cfg)
 
-    session = FlowSession(
-        session_id="langgraph-web-agent-demo",
-        user_id="demo-user",
-        workspace=Path(cfg.workspace_path)
-        / "demo-user"
-        / "langgraph-web-agent-demo",
-        interface="cli",
-    )
+    try:
+        result = await runner.execute(
+            flow_name=flow_name,
+            message=query,
+            session_id="langgraph-web-agent-demo",
+            user_id="demo-user",
+            interface="cli",
+        )
 
-    flow_input = FlowInput(
-        message=query,
-        session=session,
-        mode=ExecutionMode.SYNC,
-    )
+        if not result.success or result.output is None:
+            print("\nQuery execution failed:")
+            print(f"Error: {result.error}")
+            return
 
-    result = await flow.execute(flow_input)
-
-    print(f"\nQuery: {query}")
-    print(f"Result: {result.content}")
+        print(f"\nQuery: {query}")
+        print(f"Result: {result.output.content}")
+    finally:
+        await runner.cleanup()
 
 
 async def main() -> None:
