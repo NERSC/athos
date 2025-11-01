@@ -240,7 +240,7 @@ flows:
   langgraph_react_web_agent_demo:
     description: "LangGraph ReAct agent that uses DuckDuckGo search for web answers"
     type: "langgraph_react_agent"
-    model: "claude_sonnet"
+    model: "cborg_coder"
     tools: ["langchain_tavily_search"]
     instructions: |
       You are a friendly assistant help users with questions. Always consider using
