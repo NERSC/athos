@@ -29,13 +29,15 @@ Each milestone below lists concrete tasks with enough context for an engineer or
    - Provide async CRUD mirroring the in-memory store; support configurable TTL.  
    - Add valve configuration to the pipeline (`integrations/openwebui/pipelines/...`) to select backend + connection settings.
 
-2. **Add SQL (Postgres) `SessionStore` backend (stretch)**  
-   - Reuse SQLAlchemy core models if available; otherwise create lightweight table schema.  
+2. **Add SQL (Postgres) `SessionStore` backend (stretch)**
+   - Reuse SQLAlchemy core models if available; otherwise create lightweight table schema.
+   - Provides multi-region durability, transactional consistency, and richer querying for audit/reporting use cases.
    - Include migration guidance or simple alembic stub.
 
-3. **Session migration + health checks**  
-   - Add CLI utilities in `scripts/` to migrate session data between backends.  
-   - Expose liveness checks in the pipeline (e.g., optional `/healthz` route if the server supports it) to validate connectivity at startup.
+3. **Session migration + health checks**
+   - Add CLI utilities in `scripts/` to migrate session data between backends, so operators can promote from in-memory/Redis to Postgres without losing history.
+   - Document how migrations cover TTL vs. non-expiring records and provide dry-run verification steps.
+   - Expose liveness checks in the pipeline (e.g., optional `/healthz` route if the server supports it) to validate connectivity at startup and surface alerts early.
 
 4. **Session UX improvements**  
    - Ensure history replay uses persisted sessions exclusively (audit `FlowRunner`).  
