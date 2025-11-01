@@ -9,10 +9,10 @@ from athos.config.models import (
     ToolConfig,
     ToolFramework,
 )
-from athos.frameworks.langgraph.flows import create_agent as create_agent_module
-from athos.frameworks.langgraph.flows.create_agent import (
-    LangGraphCreateAgentFlow,
-    LangGraphCreateAgentFlowConfig,
+from athos.frameworks.langgraph.flows import agent as agent_module
+from athos.frameworks.langgraph.flows.agent import (
+    LangChainAgentFlow,
+    LangChainAgentFlowConfig,
 )
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput
@@ -31,12 +31,12 @@ class DummyGraph:
         response_text = (
             self.responses[index] if index < len(self.responses) else ""
         )
-        messages.append(create_agent_module.AIMessage(response_text))
+        messages.append(agent_module.AIMessage(response_text))
         return {"messages": messages}
 
 
 @pytest.mark.asyncio
-async def test_create_agent_flow_executes_and_tracks_history(monkeypatch):
+async def test_agent_flow_executes_and_tracks_history(monkeypatch):
     dummy_graph = DummyGraph(["first reply", "second reply"])
     create_calls = []
 
@@ -50,7 +50,7 @@ async def test_create_agent_flow_executes_and_tracks_history(monkeypatch):
         )
         return dummy_graph
 
-    monkeypatch.setattr(create_agent_module, "create_agent", fake_create_agent)
+    monkeypatch.setattr(agent_module, "create_agent", fake_create_agent)
 
     class DummyModel:
         model_name = "test-model"
@@ -58,7 +58,7 @@ async def test_create_agent_flow_executes_and_tracks_history(monkeypatch):
     def fake_build_model(cfg):
         return DummyModel()
 
-    monkeypatch.setattr(create_agent_module, "build_model", fake_build_model)
+    monkeypatch.setattr(agent_module, "build_model", fake_build_model)
 
     base_tool = object()
 
@@ -69,15 +69,15 @@ async def test_create_agent_flow_executes_and_tracks_history(monkeypatch):
         mcp_servers={},
     )
 
-    cfg = LangGraphCreateAgentFlowConfig(
-        type="langgraph_create_agent",
+    cfg = LangChainAgentFlowConfig(
+        type="langchain_agent",
         model="test",
         tools=[],
         instructions="Be concise.",
         max_iterations=7,
     )
 
-    flow = await LangGraphCreateAgentFlow.create(cfg, full_cfg)
+    flow = await LangChainAgentFlow.create(cfg, full_cfg)
     flow.tools = [base_tool]
 
     session1 = FlowSession(
@@ -126,7 +126,7 @@ async def test_create_agent_flow_executes_and_tracks_history(monkeypatch):
     assert initial_config == {"recursion_limit": 7}
     assert followup_config == {"recursion_limit": 7}
 
-    assert isinstance(initial_state["messages"][-1], create_agent_module.HumanMessage)
+    assert isinstance(initial_state["messages"][-1], agent_module.HumanMessage)
     assert initial_state["messages"][-1].content == "Hello there"
 
     assert [m.content for m in followup_state["messages"][:-1]] == [
@@ -137,7 +137,7 @@ async def test_create_agent_flow_executes_and_tracks_history(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_create_agent_factory_combines_instructions_and_tools(monkeypatch):
+async def test_agent_factory_combines_instructions_and_tools(monkeypatch):
     base_tool = object()
     mcp_tool = object()
     dummy_graph = DummyGraph(["combined response"])
@@ -176,13 +176,13 @@ async def test_create_agent_factory_combines_instructions_and_tools(monkeypatch)
         )
         return dummy_graph
 
-    monkeypatch.setattr(create_agent_module, "build_model", fake_build_model)
-    monkeypatch.setattr(create_agent_module, "build_tool", fake_build_tool)
-    monkeypatch.setattr(create_agent_module, "build_mcp_client", fake_build_mcp_client)
-    monkeypatch.setattr(create_agent_module, "create_agent", fake_create_agent)
+    monkeypatch.setattr(agent_module, "build_model", fake_build_model)
+    monkeypatch.setattr(agent_module, "build_tool", fake_build_tool)
+    monkeypatch.setattr(agent_module, "build_mcp_client", fake_build_mcp_client)
+    monkeypatch.setattr(agent_module, "create_agent", fake_create_agent)
 
-    cfg = LangGraphCreateAgentFlowConfig(
-        type="langgraph_create_agent",
+    cfg = LangChainAgentFlowConfig(
+        type="langchain_agent",
         model="demo",
         tools=["demo_tool"],
         mcp_servers=["demo_mcp"],
@@ -211,7 +211,7 @@ async def test_create_agent_factory_combines_instructions_and_tools(monkeypatch)
         },
     )
 
-    flow = await LangGraphCreateAgentFlow.create(cfg, full_cfg)
+    flow = await LangChainAgentFlow.create(cfg, full_cfg)
 
     assert flow.instructions == "Primary instruction\n\nServer instruction"
 
@@ -238,5 +238,47 @@ async def test_create_agent_factory_combines_instructions_and_tools(monkeypatch)
 
     state, config = dummy_graph.invocations[0]
     assert config == {"recursion_limit": 3}
-    assert isinstance(state["messages"][-1], create_agent_module.HumanMessage)
+    assert isinstance(state["messages"][-1], agent_module.HumanMessage)
     assert state["messages"][-1].content == "Ping"
+
+
+@pytest.mark.asyncio
+async def test_agent_handles_optional_dependencies(monkeypatch):
+    monkeypatch.setattr(agent_module, "create_agent", None)
+    monkeypatch.setattr(agent_module, "_CREATE_AGENT_IMPORT_ERROR", ImportError("boom"))
+
+    class DummyModel:
+        model_name = "demo-model"
+
+    monkeypatch.setattr(agent_module, "build_model", lambda cfg: DummyModel())
+
+    cfg = LangChainAgentFlowConfig(
+        type="langchain_agent",
+        model="demo",
+        tools=[],
+        mcp_servers=[],
+        instructions=None,
+        max_iterations=1,
+    )
+
+    full_cfg = AthosConfig(
+        workspace_dir="/tmp",
+        models={"demo": ModelConfig(model_id="demo-model")},
+        tools={},
+        mcp_servers={},
+    )
+
+    with pytest.raises(ImportError):
+        flow = await LangChainAgentFlow.create(cfg, full_cfg)
+        await flow.execute(
+            FlowInput(
+                message="test",
+                session=FlowSession(
+                    session_id="s",
+                    user_id="u",
+                    workspace=Path("/tmp"),
+                ),
+                mode=ExecutionMode.SYNC,
+                metadata={},
+            )
+        )

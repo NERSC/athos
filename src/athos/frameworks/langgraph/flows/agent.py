@@ -47,7 +47,7 @@ else:  # pragma: no cover - executed when dependency is available
 logger = logging.getLogger(__name__)
 
 
-class LangGraphCreateAgentFlow(BaseLangGraphFlow):
+class LangChainAgentFlow(BaseLangGraphFlow):
     """Agent flow powered by LangChain's :func:`create_agent` helper.
 
     Much like :class:`LangGraphReactAgentFlow`, this flow wires together
@@ -57,7 +57,7 @@ class LangGraphCreateAgentFlow(BaseLangGraphFlow):
     consistent interface across providers.
     """
 
-    name = "langgraph_create_agent"
+    name = "langchain_agent"
     description = "General agent using LangChain create_agent"
     config_class = None  # Set after class definition
     framework = ToolFramework.LANGGRAPH
@@ -89,7 +89,7 @@ class LangGraphCreateAgentFlow(BaseLangGraphFlow):
     @classmethod
     async def create(
         cls,
-        flow_config: "LangGraphCreateAgentFlowConfig",
+        flow_config: "LangChainAgentFlowConfig",
         athos_config: AthosConfig,
     ) -> Self:
         """Create and fully initialize a LangChain create_agent flow."""
@@ -152,7 +152,7 @@ class LangGraphCreateAgentFlow(BaseLangGraphFlow):
     async def execute(self, input: FlowInput) -> FlowOutput:
         """Execute the agent graph and return structured output."""
 
-        logger.info("LangGraphCreateAgentFlow.execute message: %s", input.message)
+        logger.info("LangChainAgentFlow.execute message: %s", input.message)
 
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -189,7 +189,7 @@ class LangGraphCreateAgentFlow(BaseLangGraphFlow):
     async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
         """Stream agent execution with intermediate updates."""
 
-        logger.info("LangGraphCreateAgentFlow.stream message: %s", input.message)
+        logger.info("LangChainAgentFlow.stream message: %s", input.message)
 
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -352,10 +352,10 @@ class LangGraphCreateAgentFlow(BaseLangGraphFlow):
         raise RuntimeError("LangChain create_agent graph did not produce a response")
 
 
-class LangGraphCreateAgentFlowConfig(BaseFlowConfig):
-    """Configuration schema for :class:`LangGraphCreateAgentFlow`."""
+class LangChainAgentFlowConfig(BaseFlowConfig):
+    """Configuration schema for :class:`LangChainAgentFlow`."""
 
-    type: Literal["langgraph_create_agent"]
+    type: Literal["langchain_agent"]
     tools: List[str] = Field(
         default_factory=list,
         description="List of tool names from config.tools to provide to the agent.",
@@ -375,12 +375,12 @@ class LangGraphCreateAgentFlowConfig(BaseFlowConfig):
     )
 
 
-LangGraphCreateAgentFlow.config_class = LangGraphCreateAgentFlowConfig
+LangChainAgentFlow.config_class = LangChainAgentFlowConfig
 
-register_flow(LangGraphCreateAgentFlow)
+register_flow(LangChainAgentFlow)
 
 
 __all__ = [
-    "LangGraphCreateAgentFlow",
-    "LangGraphCreateAgentFlowConfig",
+    "LangChainAgentFlow",
+    "LangChainAgentFlowConfig",
 ]

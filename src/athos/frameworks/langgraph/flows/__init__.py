@@ -4,9 +4,9 @@ from .chatbot import (
     LangGraphChatbotFlow,
     LangGraphChatbotFlowConfig,
 )
-from .create_agent import (
-    LangGraphCreateAgentFlow,
-    LangGraphCreateAgentFlowConfig,
+from .agent import (
+    LangChainAgentFlow,
+    LangChainAgentFlowConfig,
 )
 from .react_agent import (
     LangGraphReactAgentFlow,
@@ -14,8 +14,8 @@ from .react_agent import (
 )
 
 __all__ = [
-    "LangGraphCreateAgentFlow",
-    "LangGraphCreateAgentFlowConfig",
+    "LangChainAgentFlow",
+    "LangChainAgentFlowConfig",
     "LangGraphChatbotFlow",
     "LangGraphChatbotFlowConfig",
     "LangGraphReactAgentFlow",

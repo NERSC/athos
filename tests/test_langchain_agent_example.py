@@ -1,7 +1,7 @@
 import pytest
 
 from athos import build_config, build_flow
-from athos.frameworks.langgraph.flows import create_agent as create_agent_module
+from athos.frameworks.langgraph.flows import agent as agent_module
 from athos.frameworks.smolagents import flows as smol_flows  # noqa: F401
 
 
@@ -13,13 +13,14 @@ class DummyGraph:
     async def ainvoke(self, state, config=None):
         self.invocations.append((state, config))
         messages = list(state["messages"])
-        messages.append(create_agent_module.AIMessage(self.response))
+        messages.append(agent_module.AIMessage(self.response))
         return {"messages": messages, "structured_response": self.response}
 
 
 @pytest.mark.asyncio
-async def test_langgraph_create_agent_demo_flow(monkeypatch):
+async def test_langchain_web_agent_flow(monkeypatch):
     from pathlib import Path
+
     from athos.models.enums import ExecutionMode
     from athos.models.flow import FlowInput
     from athos.models.session import FlowSession
@@ -29,8 +30,8 @@ async def test_langgraph_create_agent_demo_flow(monkeypatch):
 
     cfg = build_config("config/config.yaml")
 
-    flow_cfg = cfg.flows["langgraph_create_agent_demo"]
-    assert flow_cfg.type == "langgraph_create_agent"
+    flow_cfg = cfg.flows["langchain_web_agent"]
+    assert flow_cfg.type == "langchain_agent"
     assert flow_cfg.tools == ["langchain_tavily_search"]
     assert flow_cfg.max_iterations == 8
 
@@ -58,11 +59,11 @@ async def test_langgraph_create_agent_demo_flow(monkeypatch):
         )
         return dummy_graph
 
-    monkeypatch.setattr(create_agent_module, "build_model", fake_build_model)
-    monkeypatch.setattr(create_agent_module, "build_tool", fake_build_tool)
-    monkeypatch.setattr(create_agent_module, "create_agent", fake_create_agent)
+    monkeypatch.setattr(agent_module, "build_model", fake_build_model)
+    monkeypatch.setattr(agent_module, "build_tool", fake_build_tool)
+    monkeypatch.setattr(agent_module, "create_agent", fake_create_agent)
 
-    flow = await build_flow("langgraph_create_agent_demo", cfg)
+    flow = await build_flow("langchain_web_agent", cfg)
 
     assert flow.tools == [dummy_tool]
     assert flow.instructions is not None

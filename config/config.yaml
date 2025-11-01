@@ -248,9 +248,9 @@ flows:
       Summarize the findings concisely in your reply.
     max_iterations: 8
 
-  langgraph_create_agent_demo:
+  langchain_web_agent:
     description: "LangChain create_agent demo that mirrors the ReAct web agent"
-    type: "langgraph_create_agent"
+    type: "langchain_agent"
     model: "cborg_coder"
     tools: ["langchain_tavily_search"]
     instructions: |
