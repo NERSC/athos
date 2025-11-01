@@ -12,7 +12,7 @@ The quickstart in `docs/openwebui_pipelines_quickstart.md` remains accurate for 
 
 | Milestone | Objective | Themes |
 | --- | --- | --- |
-| M1. Durable Sessions | Swap in persistent stores and polish session ergonomics. | Redis/Postgres backends, session UX, migration tooling |
+| M1. Durable Sessions | Land a Redis-backed persistent store and polish session ergonomics. | Redis backend, session UX, migration tooling |
 | M2. Rich Event Semantics | Extend metadata + streaming surface for reasoning, status, and tool lifecycle events. | Event schema, SSE formatting, formatter utilities |
 | M3. Tool Telemetry & Runtime Hooks | Emit detailed tool traces and unify observability hooks. | Tool events, tracing, metrics |
 | M4. Reliability & Automation | Establish automated coverage and harden error handling. | Tests, mocks, validation, CI integration |
@@ -20,27 +20,30 @@ The quickstart in `docs/openwebui_pipelines_quickstart.md` remains accurate for 
 
 Each milestone below lists concrete tasks with enough context for an engineer or coding agent to execute independently. Tasks are prioritized in execution order unless otherwise noted.
 
+### Milestone Dependencies & Prioritization
+
+- **M1 → M2 (optional sequencing):** Rich event semantics (M2) only rely on shared model updates (`FlowOutput.metadata`) and formatter plumbing inside the OpenWebUI adapter. Those changes do not depend on Redis durability, so teams can begin M2 before M1 finishes if session persistence is less urgent. Coordination is only required to ensure streaming transcripts continue to exclude hidden events once both milestones land.
+- **M1 prerequisites:** Implementing the Redis store does not require schema changes elsewhere; it reuses the existing session abstraction in `FlowRunner`. The optional migration tooling simply orchestrates data movement from the legacy in-memory store.
+- **M2 → M3:** Tool telemetry (M3) builds on the event schema introduced in M2. Completing the metadata typing first prevents duplicated formatter logic.
+- **M3/M4 interplay:** Reliability automation (M4) should cover the new event paths added in M2 and M3, so expect to refresh or expand tests as soon as those milestones introduce new SSE events.
+- **M5 (docs) spans all milestones:** Documentation updates will trail each milestone to capture new valves, schemas, and operational steps.
+
 ---
 
 ## Milestone M1 – Durable Sessions
 
-1. **Implement Redis `SessionStore` backend**  
-   - Location: `src/athos/runtime/session_store/` (create subpackage if needed).  
-   - Provide async CRUD mirroring the in-memory store; support configurable TTL.  
+1. **Implement Redis `SessionStore` backend**
+   - Location: `src/athos/runtime/session_store/` (create subpackage if needed).
+   - Provide async CRUD mirroring the in-memory store; support configurable TTL.
    - Add valve configuration to the pipeline (`integrations/openwebui/pipelines/...`) to select backend + connection settings.
 
-2. **Add SQL (Postgres) `SessionStore` backend (stretch)**
-   - Reuse SQLAlchemy core models if available; otherwise create lightweight table schema.
-   - Provides multi-region durability, transactional consistency, and richer querying for audit/reporting use cases.
-   - Include migration guidance or simple alembic stub.
-
-3. **Session migration + health checks**
-   - Add CLI utilities in `scripts/` to migrate session data between backends, so operators can promote from in-memory/Redis to Postgres without losing history.
-   - Document how migrations cover TTL vs. non-expiring records and provide dry-run verification steps.
+2. **Cutover tooling + health checks**
+   - Add a CLI utility in `scripts/` to backfill existing in-memory sessions into Redis during the initial cutover; include dry-run and TTL handling options.
+   - Document rollback guidance in case Redis is temporarily unavailable.
    - Expose liveness checks in the pipeline (e.g., optional `/healthz` route if the server supports it) to validate connectivity at startup and surface alerts early.
 
-4. **Session UX improvements**  
-   - Ensure history replay uses persisted sessions exclusively (audit `FlowRunner`).  
+3. **Session UX improvements**
+   - Ensure history replay uses persisted sessions exclusively (audit `FlowRunner`).
    - Provide valve toggles for auto-reset, TTL, and maximum transcript length; document defaults in quickstart.
 
 **Exit criteria:** Redis backend in production use, automated smoke test covering resume across restarts, updated quickstart instructions.
