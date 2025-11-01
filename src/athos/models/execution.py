@@ -32,6 +32,7 @@ class FlowResult(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     request_id: str
+    session_id: str
     success: bool
     output: Optional[FlowOutput] = None
     error: Optional[str] = None

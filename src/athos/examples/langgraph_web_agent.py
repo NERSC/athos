@@ -49,7 +49,17 @@ async def run_demo(*, config_path: str, flow_name: str) -> None:
             return
 
         print(f"\nQuery: {query}")
-        print(f"Result: {result.output.content}")
+        print(f"Result full: {result}")
+        # print(f"Result: {result.output.content}")
+
+        # Retrieve and print the conversation history
+        session = await runner.session_store.get_or_create(
+            session_id=result.session_id,
+            user_id="demo-user",
+        )
+        history = session.get_history()
+        print("\nConversation History:")
+        pprint.pprint(history)
     finally:
         await runner.cleanup()
 

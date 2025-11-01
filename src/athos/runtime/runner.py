@@ -89,6 +89,7 @@ class FlowRunner:
             execution_time = time.time() - start_time
             result = FlowResult(
                 request_id=request.request_id,
+                session_id=session.session_id,
                 success=True,
                 output=output,
                 error=None,
@@ -117,6 +118,7 @@ class FlowRunner:
 
             return FlowResult(
                 request_id=request.request_id,
+                session_id=request.session_id,
                 success=False,
                 output=None,
                 error=str(exc),
