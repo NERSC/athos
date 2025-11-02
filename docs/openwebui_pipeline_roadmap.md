@@ -12,9 +12,9 @@ The quickstart in `docs/openwebui_pipelines_quickstart.md` remains accurate for 
 
 | Milestone | Objective | Themes |
 | --- | --- | --- |
-| M1. Durable Sessions | Land a Redis-backed persistent store and polish session ergonomics. | Redis backend, session UX, migration tooling |
-| M2. Rich Event Semantics | Extend metadata + streaming surface for reasoning, status, and tool lifecycle events. | Event schema, SSE formatting, formatter utilities |
-| M3. Tool Telemetry & Runtime Hooks | Emit detailed tool traces and unify observability hooks. | Tool events, tracing, metrics |
+| M1. Durable Sessions | Land a Redis-backed persistent store and polish session ergonomics. | Redis backend, session UX, connection validation |
+| M2. Rich Event Semantics | Extend metadata + streaming surface for reasoning, status, and structured events. | Event schema, SSE formatting, formatter utilities |
+| M3. Cost Metrics & Basic Observability | Track token usage, calculate costs, and aggregate session-level statistics. | Token tracking, pricing utilities, usage aggregation |
 | M4. Reliability & Automation | Establish automated coverage and harden error handling. | Tests, mocks, validation, CI integration |
 | M5. Documentation & Adoption | Refresh docs, examples, and migration guidance. | Docs, quickstart updates, rollout plan |
 
@@ -23,9 +23,10 @@ Each milestone below lists concrete tasks with enough context for an engineer or
 ### Milestone Dependencies & Prioritization
 
 - **M1 → M2 (optional sequencing):** Rich event semantics (M2) only rely on shared model updates (`FlowOutput.metadata`) and formatter plumbing inside the OpenWebUI adapter. Those changes do not depend on Redis durability, so teams can begin M2 before M1 finishes if session persistence is less urgent. Coordination is only required to ensure streaming transcripts continue to exclude hidden events once both milestones land.
-- **M1 prerequisites:** Implementing the Redis store does not require schema changes elsewhere; it reuses the existing session abstraction in `FlowRunner`. The optional migration tooling simply orchestrates data movement from the legacy in-memory store.
-- **M2 → M3:** Tool telemetry (M3) builds on the event schema introduced in M2. Completing the metadata typing first prevents duplicated formatter logic.
-- **M3/M4 interplay:** Reliability automation (M4) should cover the new event paths added in M2 and M3, so expect to refresh or expand tests as soon as those milestones introduce new SSE events.
+- **M1 prerequisites:** Implementing the Redis store does not require schema changes elsewhere; it reuses the existing session abstraction in `FlowRunner`. No migration tooling needed since current sessions are in-memory only.
+- **M2 → M3 (independent):** Cost tracking (M3) extends the metadata schema established in M2, but can proceed in parallel if metadata design is settled. Token usage tracking does not depend on event type semantics.
+- **M3 → M4:** Reliability automation (M4) should include tests for usage aggregation and cost calculation utilities introduced in M3.
+- **M4 covers new paths from M2 and M3:** Expect to refresh or expand tests as M2 introduces new SSE event types and M3 adds usage tracking.
 - **M5 (docs) spans all milestones:** Documentation updates will trail each milestone to capture new valves, schemas, and operational steps.
 
 ---
@@ -37,10 +38,10 @@ Each milestone below lists concrete tasks with enough context for an engineer or
    - Provide async CRUD mirroring the in-memory store; support configurable TTL.
    - Add valve configuration to the pipeline (`integrations/openwebui/pipelines/...`) to select backend + connection settings.
 
-2. **Cutover tooling + health checks**
-   - Add a CLI utility in `scripts/` to backfill existing in-memory sessions into Redis during the initial cutover; include dry-run and TTL handling options.
-   - Document rollback guidance in case Redis is temporarily unavailable.
-   - Expose liveness checks in the pipeline (e.g., optional `/healthz` route if the server supports it) to validate connectivity at startup and surface alerts early.
+2. **Redis connection validation**
+   - Add basic connectivity check in `RedisSessionStore.__init__()` that fails fast with clear error if Redis is unreachable.
+   - Log warning on startup if connection is slow (>100ms).
+   - Document Redis configuration and troubleshooting in quickstart (no migration tooling needed since current sessions are in-memory only).
 
 3. **Session UX improvements**
    - Ensure history replay uses persisted sessions exclusively (audit `FlowRunner`).
@@ -52,45 +53,52 @@ Each milestone below lists concrete tasks with enough context for an engineer or
 
 ## Milestone M2 – Rich Event Semantics
 
-1. **Define `FlowOutput.metadata.event_type` schema**  
-   - Extend models in `src/athos/models/flow.py` with typed enums for events (`chat`, `status`, `reasoning`, `tool_start`, etc.).  
+1. **Define `FlowOutput.metadata.event_type` schema**
+   - Extend models in `src/athos/models/flow.py` with typed enums for events (`chat`, `status`, `reasoning`, `tool_start`, etc.).
    - Document serialization requirements and ensure backwards compatibility.
+   - Schema maps to JSON field names in SSE `data:` chunks (OpenWebUI expects `data: {json}` format, not named SSE events).
 
-2. **Introduce OpenWebUI event formatter module**  
-   - Create `integrations/openwebui/formatters/events.py` to map `FlowOutput` + metadata into SSE payloads.  
-   - Ensure status/reasoning events emit as SSE `event` types rather than transcript text.
+2. **Introduce OpenWebUI event formatter module**
+   - Create `integrations/openwebui/formatters/events.py` to map `FlowOutput` + metadata into SSE JSON payloads.
+   - Emit reasoning/status as distinct JSON fields (e.g., `{"reasoning": "...", "choices": [{"delta": {"content": ""}}]}`) following OpenAI streaming format.
+   - Status and reasoning events should have empty `delta.content` to prevent transcript persistence in OpenWebUI.
 
-3. **Update pipeline stream handling**  
-   - Refactor `pipe()` streaming loop to delegate formatting to the new module.  
-   - Guarantee transcript persistence excludes reasoning/status-only events by default.
+3. **Update pipeline stream handling**
+   - Refactor `pipe()` streaming loop to delegate formatting to the new module.
+   - Use structured JSON fields to differentiate event types while maintaining `data: {json}\n\n` SSE format.
+   - Ensure only events with non-empty `delta.content` are persisted to chat history.
 
-4. **Backfill flow emitters**  
-   - Update representative flows (`src/athos/flows/...` or LangGraph adapters) to populate reasoning/status metadata for known steps.  
+4. **Backfill flow emitters**
+   - Update representative flows (`src/athos/flows/...` or LangGraph adapters) to populate reasoning/status metadata for known steps.
    - Provide guidelines for other flow authors via docstring or developer guide snippet.
 
-**Exit criteria:** Pipeline produces distinct SSE events for chat, status, and reasoning content; transcripts remain clean; documentation explains the event taxonomy.
+**Exit criteria:** Pipeline produces distinct JSON payloads for chat, status, and reasoning content within standard SSE `data:` chunks; transcripts remain clean; documentation explains the event taxonomy and JSON field specifications.
 
 ---
 
-## Milestone M3 – Tool Telemetry & Runtime Hooks
+## Milestone M3 – Cost Metrics & Basic Observability
 
-1. **Tool lifecycle metadata**  
-   - Expand metadata schema with `tool_name`, `call_id`, and payload structures for start/result/error.  
-   - Ensure these fields are optional and validated.
+1. **Token usage tracking**
+   - Extend metadata schema with standardized `usage` structure: `{"prompt_tokens": int, "completion_tokens": int, "total_tokens": int}`.
+   - Add `model_id` and `provider` fields to support multi-model cost attribution.
+   - Update flows to populate usage metadata from model API responses (LangGraph, SmolAgents).
 
-2. **Streaming tool events**  
-   - Update formatter to emit `tool_start`, `tool_output`, and `tool_end` SSE events.  
-   - Display interim tool outputs as ephemeral UI updates (consult OpenWebUI contract).
+2. **Cost calculation utilities**
+   - Create `athos/utils/cost_tracking.py` with pricing data for common models (OpenAI, Anthropic, CBORG).
+   - Provide `calculate_cost(usage: dict, model_id: str) -> float` helper.
+   - Support environment-variable overrides for custom pricing (`ATHOS_PRICING_CONFIG_PATH`).
 
-3. **Runner hook integration**  
-   - Add hook invocations within `FlowRunner` for tool lifecycle transitions.  
-   - Provide default hooks for logging/metrics, optionally bridging to tracing providers mentioned in docs (e.g., OpenTelemetry).
+3. **Usage aggregation in FlowRunner**
+   - Track cumulative token usage per session in `FlowSession.metadata["usage_stats"]`.
+   - Emit usage data in final `FlowOutput.metadata` for both sync and streaming executions.
+   - Add optional logging of usage statistics at completion (controlled by valve/config).
 
-4. **Sample flow instrumentation**  
-   - Instrument at least one LangGraph example to emit the new tool events.  
-   - Capture before/after transcripts in documentation to illustrate behaviour.
+4. **OpenWebUI integration**
+   - Ensure pipeline's `_build_stream_final()` includes `usage` in SSE payload (already partially implemented at line 446).
+   - Add optional valve to display cost estimates in UI (via metadata or status messages).
+   - Document usage tracking in quickstart with example of enabling cost logging.
 
-**Exit criteria:** Tool invocations produce structured streaming updates and can be traced via hooks; sample flows demonstrate the experience.
+**Exit criteria:** All flows emit standardized token usage, FlowRunner aggregates session-level stats, pipeline surfaces usage to OpenWebUI, documentation explains cost tracking setup.
 
 ---
 

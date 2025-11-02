@@ -153,12 +153,19 @@ The following components are **fully implemented and tested**:
 
 ### What's NOT Yet Implemented (⏳ Upcoming Milestones 3-6)
 
-The following are **planned but not yet coded**:
+The following are **in progress or planned**:
 
-- **OpenWebUI Pipeline Integration** (`athos/integrations/openwebui/`): Not created yet
+- **OpenWebUI Pipeline Integration** (`athos/integrations/openwebui/`): ✅ **Core implementation complete**
+  - Functional manifold pipeline (`athos_flowrunner_manifold_pipeline.py`)
+  - Streaming support with SSE formatting
+  - Artifact formatting (images, files, links)
+  - Docker Compose deployment
+  - Valve-based configuration with env var overrides
+  - Basic tests in place
+  - **Still needed**: Rich event semantics (reasoning, status, tool events), persistent sessions (Redis)
 - **Hook System** (`athos/runtime/hooks.py`): Planned for observability/monitoring
-- **Event Formatters** for OpenWebUI: Not yet implemented
-- **Enhanced LangGraph Streaming**: Basic streaming works, but rich events (thinking blocks, tool status) not yet implemented
+- **Rich Event Semantics**: Basic streaming works, but rich events (reasoning blocks, tool lifecycle, status updates) not yet implemented
+- **Cost Tracking**: Token usage and model call metrics not yet systematically captured
 - **Production Features**: Timeouts, metrics, health checks not yet added
 - **Redis/SQL SessionStore**: Only in-memory implementation exists
 
@@ -526,26 +533,30 @@ The OpenWebUI integration plan is documented in detail in `docs/athos_openwebui_
 
 ### Current Focus
 
-**Milestone 3: OpenWebUI Pipeline Integration** ⏳ (NOT STARTED)
+**OpenWebUI Pipeline - Core Implementation** ✅ **COMPLETE**
 
-The next major task is creating the OpenWebUI Pipeline adapter:
+The OpenWebUI Pipeline integration has a functional baseline:
 
-**What needs to be built**:
-1. `athos/integrations/openwebui/pipeline.py`: Pipeline class implementing OpenWebUI protocol
-2. `athos/integrations/openwebui/formatters.py`: Event formatting utilities
-3. Docker Compose deployment configuration
-4. Integration tests with mock OpenWebUI requests
+**What's already built** (`integrations/openwebui/`):
+1. ✅ `pipelines/athos_flowrunner_manifold_pipeline.py`: 500+ line pipeline implementing OpenWebUI protocol
+2. ✅ Docker Compose deployment with custom Pipelines image
+3. ✅ Streaming support with SSE formatting and metadata handling
+4. ✅ Artifact formatting (images, files, links → markdown)
+5. ✅ Valve-based configuration with env var overrides (`ATHOS_PIPELINE_*`)
+6. ✅ Session management (maps `chat_id` to `session_id`)
+7. ✅ Basic tests for streaming metadata
 
-**Key design points**:
-- Pipeline is a thin adapter translating OpenWebUI protocol to FlowRunner calls
-- Uses Valves (Pydantic BaseModel) for user-configurable settings
-- Supports both sync and streaming execution
-- Formats FlowOutput artifacts as markdown for display in OpenWebUI
-- Emits status events during streaming
+**What's documented**:
+- `docs/openwebui_pipelines_quickstart.md`: Complete setup guide
+- `docs/openwebui_pipeline_roadmap.md`: Production roadmap (Redis, events, telemetry)
+- `docs/openwebui_pipeline_architecture.md`: Two-level session design
 
-**Reference implementations**:
-- See `docs/athos_openwebui_integration_plan_v3.0.md` for detailed Pipeline class design
-- Look at Alpha Berkeley patterns for valve configuration and streaming
+**Next priorities** (see roadmap docs):
+1. **M1: Durable Sessions** - Redis-backed SessionStore for persistence across restarts
+2. **M2: Rich Event Semantics** - Structured events for reasoning, status, tool lifecycle
+3. **M3: Cost Metrics & Observability** - Token tracking, usage monitoring, basic telemetry
+4. **M4: Reliability & Automation** - Comprehensive tests, error handling, CI integration
+5. **M5: Documentation & Adoption** - Update guides, examples, migration checklists
 
 ### Upcoming Milestones
 
