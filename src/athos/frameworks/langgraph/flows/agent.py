@@ -187,7 +187,11 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         return FlowOutput(content=content, metadata=metadata)
 
     async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
-        """Stream agent execution with intermediate updates."""
+        """Stream agent execution with intermediate updates.
+
+        Uses graph.astream with stream_mode="messages" for clean message streaming.
+        Future: can expand to ["messages", "updates"] for tool call events.
+        """
 
         logger.info("LangChainAgentFlow.stream message: %s", input.message)
 
@@ -202,39 +206,27 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             len(self.tools),
         )
 
-        tool_calls_seen: List[str] = []
-
         try:
-            async for event in self._graph.astream_events(  # type: ignore[attr-defined]
+            async for chunk in self._graph.astream(  # type: ignore[attr-defined]
                 {"messages": messages},
                 config={"recursion_limit": self.max_iterations},
-                version="v2",
+                stream_mode="messages",
             ):
-                event_type = event.get("event")
+                # chunk is a tuple: (message, metadata)
+                message, metadata = chunk
 
-                if event_type == "on_tool_start":
-                    tool_name = event.get("name", "unknown_tool")
-                    tool_calls_seen.append(tool_name)
+                # Extract content from the message
+                content = ""
+                if hasattr(message, "content"):
+                    content = str(message.content)
+                elif isinstance(message, str):
+                    content = message
+
+                if content:
                     yield FlowOutput(
-                        content="",
-                        metadata={
-                            "streaming": True,
-                            "event_type": "tool_call",
-                            "tool_name": tool_name,
-                            "status_message": f"🔧 Using tool: {tool_name}\n\n",
-                        },
+                        content=content,
+                        metadata={"streaming": True, "chunk": True},
                     )
-
-                elif event_type == "on_chat_model_stream":
-                    chunk_data = event.get("data", {})
-                    chunk = chunk_data.get("chunk")
-                    if chunk and hasattr(chunk, "content"):
-                        chunk_text = str(chunk.content)
-                        if chunk_text:
-                            yield FlowOutput(
-                                content=chunk_text,
-                                metadata={"streaming": True, "chunk": True},
-                            )
 
         except Exception as exc:
             logger.error("LangChain create_agent streaming failed: %s", exc)
@@ -244,13 +236,14 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             )
             return
 
+        # Final metadata update
         yield FlowOutput(
             content="",
             metadata={
                 "streaming": True,
                 "final": True,
                 "model": self.model.model_name,
-                "tools_used": tool_calls_seen,
+                "tools_available": len(self.tools),
             },
         )
 
