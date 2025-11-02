@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING
+from typing import (
+    Any,
+    AsyncGenerator,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    TYPE_CHECKING,
+)
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -19,6 +28,10 @@ from athos.frameworks.langgraph.factories import (
     build_mcp_client,
     build_model,
     build_tool,
+)
+from athos.frameworks.langgraph.flows._stream_utils import (
+    build_tool_update_outputs,
+    coerce_stream_chunk_text,
 )
 from athos.frameworks.langgraph.utils.messages import (
     BaseMessage,
@@ -217,8 +230,10 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
     async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
         """Stream agent execution with intermediate updates.
 
-        Note: LangGraph ReAct agents can emit events for tool calls and reasoning.
-        For now, we use astream_events to get incremental updates.
+        LangGraph's ReAct agents emit both incremental message chunks and
+        structured step updates. We subscribe to both via
+        ``stream_mode=['messages', 'updates']`` so that downstream consumers can
+        render token-by-token output and tool status in parallel.
         """
 
         logger.info(f"LangGraphReactAgentFlow.stream message: {input.message}")
@@ -236,43 +251,41 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
             len(self.tools),
         )
 
-        tool_calls_seen = []
+        tool_calls_seen: List[str] = []
+        seen_tool_call_ids: Set[str] = set()
+        completed_tool_call_ids: Set[str] = set()
 
         try:
-            # Stream events from the graph
-            async for event in self._graph.astream_events(  # type: ignore[attr-defined]
+            # Stream updates from the graph across messages and tool progress
+            async for mode, payload in self._graph.astream(  # type: ignore[attr-defined]
                 {"messages": messages},
                 config={"recursion_limit": self.max_iterations},
-                version="v2",
+                stream_mode=["messages", "updates"],
             ):
-                event_type = event.get("event")
-                event_name = event.get("name", "")
+                if mode == "messages":
+                    token, metadata = payload
+                    chunk_text = coerce_stream_chunk_text(token)
+                    if not chunk_text:
+                        continue
 
-                # Tool call events
-                if event_type == "on_tool_start":
-                    tool_name = event.get("name", "unknown_tool")
-                    tool_calls_seen.append(tool_name)
-                    yield FlowOutput(
-                        content="",
-                        metadata={
-                            "streaming": True,
-                            "event_type": "tool_call",
-                            "tool_name": tool_name,
-                            "status_message": f"🔧 Using tool: {tool_name}\n\n",
-                        },
-                    )
+                    node_name = None
+                    if isinstance(metadata, dict):
+                        node_name = metadata.get("langgraph_node") or metadata.get("node")
 
-                # Model streaming chunks
-                elif event_type == "on_chat_model_stream":
-                    chunk_data = event.get("data", {})
-                    chunk = chunk_data.get("chunk")
-                    if chunk and hasattr(chunk, "content"):
-                        chunk_text = str(chunk.content)
-                        if chunk_text:
-                            yield FlowOutput(
-                                content=chunk_text,
-                                metadata={"streaming": True, "chunk": True},
-                            )
+                    chunk_metadata = {"streaming": True, "chunk": True}
+                    if isinstance(node_name, str) and node_name:
+                        chunk_metadata["node"] = node_name
+
+                    yield FlowOutput(content=chunk_text, metadata=chunk_metadata)
+
+                elif mode == "updates":
+                    for update in build_tool_update_outputs(
+                        payload,
+                        tool_calls_seen=tool_calls_seen,
+                        seen_tool_call_ids=seen_tool_call_ids,
+                        completed_tool_call_ids=completed_tool_call_ids,
+                    ):
+                        yield update
 
         except Exception as exc:
             logger.error("LangGraph ReAct agent streaming failed: %s", exc)

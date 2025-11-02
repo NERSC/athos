@@ -4,7 +4,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING, Self
+from typing import (
+    Any,
+    AsyncGenerator,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Set,
+    TYPE_CHECKING,
+    Self,
+)
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -19,6 +29,10 @@ from athos.frameworks.langgraph.factories import (
     build_mcp_client,
     build_model,
     build_tool,
+)
+from athos.frameworks.langgraph.flows._stream_utils import (
+    build_tool_update_outputs,
+    coerce_stream_chunk_text,
 )
 from athos.frameworks.langgraph.utils.messages import (
     BaseMessage,
@@ -203,38 +217,39 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         )
 
         tool_calls_seen: List[str] = []
+        seen_tool_call_ids: Set[str] = set()
+        completed_tool_call_ids: Set[str] = set()
 
         try:
-            async for event in self._graph.astream_events(  # type: ignore[attr-defined]
+            async for mode, payload in self._graph.astream(  # type: ignore[attr-defined]
                 {"messages": messages},
                 config={"recursion_limit": self.max_iterations},
-                version="v2",
+                stream_mode=["messages", "updates"],
             ):
-                event_type = event.get("event")
+                if mode == "messages":
+                    token, metadata = payload
+                    chunk_text = coerce_stream_chunk_text(token)
+                    if not chunk_text:
+                        continue
 
-                if event_type == "on_tool_start":
-                    tool_name = event.get("name", "unknown_tool")
-                    tool_calls_seen.append(tool_name)
-                    yield FlowOutput(
-                        content="",
-                        metadata={
-                            "streaming": True,
-                            "event_type": "tool_call",
-                            "tool_name": tool_name,
-                            "status_message": f"🔧 Using tool: {tool_name}\n\n",
-                        },
-                    )
+                    node_name = None
+                    if isinstance(metadata, dict):
+                        node_name = metadata.get("langgraph_node") or metadata.get("node")
 
-                elif event_type == "on_chat_model_stream":
-                    chunk_data = event.get("data", {})
-                    chunk = chunk_data.get("chunk")
-                    if chunk and hasattr(chunk, "content"):
-                        chunk_text = str(chunk.content)
-                        if chunk_text:
-                            yield FlowOutput(
-                                content=chunk_text,
-                                metadata={"streaming": True, "chunk": True},
-                            )
+                    chunk_metadata = {"streaming": True, "chunk": True}
+                    if isinstance(node_name, str) and node_name:
+                        chunk_metadata["node"] = node_name
+
+                    yield FlowOutput(content=chunk_text, metadata=chunk_metadata)
+
+                elif mode == "updates":
+                    for update in build_tool_update_outputs(
+                        payload,
+                        tool_calls_seen=tool_calls_seen,
+                        seen_tool_call_ids=seen_tool_call_ids,
+                        completed_tool_call_ids=completed_tool_call_ids,
+                    ):
+                        yield update
 
         except Exception as exc:
             logger.error("LangChain create_agent streaming failed: %s", exc)
