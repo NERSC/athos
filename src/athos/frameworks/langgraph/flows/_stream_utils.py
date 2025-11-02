@@ -14,6 +14,7 @@ duplicating the fairly nuanced parsing logic.
 
 from __future__ import annotations
 
+import json
 from typing import Any, Iterable, List, Mapping, MutableSequence, Sequence, Set, Tuple
 
 from athos.models.flow import FlowOutput
@@ -241,25 +242,95 @@ def _iter_tool_calls(message: AIMessage) -> Iterable[Tuple[str, str, str | None]
     return extracted
 
 
+_TOOL_RESULT_TEXT_KEYS: Tuple[str, ...] = (
+    "answer",
+    "output",
+    "content",
+    "message",
+    "status",
+    "result",
+    "text",
+)
+
+_TOOL_RESULT_MAX_LENGTH = 600
+
+
+def _truncate_tool_text(value: str) -> str:
+    value = value.strip()
+    if len(value) <= _TOOL_RESULT_MAX_LENGTH:
+        return value
+    return value[: _TOOL_RESULT_MAX_LENGTH - 1].rstrip() + "…"
+
+
+def _summarize_tool_results(results: Any) -> str | None:
+    if not isinstance(results, Sequence) or isinstance(results, (str, bytes)):
+        return None
+
+    lines: List[str] = []
+    for entry in results:
+        if isinstance(entry, Mapping):
+            title = entry.get("title")
+            snippet = entry.get("content") or entry.get("text")
+            if isinstance(title, str) and title.strip():
+                line = f"- {title.strip()}"
+                if isinstance(snippet, str) and snippet.strip():
+                    line = f"{line}: {snippet.strip()}"
+                lines.append(line)
+            elif isinstance(snippet, str) and snippet.strip():
+                lines.append(snippet.strip())
+        elif isinstance(entry, str) and entry.strip():
+            lines.append(entry.strip())
+
+        if len(lines) >= 3:
+            break
+
+    if not lines:
+        return None
+
+    summary = "\n".join(lines)
+    return _truncate_tool_text(summary)
+
+
 def _coerce_tool_message_content(content: Any) -> str:
     """Render tool message content as human-readable text."""
 
     if isinstance(content, str):
         return content
 
+    if isinstance(content, Mapping):
+        for key in _TOOL_RESULT_TEXT_KEYS:
+            value = content.get(key)
+            if isinstance(value, str) and value.strip():
+                return _truncate_tool_text(value)
+
+        summary = _summarize_tool_results(content.get("results"))
+        if summary:
+            return summary
+
+        try:
+            serialized = json.dumps(content, ensure_ascii=False)
+        except TypeError:
+            serialized = str(content)
+        return _truncate_tool_text(serialized)
+
     if isinstance(content, Sequence) and not isinstance(content, (str, bytes)):
         pieces = []
         for item in content:
             if isinstance(item, Mapping):
                 text = item.get("text")
-                if isinstance(text, str):
-                    pieces.append(text)
-            elif isinstance(item, str):
-                pieces.append(item)
+                if isinstance(text, str) and text.strip():
+                    pieces.append(text.strip())
+                    continue
+                nested = _coerce_tool_message_content(item)
+                if nested:
+                    pieces.append(nested)
+            elif isinstance(item, str) and item.strip():
+                pieces.append(item.strip())
         if pieces:
-            return "".join(pieces)
+            return _truncate_tool_text("\n".join(pieces))
 
-    return str(content)
+    coerced = str(content)
+    return _truncate_tool_text(coerced)
 
 
 __all__ = [
