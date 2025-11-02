@@ -233,9 +233,9 @@ flows:
     system_prompt: |
       You are a friendly assistant helping users explore the LangGraph chatbot flow
       example. Provide concise, welcoming responses and let users know how you can help.
-    initial_history:
-      - "Hello!"
-      - "Hi there! I'm the LangGraph chatbot example ready to assist you."
+    # initial_history:
+    #   - "Hello!"
+    #   - "Hi there! I'm the LangGraph chatbot example ready to assist you."
 
   langgraph_react_web_agent_demo:
     description: "LangGraph ReAct agent that uses DuckDuckGo search for web answers"
@@ -246,7 +246,7 @@ flows:
       You are a friendly assistant help users with questions. Always consider using
       a web search tool before responding so you can reference up-to-date information.
       Summarize the findings concisely in your reply.
-    max_iterations: 8
+    max_iterations: 16
 
   langchain_web_agent:
     description: "LangChain create_agent demo that mirrors the ReAct web agent"
@@ -257,7 +257,7 @@ flows:
       You are a helpful research assistant. Use the web search tool when it would add
       useful, current information to your answer. Cite the sources you rely on and keep
       replies concise and actionable.
-    max_iterations: 8
+    max_iterations: 16
 
 
 # Logging configuration
