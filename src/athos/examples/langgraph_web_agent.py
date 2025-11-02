@@ -49,17 +49,17 @@ async def run_demo(*, config_path: str, flow_name: str) -> None:
             return
 
         print(f"\nQuery: {query}")
-        print(f"Result full: {result}")
-        # print(f"Result: {result.output.content}")
+        # print(f"Result full: {result}")
+        print(f"Result content: {result.output.content}")
 
         # Retrieve and print the conversation history
-        session = await runner.session_store.get_or_create(
-            session_id=result.session_id,
-            user_id="demo-user",
-        )
-        history = session.get_history()
-        print("\nConversation History:")
-        pprint.pprint(history)
+        # session = await runner.session_store.get_or_create(
+        #     session_id=result.session_id,
+        #     user_id="demo-user",
+        # )
+        # history = session.get_history()
+        # print("\nConversation History:")
+        # pprint.pprint(history)
     finally:
         await runner.cleanup()
 
@@ -67,7 +67,7 @@ async def run_demo(*, config_path: str, flow_name: str) -> None:
 async def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the LangGraph ReAct agent example which uses DuckDuckGo search."
+            "Run the LangGraph agent example which uses tavily web search."
         )
     )
     parser.add_argument(
@@ -77,8 +77,8 @@ async def main() -> None:
     )
     parser.add_argument(
         "--flow-name",
-        default="langgraph_react_web_agent_demo",
-        help="Name of the LangGraph ReAct flow defined in the configuration file.",
+        default="langchain_web_agent",
+        help="Name of the ATHOS flow to use.",
     )
     args = parser.parse_args()
 
