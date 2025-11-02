@@ -14,11 +14,10 @@ duplicating the fairly nuanced parsing logic.
 
 from __future__ import annotations
 
-import json
 from typing import Any, Iterable, List, Mapping, MutableSequence, Sequence, Set, Tuple
 
 from athos.models.flow import FlowOutput
-from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage
 
 
 def coerce_stream_chunk_text(chunk: object) -> str:
@@ -84,7 +83,6 @@ def build_tool_update_outputs(
     *,
     tool_calls_seen: MutableSequence[str],
     seen_tool_call_ids: Set[str],
-    completed_tool_call_ids: Set[str],
 ) -> List[FlowOutput]:
     """Convert ``stream_mode="updates"`` payloads into ``FlowOutput`` objects.
 
@@ -103,15 +101,12 @@ def build_tool_update_outputs(
         Set of synthetic identifiers used to de-duplicate tool call
         notifications. LangGraph replays the latest state on every update, so
         without de-duplication we would emit the same status repeatedly.
-    completed_tool_call_ids:
-        Set tracking tool call identifiers whose results have already been
-        surfaced.
 
     Returns
     -------
     list[FlowOutput]
-        ``FlowOutput`` instances describing tool invocation and completion
-        events derived from the update payload.
+        ``FlowOutput`` instances describing tool invocation events derived from
+        the update payload.
     """
 
     outputs: List[FlowOutput] = []
@@ -128,7 +123,6 @@ def build_tool_update_outputs(
                     node=node,
                     tool_calls_seen=tool_calls_seen,
                     seen_tool_call_ids=seen_tool_call_ids,
-                    completed_tool_call_ids=completed_tool_call_ids,
                 )
             )
 
@@ -159,7 +153,6 @@ def _build_outputs_for_message(
     node: str,
     tool_calls_seen: MutableSequence[str],
     seen_tool_call_ids: Set[str],
-    completed_tool_call_ids: Set[str],
 ) -> List[FlowOutput]:
     outputs: List[FlowOutput] = []
 
@@ -178,28 +171,6 @@ def _build_outputs_for_message(
                 "node": node,
             }
             outputs.append(FlowOutput(content="", metadata=metadata))
-
-    if isinstance(message, ToolMessage):
-        call_id = getattr(message, "tool_call_id", None)
-        dedup_id = str(call_id) if call_id is not None else f"{node}:{id(message)}"
-        if dedup_id in completed_tool_call_ids:
-            return outputs
-
-        completed_tool_call_ids.add(dedup_id)
-
-        tool_name = getattr(message, "name", None) or getattr(message, "tool", None)
-        tool_name = tool_name or "tool"
-        result_text = _coerce_tool_message_content(message.content)
-
-        metadata = {
-            "streaming": True,
-            "event_type": "tool_result",
-            "tool_name": tool_name,
-            "tool_call_id": call_id,
-            "status_message": result_text,
-            "node": node,
-        }
-        outputs.append(FlowOutput(content="", metadata=metadata))
 
     return outputs
 
@@ -240,97 +211,6 @@ def _iter_tool_calls(message: AIMessage) -> Iterable[Tuple[str, str, str | None]
         extracted.append((dedup_id, display_name, call_id))
 
     return extracted
-
-
-_TOOL_RESULT_TEXT_KEYS: Tuple[str, ...] = (
-    "answer",
-    "output",
-    "content",
-    "message",
-    "status",
-    "result",
-    "text",
-)
-
-_TOOL_RESULT_MAX_LENGTH = 600
-
-
-def _truncate_tool_text(value: str) -> str:
-    value = value.strip()
-    if len(value) <= _TOOL_RESULT_MAX_LENGTH:
-        return value
-    return value[: _TOOL_RESULT_MAX_LENGTH - 1].rstrip() + "…"
-
-
-def _summarize_tool_results(results: Any) -> str | None:
-    if not isinstance(results, Sequence) or isinstance(results, (str, bytes)):
-        return None
-
-    lines: List[str] = []
-    for entry in results:
-        if isinstance(entry, Mapping):
-            title = entry.get("title")
-            snippet = entry.get("content") or entry.get("text")
-            if isinstance(title, str) and title.strip():
-                line = f"- {title.strip()}"
-                if isinstance(snippet, str) and snippet.strip():
-                    line = f"{line}: {snippet.strip()}"
-                lines.append(line)
-            elif isinstance(snippet, str) and snippet.strip():
-                lines.append(snippet.strip())
-        elif isinstance(entry, str) and entry.strip():
-            lines.append(entry.strip())
-
-        if len(lines) >= 3:
-            break
-
-    if not lines:
-        return None
-
-    summary = "\n".join(lines)
-    return _truncate_tool_text(summary)
-
-
-def _coerce_tool_message_content(content: Any) -> str:
-    """Render tool message content as human-readable text."""
-
-    if isinstance(content, str):
-        return content
-
-    if isinstance(content, Mapping):
-        for key in _TOOL_RESULT_TEXT_KEYS:
-            value = content.get(key)
-            if isinstance(value, str) and value.strip():
-                return _truncate_tool_text(value)
-
-        summary = _summarize_tool_results(content.get("results"))
-        if summary:
-            return summary
-
-        try:
-            serialized = json.dumps(content, ensure_ascii=False)
-        except TypeError:
-            serialized = str(content)
-        return _truncate_tool_text(serialized)
-
-    if isinstance(content, Sequence) and not isinstance(content, (str, bytes)):
-        pieces = []
-        for item in content:
-            if isinstance(item, Mapping):
-                text = item.get("text")
-                if isinstance(text, str) and text.strip():
-                    pieces.append(text.strip())
-                    continue
-                nested = _coerce_tool_message_content(item)
-                if nested:
-                    pieces.append(nested)
-            elif isinstance(item, str) and item.strip():
-                pieces.append(item.strip())
-        if pieces:
-            return _truncate_tool_text("\n".join(pieces))
-
-    coerced = str(content)
-    return _truncate_tool_text(coerced)
 
 
 __all__ = [

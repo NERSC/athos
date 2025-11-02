@@ -218,7 +218,6 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         tool_calls_seen: List[str] = []
         seen_tool_call_ids: Set[str] = set()
-        completed_tool_call_ids: Set[str] = set()
 
         try:
             async for mode, payload in self._graph.astream(  # type: ignore[attr-defined]
@@ -247,7 +246,6 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                         payload,
                         tool_calls_seen=tool_calls_seen,
                         seen_tool_call_ids=seen_tool_call_ids,
-                        completed_tool_call_ids=completed_tool_call_ids,
                     ):
                         yield update
 

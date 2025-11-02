@@ -1,46 +1,51 @@
 from __future__ import annotations
 
+from typing import List, Set
+
 from athos.frameworks.langgraph.flows._stream_utils import (
-    _TOOL_RESULT_MAX_LENGTH,
-    _coerce_tool_message_content,
+    build_tool_update_outputs,
 )
+from athos.models.flow import FlowOutput
+from langchain_core.messages import AIMessage
 
 
-def test_coerce_tool_message_content_prefers_answer_field():
-    content = {
-        "answer": "Here is the concise answer.",
-        "results": [
-            {"title": "Ignored", "content": "This should not appear"},
-        ],
-    }
-
-    result = _coerce_tool_message_content(content)
-
-    assert result == "Here is the concise answer."
+def _build_payload_with_tool(tool_name: str) -> dict[str, List[AIMessage]]:
+    message = AIMessage(
+        content="",
+        tool_calls=[{"id": "call-1", "name": tool_name, "args": {}}],
+    )
+    return {"model": [message]}
 
 
-def test_coerce_tool_message_content_summarizes_results_list():
-    content = {
-        "results": [
-            {"title": "Item A", "content": "Snippet A"},
-            {"title": "Item B", "content": "Snippet B"},
-            {"title": "Item C", "content": "Snippet C"},
-            {"title": "Item D", "content": "Snippet D"},
-        ]
-    }
+def test_build_tool_update_outputs_emits_tool_start() -> None:
+    payload = _build_payload_with_tool("tavily_search")
+    tool_calls_seen: List[str] = []
+    seen_tool_call_ids: Set[str] = set()
 
-    result = _coerce_tool_message_content(content)
+    outputs = build_tool_update_outputs(
+        payload,
+        tool_calls_seen=tool_calls_seen,
+        seen_tool_call_ids=seen_tool_call_ids,
+    )
 
-    assert result.count("\n") == 2  # Only the first three entries are included
-    assert "Item A" in result and "Snippet A" in result
-    assert "Item D" not in result
+    assert len(outputs) == 1
+    output: FlowOutput = outputs[0]
+    assert output.metadata["event_type"] == "tool_call"
+    assert output.metadata["tool_name"] == "tavily_search"
+    assert "Using tool: tavily_search" in output.metadata["status_message"]
+    assert tool_calls_seen == ["tavily_search"]
 
 
-def test_coerce_tool_message_content_truncates_long_payloads():
-    long_value = "x" * (_TOOL_RESULT_MAX_LENGTH + 100)
-    content = {"results": long_value}
+def test_build_tool_update_outputs_deduplicates_replayed_messages() -> None:
+    payload = _build_payload_with_tool("tavily_search")
+    tool_calls_seen: List[str] = []
+    seen_tool_call_ids: Set[str] = {"call-1"}
 
-    result = _coerce_tool_message_content(content)
+    outputs = build_tool_update_outputs(
+        payload,
+        tool_calls_seen=tool_calls_seen,
+        seen_tool_call_ids=seen_tool_call_ids,
+    )
 
-    assert len(result) == _TOOL_RESULT_MAX_LENGTH
-    assert result.endswith("…")
+    assert outputs == []
+    assert tool_calls_seen == []
