@@ -237,27 +237,27 @@ flows:
     #   - "Hello!"
     #   - "Hi there! I'm the LangGraph chatbot example ready to assist you."
 
-  langgraph_react_web_agent_demo:
-    description: "LangGraph ReAct agent that uses DuckDuckGo search for web answers"
-    type: "langgraph_react_agent"
-    model: "cborg_coder"
-    tools: ["langchain_tavily_search"]
-    instructions: |
-      You are a friendly assistant help users with questions. Always consider using
-      a web search tool before responding so you can reference up-to-date information.
-      Summarize the findings concisely in your reply.
-    max_iterations: 16
+  # langgraph_react_web_agent_demo:
+  #   description: "LangGraph ReAct agent that uses DuckDuckGo search for web answers"
+  #   type: "langgraph_react_agent"
+  #   model: "cborg_coder"
+  #   tools: ["langchain_tavily_search"]
+  #   instructions: |
+  #     You are a friendly assistant help users with questions. Always consider using
+  #     a web search tool before responding so you can reference up-to-date information.
+  #     Summarize the findings concisely in your reply.
+  #   max_iterations: 16
 
   langchain_web_agent:
-    description: "LangChain create_agent demo that mirrors the ReAct web agent"
+    description: "LangChain agent demo with web search tool"
     type: "langchain_agent"
     model: "cborg_coder"
     tools: ["langchain_tavily_search"]
     instructions: |
       You are a helpful research assistant. Use the web search tool when it would add
       useful, current information to your answer. Cite the sources you rely on and keep
-      replies concise and actionable.
-    max_iterations: 16
+      replies concise and actionable. Put any cited URLs at the end of your message.
+    max_iterations: 32
 
 
 # Logging configuration

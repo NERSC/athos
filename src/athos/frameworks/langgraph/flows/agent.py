@@ -36,10 +36,12 @@ if TYPE_CHECKING:  # pragma: no cover - type checking only
 
 try:  # pragma: no cover - optional dependency
     from langchain.agents import create_agent
-    from langchain_core.messages import AIMessage
+    from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 except Exception as exc:  # pragma: no cover - executed only when langchain missing
     create_agent = None  # type: ignore[assignment]
     AIMessage = None  # type: ignore[assignment]
+    AIMessageChunk = None  # type: ignore[assignment]
+    ToolMessage = None  # type: ignore[assignment]
     _CREATE_AGENT_IMPORT_ERROR: Optional[Exception] = exc
 else:  # pragma: no cover - executed when dependency is available
     _CREATE_AGENT_IMPORT_ERROR = None
@@ -187,9 +189,58 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         return FlowOutput(content=content, metadata=metadata)
 
     async def stream(self, input: FlowInput) -> AsyncGenerator[FlowOutput, None]:
-        """Stream agent execution with intermediate updates."""
+        """Stream agent execution with type-aware message handling.
 
-        logger.info("LangChainAgentFlow.stream message: %s", input.message)
+        Uses graph.astream with stream_mode="messages" for token-level streaming.
+        Provides informative status messages during tool execution phases.
+
+        **Streaming Phases:**
+
+        1. **Tool Call Initiation**: When the agent decides to call a tool,
+           AIMessageChunk messages arrive with `tool_call_chunks` containing
+           incremental JSON. We detect the first chunk and yield a status message.
+
+        2. **Tool Execution**: After the model completes tool call arguments,
+           a ToolMessage arrives from the 'tools' node with the execution result.
+           We yield a completion status message.
+
+        3. **Response Streaming**: The agent generates its final response as
+           AIMessageChunk messages with actual text content, streamed token by token.
+
+        **Message Type Handling:**
+
+        - **AIMessageChunk**: Check for tool_call_chunks (tool initiation) or
+          actual content (response text). Use chunk_position='last' to detect
+          phase transitions.
+
+        - **ToolMessage**: Indicates tool execution completed. Contains tool name
+          and result in content field.
+
+        **Metadata Fields:**
+
+        - `streaming`: Always True during streaming
+        - `chunk`: True for intermediate chunks, False for status messages
+        - `message_type`: Type name (AIMessageChunk, ToolMessage)
+        - `node`: LangGraph node name (model, tools)
+        - `tool_name`: Name of tool being called/completed
+        - `event`: Lifecycle events (tool_call_start, tool_call_complete)
+        - `status_message`: Human-readable status text for tool execution events
+        - `finish_reason`: 'tool_calls' or 'stop' from final chunks
+        - `chunk_position`: 'last' on final chunk in a sequence
+
+        **Note:** Status messages for tool execution are provided via
+        `metadata["status_message"]` rather than `content` to keep the Flow
+        interface-agnostic. OpenWebUI Pipeline uses status_message for
+        displaying progress indicators.
+
+        Args:
+            input: Flow input containing user message and session state
+
+        Yields:
+            FlowOutput: Streaming chunks with content and rich metadata
+        """
+
+        logger.info("LangChainAgentFlow.stream started for message: %s", input.message)
 
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -201,56 +252,180 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             len(messages),
             len(self.tools),
         )
+        stream_modes = ["messages", "updates"]
+        logger.info("Starting astream with stream_mode=%s", stream_modes)
 
-        tool_calls_seen: List[str] = []
+        # Track whether we've emitted thinking status
+        thinking_emitted = False
 
         try:
-            async for event in self._graph.astream_events(  # type: ignore[attr-defined]
+            async for stream_mode, chunk in self._graph.astream(  # type: ignore[attr-defined]
                 {"messages": messages},
                 config={"recursion_limit": self.max_iterations},
-                version="v2",
+                stream_mode=stream_modes,
             ):
-                event_type = event.get("event")
+                if stream_mode == "messages":
+                    # Chunk is a tuple: (message, metadata)
+                    message, metadata = chunk
+                    node_name = metadata.get("langgraph_node", "")
+                    message_type = type(message).__name__
 
-                if event_type == "on_tool_start":
-                    tool_name = event.get("name", "unknown_tool")
-                    tool_calls_seen.append(tool_name)
-                    yield FlowOutput(
-                        content="",
-                        metadata={
-                            "streaming": True,
-                            "event_type": "tool_call",
-                            "tool_name": tool_name,
-                            "status_message": f"🔧 Using tool: {tool_name}\n\n",
-                        },
-                    )
+                    # Debug: log all message types we receive
+                    # logger.info(
+                    #     "Received %s from node=%s, has_tool_call_chunks=%s, has_content=%s",
+                    #     message_type,
+                    #     node_name,
+                    #     hasattr(message, "tool_call_chunks") and bool(message.tool_call_chunks),
+                    #     hasattr(message, "content") and bool(message.content)
+                    # )
 
-                elif event_type == "on_chat_model_stream":
-                    chunk_data = event.get("data", {})
-                    chunk = chunk_data.get("chunk")
-                    if chunk and hasattr(chunk, "content"):
-                        chunk_text = str(chunk.content)
-                        if chunk_text:
-                            yield FlowOutput(
-                                content=chunk_text,
-                                metadata={"streaming": True, "chunk": True},
+                    # === Handle AIMessageChunk (model output) ===
+                    if AIMessageChunk and isinstance(message, AIMessageChunk):
+                        if not thinking_emitted:
+                            thinking_emitted = True
+                            status_output = FlowOutput(
+                                content="",
+                                metadata={
+                                    "streaming": True,
+                                    "chunk": False,
+                                    "message_type": message_type,
+                                    "node": node_name,
+                                    "event_type": "thinking",
+                                    "status_message": "🤔 Thinking...",
+                                },
                             )
+                            logger.info(
+                                "Yielding thinking status: content=%r, metadata=%s",
+                                status_output.content,
+                                status_output.metadata,
+                            )
+                            yield status_output
+
+                        # Check for actual text content (agent response)
+                        # Content is streamed token by token
+                        if hasattr(message, "content") and message.content:
+                            content = str(message.content)
+                            # Build metadata for this chunk
+                            chunk_meta: Dict[str, Any] = {
+                                "streaming": True,
+                                "chunk": True,
+                                "message_type": message_type,
+                                "node": node_name,
+                            }
+
+                            # Include finish_reason if present (indicates final chunk)
+                            if hasattr(message, "response_metadata"):
+                                finish_reason = message.response_metadata.get(
+                                    "finish_reason"
+                                )
+                                if finish_reason:
+                                    chunk_meta["finish_reason"] = finish_reason
+
+                            # Include chunk_position marker ('last' indicates end)
+                            if hasattr(message, "chunk_position"):
+                                chunk_meta["chunk_position"] = message.chunk_position
+
+                            yield FlowOutput(content=content, metadata=chunk_meta)
+
+                    # === Handle ToolMessage (tool execution result) ===
+                    elif ToolMessage and isinstance(message, ToolMessage):
+                        # Tool has completed execution
+                        # ToolMessage arrives from 'tools' node with result
+                        tool_name = getattr(message, "name", "unknown")
+                        tool_result = getattr(message, "content", "")
+
+                        logger.info(
+                            "Tool call completed: %s - yielding status message with result", tool_name
+                        )
+
+                        status_output = FlowOutput(
+                            content="",
+                            metadata={
+                                "streaming": True,
+                                "chunk": False,
+                                "message_type": message_type,
+                                "node": node_name,
+                                "tool_name": tool_name,
+                                "tool_result": tool_result,  # Raw tool output for UI formatting
+                                "event_type": "tool_call_complete",
+                                "status_message": f"✅ Tool {tool_name} completed",
+                            },
+                        )
+                        logger.info(
+                            "Yielding tool_call_complete: content=%r, metadata=%s",
+                            status_output.content,
+                            status_output.metadata
+                        )
+                        yield status_output
+
+                elif stream_mode == "updates":
+                    # chunk is dict like {'node_name': {'messages': [...]}}
+                    for node_name, data in chunk.items():
+                        logger.info("Streaming update for node %s: %s", node_name, data)
+
+                        if node_name != "model":
+                            continue
+
+                        messages = data.get("messages") if isinstance(data, dict) else None
+                        if not messages:
+                            continue
+
+                        for message in messages:
+                            message_type = type(message).__name__
+                            tool_calls = getattr(message, "tool_calls", None)
+                            if not tool_calls:
+                                continue
+
+                            for tool_call in tool_calls:
+                                if isinstance(tool_call, dict):
+                                    tool_name = tool_call.get("name", "unknown")
+                                    tool_args = tool_call.get("args", {})
+                                else:
+                                    tool_name = getattr(tool_call, "name", "unknown")
+                                    tool_args = getattr(tool_call, "args", {})
+
+                                # Format tool call with arguments
+                                formatted_call = self._format_tool_call(tool_name, tool_args)
+
+                                status_output = FlowOutput(
+                                    content="",
+                                    metadata={
+                                        "streaming": True,
+                                        "chunk": False,
+                                        "message_type": message_type,
+                                        "node": node_name,
+                                        "tool_name": tool_name,
+                                        "event_type": "tool_call_start",
+                                        "status_message": f"🔧 {formatted_call}",
+                                    },
+                                )
+                                logger.info(
+                                    "Yielding tool_call_start from updates: content=%r, metadata=%s",
+                                    status_output.content,
+                                    status_output.metadata,
+                                )
+                                yield status_output
 
         except Exception as exc:
             logger.error("LangChain create_agent streaming failed: %s", exc)
             yield FlowOutput(
                 content=f"Error: {exc}",
-                metadata={"error": True, "streaming": True},
+                metadata={
+                    "error": True,
+                    "streaming": True,
+                    "exception_type": type(exc).__name__,
+                },
             )
             return
 
+        # Final metadata update indicating stream completion
         yield FlowOutput(
             content="",
             metadata={
                 "streaming": True,
                 "final": True,
                 "model": self.model.model_name,
-                "tools_used": tool_calls_seen,
+                "tools_available": len(self.tools),
             },
         )
 
@@ -264,6 +439,37 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                     logger.debug("Closed MCP client connection")
             except Exception:  # pragma: no cover - best-effort cleanup
                 logger.debug("Ignoring MCP client close error", exc_info=True)
+
+    def _format_tool_call(self, tool_name: str, tool_input: Any) -> str:
+        """Format a tool call as a function signature.
+
+        Args:
+            tool_name: Name of the tool being called
+            tool_input: Arguments passed to the tool (dict or other)
+
+        Returns:
+            Formatted string like: "Calling tool: tool_name(arg1='value1', arg2='value2')"
+        """
+        if not tool_input:
+            return f"Calling tool: {tool_name}()"
+
+        # Handle dict input (most common case)
+        if isinstance(tool_input, dict):
+            # Format as key=value pairs
+            args_parts = []
+            for key, value in tool_input.items():
+                # Format value with quotes if it's a string
+                if isinstance(value, str):
+                    formatted_value = f'"{value}"'
+                else:
+                    formatted_value = str(value)
+                args_parts.append(f"{key}={formatted_value}")
+
+            args_str = ", ".join(args_parts)
+            return f"Calling tool: {tool_name}({args_str})"
+
+        # Handle non-dict input (rare, but possible)
+        return f"Calling tool: {tool_name}({tool_input!r})"
 
     def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
         """Build message list from session history + new input."""

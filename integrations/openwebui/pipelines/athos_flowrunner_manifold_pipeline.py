@@ -316,18 +316,37 @@ class Pipeline:
                         is_terminal = is_final or is_streaming_disabled
                         status_message = event_metadata.get("status_message")
 
+                        # logger.info(
+                        #     "Pipeline received chunk: content=%r, status_message=%r, is_terminal=%s, event=%s",
+                        #     output.content[:100] if output.content else "",
+                        #     status_message,
+                        #     is_terminal,
+                        #     event_metadata.get("event")
+                        # )
+
                         # Prefer content, but send status message if content is empty and not terminal
                         chunk_to_emit = output.content
                         if not chunk_to_emit and status_message and not is_terminal:
-                            chunk_to_emit = status_message
+                            # Format status messages differently for visual distinction
+                            chunk_to_emit = self._format_status_message(status_message, event_metadata)
+                            logger.info(
+                                "Using status_message as chunk_to_emit: %r", chunk_to_emit
+                            )
 
                         if chunk_to_emit:
+                            # logger.info(
+                            #     "Emitting chunk: %r (length=%d)",
+                            #     chunk_to_emit[:100] if len(chunk_to_emit) > 100 else chunk_to_emit,
+                            #     len(chunk_to_emit)
+                            # )
                             yield self._build_stream_chunk(
                                 chunk_id,
                                 created,
                                 flow_name,
                                 chunk_to_emit,
                             )
+                        # else:
+                        #     logger.info("Skipping empty chunk (no content or status_message)")
 
                         if is_terminal:
                             # The final event's content is for history, not for display.
@@ -466,6 +485,75 @@ class Pipeline:
             elif artifact.type == "link" and artifact.data:
                 parts.append(f"\n\n🔗 [{artifact.display_name or 'link'}]({artifact.data})")
         return "".join(parts)
+
+    def _format_status_message(self, status_message: str, event_metadata: Dict[str, Any]) -> str:
+        """Format status messages with visual distinction from regular chat content.
+
+        Uses markdown blockquote styling to create visual separation in the UI.
+        Different event types can have different formatting styles.
+
+        Args:
+            status_message: The status text to format
+            event_metadata: Metadata about the event (e.g., event_type, tool_name, tool_result)
+
+        Returns:
+            Formatted status message with markdown styling
+        """
+        event_type = event_metadata.get("event_type")
+
+        # Info logging to understand what event types we're receiving
+        logger.info(
+            "Formatting status message: event_type=%r, metadata keys=%s",
+            event_type,
+            list(event_metadata.keys())
+        )
+
+        # Remove trailing newlines from status_message for cleaner formatting
+        clean_message = status_message.rstrip()
+
+        # Tool call completion - add collapsible result if available
+        if event_type == "tool_call_complete":
+            tool_result = event_metadata.get("tool_result")
+            if tool_result:
+                result_str = str(tool_result) if tool_result else "(no output)"
+                # Format with HTML details/summary for collapsible section
+                formatted = f"""> {clean_message}
+>
+> <details>
+> <summary>View tool output</summary>
+>
+> ```
+> {result_str}
+> ```
+>
+> </details>
+
+"""
+                return formatted
+            else:
+                # No result, just show completion message
+                return f"> {clean_message}\n\n"
+
+        # Tool call start events - use blockquote
+        elif event_type in ("tool_call", "tool_call_start"):
+            return f"> {clean_message}\n\n"
+
+        # Reasoning/thinking events - use italic blockquote for visual distinction
+        elif event_type in ("reasoning", "thinking"):
+            return f"> *{clean_message}*\n\n"
+
+        # Generic status events - use plain blockquote
+        elif event_type == "status":
+            return f"> {clean_message}\n\n"
+
+        # Unknown event type - default to plain blockquote (no extra icon)
+        # The status_message likely already contains its own emoji
+        else:
+            logger.warning(
+                "Unknown event_type %r in status message formatting, using default blockquote",
+                event_type
+            )
+            return f"> {clean_message}\n\n"
 
     def _format_flow_name(self, flow: str, description: Optional[str]) -> str:
         if description:
