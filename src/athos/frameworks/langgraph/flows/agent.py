@@ -190,7 +190,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         """Stream agent execution with intermediate updates.
 
         Uses graph.astream with stream_mode="messages" for clean message streaming.
-        Future: can expand to ["messages", "updates"] for tool call events.
+        Only yields AI assistant messages to avoid exposing raw tool data.
         """
 
         logger.info("LangChainAgentFlow.stream message: %s", input.message)
@@ -215,12 +215,16 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 # chunk is a tuple: (message, metadata)
                 message, metadata = chunk
 
-                # Extract content from the message
+                # Filter out tool node messages (raw tool results)
+                # Only stream messages from the model node (AI responses)
+                node_name = metadata.get("langgraph_node", "")
+                if node_name == "tools":
+                    continue
+
+                # Extract content from AI messages
                 content = ""
                 if hasattr(message, "content"):
                     content = str(message.content)
-                elif isinstance(message, str):
-                    content = message
 
                 if content:
                     yield FlowOutput(
