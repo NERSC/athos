@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Set, TYPE_CHECKING, Self
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING, Self
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -255,10 +255,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         stream_modes = ["messages", "updates"]
         logger.info("Starting astream with stream_mode=%s", stream_modes)
 
-        # Track tool call state across chunks
-        tool_call_in_progress = False
-        current_tool_name: Optional[str] = None
-        started_tool_call_ids: Set[str] = set()
+        # Track whether we've emitted thinking status
         thinking_emitted = False
 
         try:
@@ -293,8 +290,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                                     "chunk": False,
                                     "message_type": message_type,
                                     "node": node_name,
-                                    "event": "thinking",
-                                    "status_message": "🤔 Thinking...\n",
+                                    "event_type": "thinking",
+                                    "status_message": "🤔 Thinking...",
                                 },
                             )
                             logger.info(
@@ -335,31 +332,31 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                         # Tool has completed execution
                         # ToolMessage arrives from 'tools' node with result
                         tool_name = getattr(message, "name", "unknown")
-                        if tool_call_in_progress and current_tool_name:
-                            logger.info(
-                                "Tool call completed: %s - yielding status message", current_tool_name
-                            )
-                            status_output = FlowOutput(
-                                content="",
-                                metadata={
-                                    "streaming": True,
-                                    "chunk": False,
-                                    "message_type": message_type,
-                                    "node": node_name,
-                                    "tool_name": current_tool_name,
-                                    "event": "tool_call_complete",
-                                    "status_message": f"✅ Tool {current_tool_name} completed\n",
-                                },
-                            )
-                            logger.info(
-                                "Yielding tool_call_complete: content=%r, metadata=%s",
-                                status_output.content,
-                                status_output.metadata
-                            )
-                            yield status_output
-                            # Reset tool call tracking
-                            tool_call_in_progress = False
-                            current_tool_name = None
+                        tool_result = getattr(message, "content", "")
+
+                        logger.info(
+                            "Tool call completed: %s - yielding status message with result", tool_name
+                        )
+
+                        status_output = FlowOutput(
+                            content="",
+                            metadata={
+                                "streaming": True,
+                                "chunk": False,
+                                "message_type": message_type,
+                                "node": node_name,
+                                "tool_name": tool_name,
+                                "tool_result": tool_result,  # Raw tool output for UI formatting
+                                "event_type": "tool_call_complete",
+                                "status_message": f"✅ Tool {tool_name} completed",
+                            },
+                        )
+                        logger.info(
+                            "Yielding tool_call_complete: content=%r, metadata=%s",
+                            status_output.content,
+                            status_output.metadata
+                        )
+                        yield status_output
 
                 elif stream_mode == "updates":
                     # chunk is dict like {'node_name': {'messages': [...]}}
@@ -381,21 +378,14 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
                             for tool_call in tool_calls:
                                 if isinstance(tool_call, dict):
-                                    tool_call_id = tool_call.get("id")
-                                    tool_name = tool_call.get("name")
+                                    tool_name = tool_call.get("name", "unknown")
+                                    tool_args = tool_call.get("args", {})
                                 else:
-                                    tool_call_id = getattr(tool_call, "id", None)
-                                    tool_name = getattr(tool_call, "name", None)
+                                    tool_name = getattr(tool_call, "name", "unknown")
+                                    tool_args = getattr(tool_call, "args", {})
 
-                                identifier = tool_call_id or tool_name
-                                if identifier and identifier in started_tool_call_ids:
-                                    continue
-
-                                if identifier:
-                                    started_tool_call_ids.add(identifier)
-
-                                current_tool_name = tool_name or "unknown"
-                                tool_call_in_progress = True
+                                # Format tool call with arguments
+                                formatted_call = self._format_tool_call(tool_name, tool_args)
 
                                 status_output = FlowOutput(
                                     content="",
@@ -404,9 +394,9 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                                         "chunk": False,
                                         "message_type": message_type,
                                         "node": node_name,
-                                        "tool_name": current_tool_name,
-                                        "event": "tool_call_start",
-                                        "status_message": f"🔧 Calling tool: {current_tool_name}\n",
+                                        "tool_name": tool_name,
+                                        "event_type": "tool_call_start",
+                                        "status_message": f"🔧 {formatted_call}",
                                     },
                                 )
                                 logger.info(
@@ -449,6 +439,37 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                     logger.debug("Closed MCP client connection")
             except Exception:  # pragma: no cover - best-effort cleanup
                 logger.debug("Ignoring MCP client close error", exc_info=True)
+
+    def _format_tool_call(self, tool_name: str, tool_input: Any) -> str:
+        """Format a tool call as a function signature.
+
+        Args:
+            tool_name: Name of the tool being called
+            tool_input: Arguments passed to the tool (dict or other)
+
+        Returns:
+            Formatted string like: "Calling tool: tool_name(arg1='value1', arg2='value2')"
+        """
+        if not tool_input:
+            return f"Calling tool: {tool_name}()"
+
+        # Handle dict input (most common case)
+        if isinstance(tool_input, dict):
+            # Format as key=value pairs
+            args_parts = []
+            for key, value in tool_input.items():
+                # Format value with quotes if it's a string
+                if isinstance(value, str):
+                    formatted_value = f'"{value}"'
+                else:
+                    formatted_value = str(value)
+                args_parts.append(f"{key}={formatted_value}")
+
+            args_str = ", ".join(args_parts)
+            return f"Calling tool: {tool_name}({args_str})"
+
+        # Handle non-dict input (rare, but possible)
+        return f"Calling tool: {tool_name}({tool_input!r})"
 
     def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
         """Build message list from session history + new input."""

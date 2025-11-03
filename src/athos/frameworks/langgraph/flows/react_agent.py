@@ -248,17 +248,38 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
                 event_type = event.get("event")
                 event_name = event.get("name", "")
 
-                # Tool call events
+                # Tool call start events
                 if event_type == "on_tool_start":
                     tool_name = event.get("name", "unknown_tool")
                     tool_calls_seen.append(tool_name)
+
+                    # Extract tool arguments from event data
+                    tool_input = event.get("data", {}).get("input", {})
+                    formatted_call = self._format_tool_call(tool_name, tool_input)
+
                     yield FlowOutput(
                         content="",
                         metadata={
                             "streaming": True,
-                            "event_type": "tool_call",
+                            "event_type": "tool_call_start",
                             "tool_name": tool_name,
-                            "status_message": f"🔧 Using tool: {tool_name}\n\n",
+                            "status_message": f"🔧 {formatted_call}",
+                        },
+                    )
+
+                # Tool call end events
+                elif event_type == "on_tool_end":
+                    tool_name = event.get("name", "unknown_tool")
+                    tool_output = event.get("data", {}).get("output", "")
+
+                    yield FlowOutput(
+                        content="",
+                        metadata={
+                            "streaming": True,
+                            "event_type": "tool_call_complete",
+                            "tool_name": tool_name,
+                            "tool_result": tool_output,  # Raw tool output for UI formatting
+                            "status_message": f"✅ Tool {tool_name} completed",
                         },
                     )
 
@@ -372,6 +393,37 @@ class LangGraphReactAgentFlow(BaseLangGraphFlow):
             logger.debug(
                 "Built LangGraph ReAct agent graph with %d tools", len(self.tools)
             )
+
+    def _format_tool_call(self, tool_name: str, tool_input: Any) -> str:
+        """Format a tool call as a function signature.
+
+        Args:
+            tool_name: Name of the tool being called
+            tool_input: Arguments passed to the tool (dict or other)
+
+        Returns:
+            Formatted string like: "Calling tool: tool_name(arg1='value1', arg2='value2')"
+        """
+        if not tool_input:
+            return f"Calling tool: {tool_name}()"
+
+        # Handle dict input (most common case)
+        if isinstance(tool_input, dict):
+            # Format as key=value pairs
+            args_parts = []
+            for key, value in tool_input.items():
+                # Format value with quotes if it's a string
+                if isinstance(value, str):
+                    formatted_value = f'"{value}"'
+                else:
+                    formatted_value = str(value)
+                args_parts.append(f"{key}={formatted_value}")
+
+            args_str = ", ".join(args_parts)
+            return f"Calling tool: {tool_name}({args_str})"
+
+        # Handle non-dict input (rare, but possible)
+        return f"Calling tool: {tool_name}({tool_input!r})"
 
     def _extract_response(self, state: Any) -> str:
         """Extract the agent's response from the LangGraph state."""
