@@ -252,7 +252,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             len(messages),
             len(self.tools),
         )
-        logger.info("Starting astream with stream_mode='messages'")
+        stream_modes = ["messages", "updates"]
+        logger.info("Starting astream with stream_mode=%s", stream_modes)
 
         # Track tool call state across chunks
         tool_call_in_progress = False
@@ -264,7 +265,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             async for stream_mode, chunk in self._graph.astream(  # type: ignore[attr-defined]
                 {"messages": messages},
                 config={"recursion_limit": self.max_iterations},
-                stream_mode=["messages", "updates"],
+                stream_mode=stream_modes,
             ):
                 if stream_mode == "messages":
                     # Chunk is a tuple: (message, metadata)
