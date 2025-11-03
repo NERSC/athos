@@ -316,18 +316,36 @@ class Pipeline:
                         is_terminal = is_final or is_streaming_disabled
                         status_message = event_metadata.get("status_message")
 
+                        # logger.info(
+                        #     "Pipeline received chunk: content=%r, status_message=%r, is_terminal=%s, event=%s",
+                        #     output.content[:100] if output.content else "",
+                        #     status_message,
+                        #     is_terminal,
+                        #     event_metadata.get("event")
+                        # )
+
                         # Prefer content, but send status message if content is empty and not terminal
                         chunk_to_emit = output.content
                         if not chunk_to_emit and status_message and not is_terminal:
                             chunk_to_emit = status_message
+                            logger.info(
+                                "Using status_message as chunk_to_emit: %r", chunk_to_emit
+                            )
 
                         if chunk_to_emit:
+                            # logger.info(
+                            #     "Emitting chunk: %r (length=%d)",
+                            #     chunk_to_emit[:100] if len(chunk_to_emit) > 100 else chunk_to_emit,
+                            #     len(chunk_to_emit)
+                            # )
                             yield self._build_stream_chunk(
                                 chunk_id,
                                 created,
                                 flow_name,
                                 chunk_to_emit,
                             )
+                        # else:
+                        #     logger.info("Skipping empty chunk (no content or status_message)")
 
                         if is_terminal:
                             # The final event's content is for history, not for display.
