@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING, Self
+from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, Set, TYPE_CHECKING, Self
 
 from pydantic import Field
 from typing_extensions import Literal
@@ -257,6 +257,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         # Track tool call state across chunks
         tool_call_in_progress = False
         current_tool_name: Optional[str] = None
+        started_tool_call_ids: Set[str] = set()
+        thinking_emitted = False
 
         try:
             async for stream_mode, chunk in self._graph.astream(  # type: ignore[attr-defined]
@@ -281,58 +283,29 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
                     # === Handle AIMessageChunk (model output) ===
                     if AIMessageChunk and isinstance(message, AIMessageChunk):
-                        # Check if this chunk contains tool call initiation
-                        # Tool arguments stream as tool_call_chunks with incremental JSON
-                        if hasattr(message, "tool_call_chunks") and message.tool_call_chunks:
-                            logger.info(
-                                "Found tool_call_chunks: %s",
-                                message.tool_call_chunks
+                        if not thinking_emitted:
+                            thinking_emitted = True
+                            status_output = FlowOutput(
+                                content="",
+                                metadata={
+                                    "streaming": True,
+                                    "chunk": False,
+                                    "message_type": message_type,
+                                    "node": node_name,
+                                    "event": "thinking",
+                                    "status_message": "🤔 Thinking...\n",
+                                },
                             )
-                            # Extract tool name from first chunk with name populated
-                            for tc_chunk in message.tool_call_chunks:
-                                logger.info(
-                                    "Processing tool_call_chunk: type=%s, is_dict=%s, name=%s",
-                                    type(tc_chunk),
-                                    isinstance(tc_chunk, dict),
-                                    tc_chunk.get('name') if isinstance(tc_chunk, dict) else getattr(tc_chunk, 'name', None)
-                                )
-                                # Handle both dict and object formats
-                                if isinstance(tc_chunk, dict):
-                                    tool_name = tc_chunk.get('name')
-                                else:
-                                    tool_name = getattr(tc_chunk, 'name', None)
-
-                                if tool_name:
-                                    if not tool_call_in_progress:
-                                        # First chunk initiating tool call
-                                        tool_call_in_progress = True
-                                        current_tool_name = tool_name
-                                        logger.info(
-                                            "Tool call started: %s - yielding status message", current_tool_name
-                                        )
-                                        status_output = FlowOutput(
-                                            content="",
-                                            metadata={
-                                                "streaming": True,
-                                                "chunk": False,
-                                                "message_type": message_type,
-                                                "node": node_name,
-                                                "tool_name": tool_name,
-                                                "event": "tool_call_start",
-                                                "status_message": f"🔧 Calling tool: {tool_name}\n",
-                                            },
-                                        )
-                                        logger.info(
-                                            "Yielding tool_call_start: content=%r, metadata=%s",
-                                            status_output.content,
-                                            status_output.metadata
-                                        )
-                                        yield status_output
-                                    break
+                            logger.info(
+                                "Yielding thinking status: content=%r, metadata=%s",
+                                status_output.content,
+                                status_output.metadata,
+                            )
+                            yield status_output
 
                         # Check for actual text content (agent response)
                         # Content is streamed token by token
-                        elif hasattr(message, "content") and message.content:
+                        if hasattr(message, "content") and message.content:
                             content = str(message.content)
                             # Build metadata for this chunk
                             chunk_meta: Dict[str, Any] = {
@@ -391,6 +364,56 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                     # chunk is dict like {'node_name': {'messages': [...]}}
                     for node_name, data in chunk.items():
                         logger.info("Streaming update for node %s: %s", node_name, data)
+
+                        if node_name != "model":
+                            continue
+
+                        messages = data.get("messages") if isinstance(data, dict) else None
+                        if not messages:
+                            continue
+
+                        for message in messages:
+                            message_type = type(message).__name__
+                            tool_calls = getattr(message, "tool_calls", None)
+                            if not tool_calls:
+                                continue
+
+                            for tool_call in tool_calls:
+                                if isinstance(tool_call, dict):
+                                    tool_call_id = tool_call.get("id")
+                                    tool_name = tool_call.get("name")
+                                else:
+                                    tool_call_id = getattr(tool_call, "id", None)
+                                    tool_name = getattr(tool_call, "name", None)
+
+                                identifier = tool_call_id or tool_name
+                                if identifier and identifier in started_tool_call_ids:
+                                    continue
+
+                                if identifier:
+                                    started_tool_call_ids.add(identifier)
+
+                                current_tool_name = tool_name or "unknown"
+                                tool_call_in_progress = True
+
+                                status_output = FlowOutput(
+                                    content="",
+                                    metadata={
+                                        "streaming": True,
+                                        "chunk": False,
+                                        "message_type": message_type,
+                                        "node": node_name,
+                                        "tool_name": current_tool_name,
+                                        "event": "tool_call_start",
+                                        "status_message": f"🔧 Calling tool: {current_tool_name}\n",
+                                    },
+                                )
+                                logger.info(
+                                    "Yielding tool_call_start from updates: content=%r, metadata=%s",
+                                    status_output.content,
+                                    status_output.metadata,
+                                )
+                                yield status_output
 
         except Exception as exc:
             logger.error("LangChain create_agent streaming failed: %s", exc)
