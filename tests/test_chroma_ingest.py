@@ -1,4 +1,4 @@
-from athos.tools.chroma_ingest import chunk_markdown
+from athos.utils.chroma_ingest import chunk_markdown
 
 
 def test_chunk_markdown_split_by_h2():
