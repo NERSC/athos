@@ -90,7 +90,7 @@ class RAGMCPServer:
     def run(self) -> None:
         """Run the MCP server."""
 
-        self.mcp.run()
+        self.mcp.run(show_banner=False)
 
 
 def main() -> None:
