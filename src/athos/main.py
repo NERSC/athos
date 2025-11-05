@@ -132,14 +132,16 @@ async def main() -> None:
 
     args = parser.parse_args()
 
+    # Override log level
+    if args.verbose:
+        args.set.append("logging_config.level=DEBUG")
+
     try:
         overrides = parse_overrides(args.set) if args.set else None
     except ValueError as exc:
         parser.error(str(exc))
 
     cfg = build_config(args.config, overrides)
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
     if args.show_config:
         print(_format_config(cfg))
         return

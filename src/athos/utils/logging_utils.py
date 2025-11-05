@@ -72,7 +72,13 @@ def configure_logging(logging_config: Optional[Dict[str, Any]]) -> None:
         cfg = {
             "version": 1,
             "handlers": handlers,
-            "root": {"level": level or "INFO", "handlers": handler_names},
+            "loggers": {
+                "athos": {
+                    "level": level or "INFO",
+                    "handlers": handler_names,
+                    "propagate": False,
+                }
+            },
             "disable_existing_loggers": False,
         }
         if fmt:
@@ -80,4 +86,11 @@ def configure_logging(logging_config: Optional[Dict[str, Any]]) -> None:
 
         logging.config.dictConfig(cfg)
     else:
-        logging.basicConfig(level=level, format=fmt)
+        logger = logging.getLogger("athos")
+        if level:
+            logger.setLevel(level)
+        handler = logging.StreamHandler()
+        if fmt:
+            formatter = logging.Formatter(fmt)
+            handler.setFormatter(formatter)
+        logger.addHandler(handler)
