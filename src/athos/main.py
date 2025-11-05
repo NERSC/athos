@@ -119,9 +119,9 @@ async def main() -> None:
     )
     parser.add_argument(
         "-v",
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Override logging level for this run",
+        "--verbose",
+        action="store_true",
+        help="Enable DEBUG logging",
     )
     parser.add_argument(
         "--set",
@@ -138,8 +138,8 @@ async def main() -> None:
         parser.error(str(exc))
 
     cfg = build_config(args.config, overrides)
-    if args.log_level:
-        logging.getLogger().setLevel(getattr(logging, args.log_level))
+    if args.verbose:
+        logging.getLogger().setLevel(logging.DEBUG)
     if args.show_config:
         print(_format_config(cfg))
         return

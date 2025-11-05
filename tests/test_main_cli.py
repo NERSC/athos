@@ -35,8 +35,7 @@ async def test_cli_log_level_override(mock_build_config, mock_flow_runner, monke
             "flow",
             "--input",
             "hello",
-            "--log-level",
-            "DEBUG",
+            "--verbose",
         ],
     )
 
