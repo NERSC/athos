@@ -516,44 +516,45 @@ class Pipeline:
             tool_result = event_metadata.get("tool_result")
             if tool_result:
                 result_str = str(tool_result) if tool_result else "(no output)"
-                # Format with HTML details/summary for collapsible section
-                formatted = f"""> {clean_message}
->
-> <details>
-> <summary>View tool output</summary>
->
-> ```
-> {result_str}
-> ```
->
-> </details>
+                # Format with collapsible details section
+                # Use 4 backticks to safely nest tool output that may contain 3-backtick code blocks
+                formatted = f"""*{clean_message}*
+
+<details>
+<summary>View tool output</summary>
+
+````
+{result_str}
+````
+
+</details>
 
 """
                 return formatted
             else:
                 # No result, just show completion message
-                return f"> {clean_message}\n\n"
+                return f"{clean_message}\n\n"
 
-        # Tool call start events - use blockquote
+        # Tool call start events
         elif event_type in ("tool_call", "tool_call_start"):
-            return f"> {clean_message}\n\n"
+            return f"*{clean_message}*\n\n"
 
-        # Reasoning/thinking events - use italic blockquote for visual distinction
+        # Reasoning/thinking events - use italic for visual distinction
         elif event_type in ("reasoning", "thinking"):
-            return f"> *{clean_message}*\n\n"
+            return f"*{clean_message}*\n\n"
 
-        # Generic status events - use plain blockquote
+        # Generic status events
         elif event_type == "status":
-            return f"> {clean_message}\n\n"
+            return f"*{clean_message}*\n\n"
 
-        # Unknown event type - default to plain blockquote (no extra icon)
+        # Unknown event type - default to plain text
         # The status_message likely already contains its own emoji
         else:
             logger.warning(
-                "Unknown event_type %r in status message formatting, using default blockquote",
+                "Unknown event_type %r in status message formatting, using default format",
                 event_type
             )
-            return f"> {clean_message}\n\n"
+            return f"{clean_message}\n\n"
 
     def _format_flow_name(self, flow: str, description: Optional[str]) -> str:
         if description:
