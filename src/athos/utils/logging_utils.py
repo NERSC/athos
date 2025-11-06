@@ -33,7 +33,13 @@ def configure_logging(logging_config: Optional[Dict[str, Any]]) -> None:
         logging.config.dictConfig(logging_config)
         return
 
-    level = logging_config.get("level")
+    # Determine effective log levels, prioritizing environment variables
+    root_level = os.environ.get('ROOT_LOG_LEVEL') or logging_config.get('root_level')
+    athos_level = os.environ.get('ATHOS_LOG_LEVEL') or logging_config.get('level')
+
+    # Apply the root log level if it's been determined
+    if root_level:
+        logging.getLogger().setLevel(root_level.upper())
     fmt = logging_config.get("format")
     handlers_cfg: List[Dict[str, Any]] = logging_config.get("handlers", [])
 
@@ -74,7 +80,7 @@ def configure_logging(logging_config: Optional[Dict[str, Any]]) -> None:
             "handlers": handlers,
             "loggers": {
                 "athos": {
-                    "level": level or "INFO",
+                    "level": athos_level or "INFO",
                     "handlers": handler_names,
                     "propagate": False,
                 }
@@ -87,8 +93,8 @@ def configure_logging(logging_config: Optional[Dict[str, Any]]) -> None:
         logging.config.dictConfig(cfg)
     else:
         logger = logging.getLogger("athos")
-        if level:
-            logger.setLevel(level)
+        if athos_level:
+            logger.setLevel(athos_level)
         handler = logging.StreamHandler()
         if fmt:
             formatter = logging.Formatter(fmt)

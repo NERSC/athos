@@ -179,6 +179,11 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 metadata={"error": True, "exception_type": type(exc).__name__},
             )
 
+        # Debug logging of the graph state
+        if logger.isEnabledFor(logging.DEBUG):
+            for message in result_state["messages"]:
+                message.pretty_print()
+
         content = self._extract_response(result_state)
         metadata = {
             "model": self.model.model_name,
