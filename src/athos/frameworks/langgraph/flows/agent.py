@@ -437,13 +437,14 @@ class LangChainAgentFlow(BaseLangGraphFlow):
     async def cleanup(self) -> None:
         """Close MCP client connections and clean up resources."""
 
-        for client in self._mcp_clients:
-            try:
-                if hasattr(client, "__aexit__"):
-                    await client.__aexit__(None, None, None)
-                    logger.debug("Closed MCP client connection")
-            except Exception:  # pragma: no cover - best-effort cleanup
-                logger.debug("Ignoring MCP client close error", exc_info=True)
+        # MultiServerMCPClient doesn't need manual cleanup
+        #for client in self._mcp_clients:
+        #    try:
+        #        if hasattr(client, "__aexit__"):
+        #            await client.__aexit__(None, None, None)
+        #            logger.debug("Closed MCP client connection")
+        #    except Exception:  # pragma: no cover - best-effort cleanup
+        #        logger.debug("Ignoring MCP client close error", exc_info=True)
 
     def _format_tool_call(self, tool_name: str, tool_input: Any) -> str:
         """Format a tool call as a function signature.
