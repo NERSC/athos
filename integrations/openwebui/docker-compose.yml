@@ -13,7 +13,7 @@ services:
       - ATHOS_PIPELINE_CONFIG_PATH=/workspace/config/config.yaml
       - ATHOS_PIPELINE_ENABLED_FLOWS=hpc_chatbot,web_agent,langgraph_chatbot_demo,langchain_web_agent
       - ATHOS_PIPELINE_DEFAULT_FLOW=hpc_chatbot
-      - ATHOS_WORKSPACE=/workspace/workspace
+      - ATHOS_WORKSPACE=/workspace/athos
       - CBORG_API_URL=${CBORG_API_URL:?must be set}
       - CBORG_API_KEY=${CBORG_API_KEY:?must be set}
       - TAVILY_API_KEY=${TAVILY_API_KEY:?must be set}
@@ -21,7 +21,7 @@ services:
     volumes:
       - ./pipelines:/app/pipelines
       - ../../config:/workspace/config:ro
-      - athos-workspace:/workspace/workspace
+      - ${ATHOS_WORKSPACE}:/workspace/athos
     restart: unless-stopped
 
   openwebui:
@@ -39,4 +39,3 @@ services:
 
 volumes:
   open-webui-data:
-  athos-workspace:
