@@ -40,12 +40,13 @@ async def test_agent_flow_executes_and_tracks_history(monkeypatch):
     dummy_graph = DummyGraph(["first reply", "second reply"])
     create_calls = []
 
-    def fake_create_agent(model, tools, *, system_prompt=None):
+    def fake_create_agent(model, tools, *, system_prompt=None, checkpointer=None):
         create_calls.append(
             {
                 "model": model,
                 "tools": list(tools),
                 "system_prompt": system_prompt,
+                "checkpointer": checkpointer,
             }
         )
         return dummy_graph
@@ -123,17 +124,24 @@ async def test_agent_flow_executes_and_tracks_history(monkeypatch):
     initial_state, initial_config = dummy_graph.invocations[0]
     followup_state, followup_config = dummy_graph.invocations[1]
 
-    assert initial_config == {"recursion_limit": 7}
-    assert followup_config == {"recursion_limit": 7}
+    assert initial_config == {
+        "configurable": {"thread_id": "test_session"},
+        "recursion_limit": 7
+    }
+    assert followup_config == {
+        "configurable": {"thread_id": "test_session"},
+        "recursion_limit": 7
+    }
 
-    assert isinstance(initial_state["messages"][-1], agent_module.HumanMessage)
-    assert initial_state["messages"][-1].content == "Hello there"
+    # With checkpointing, only the new message is passed
+    assert len(initial_state["messages"]) == 1
+    assert isinstance(initial_state["messages"][0], agent_module.HumanMessage)
+    assert initial_state["messages"][0].content == "Hello there"
 
-    assert [m.content for m in followup_state["messages"][:-1]] == [
-        "Hello there",
-        "first reply",
-    ]
-    assert followup_state["messages"][-1].content == "How are you?"
+    # Second invocation also only gets the new message (checkpoint handles history)
+    assert len(followup_state["messages"]) == 1
+    assert isinstance(followup_state["messages"][0], agent_module.HumanMessage)
+    assert followup_state["messages"][0].content == "How are you?"
 
 
 @pytest.mark.asyncio
@@ -166,12 +174,13 @@ async def test_agent_factory_combines_instructions_and_tools(monkeypatch):
         assert mcp_cfg.mcp_type == MCPType.MCP_STDIO
         return DummyMCPClient()
 
-    def fake_create_agent(model, tools, *, system_prompt=None):
+    def fake_create_agent(model, tools, *, system_prompt=None, checkpointer=None):
         create_calls.append(
             {
                 "model": model,
                 "tools": list(tools),
                 "system_prompt": system_prompt,
+                "checkpointer": checkpointer,
             }
         )
         return dummy_graph
@@ -237,7 +246,10 @@ async def test_agent_factory_combines_instructions_and_tools(monkeypatch):
     assert create_calls[0]["tools"] == [base_tool, mcp_tool]
 
     state, config = dummy_graph.invocations[0]
-    assert config == {"recursion_limit": 3}
+    assert config == {
+        "configurable": {"thread_id": "test_session"},
+        "recursion_limit": 3
+    }
     assert isinstance(state["messages"][-1], agent_module.HumanMessage)
     assert state["messages"][-1].content == "Ping"
 
