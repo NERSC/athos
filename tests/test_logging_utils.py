@@ -12,20 +12,20 @@ def test_configure_logging_creates_file_directory(tmp_path):
         ],
     }
 
-    root_logger = logging.getLogger()
-    for h in list(root_logger.handlers):
-        root_logger.removeHandler(h)
+    athos_logger = logging.getLogger("athos")
+    for h in list(athos_logger.handlers):
+        athos_logger.removeHandler(h)
         h.close()
 
     configure_logging(cfg)
 
     assert logfile.parent.exists()
-    file_handlers = [h for h in root_logger.handlers if isinstance(h, logging.handlers.RotatingFileHandler)]
+    file_handlers = [h for h in athos_logger.handlers if isinstance(h, logging.handlers.RotatingFileHandler)]
     assert file_handlers
     assert file_handlers[0].baseFilename == str(logfile)
 
-    for h in list(root_logger.handlers):
-        root_logger.removeHandler(h)
+    for h in list(athos_logger.handlers):
+        athos_logger.removeHandler(h)
         h.close()
 
 
