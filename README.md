@@ -113,6 +113,9 @@ accepted (for example under `models` or within individual flow definitions).
   continue to work and take precedence when no path is supplied.
 - Environment variables may be embedded in the path using the existing
   `${VAR}`/`${VAR:-default}` syntax and are expanded before resolution.
+- The `_path` entries are consumed during loading, so the resulting
+  configuration objects only expose the populated `system_prompt`/`instructions`
+  strings.
 
 This project ships with sample prompts in `config/prompts/` that demonstrate the
 convention.

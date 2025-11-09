@@ -151,10 +151,6 @@ class ChatbotFlowConfig(BaseFlowConfig):
     type: Literal["chatbot"]
     model: str = Field(description="Model name reference")
     system_prompt: Optional[str] = Field(default=None)
-    system_prompt_path: Optional[str] = Field(
-        default=None,
-        description="Path to file containing the system prompt",
-    )
     max_iterations: int = Field(default=10, gt=0)
 
 

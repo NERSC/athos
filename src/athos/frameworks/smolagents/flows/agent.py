@@ -207,10 +207,6 @@ class AgentFlowConfig(BaseFlowConfig):
     verbosity_level: Optional[int] = Field(default=1)
     additional_authorized_imports: List[str] = Field(default_factory=list)
     instructions: Optional[str] = Field(default=None)
-    instructions_path: Optional[str] = Field(
-        default=None,
-        description="Path to file containing agent instructions",
-    )
 
 
 # Set config_class on the flow class

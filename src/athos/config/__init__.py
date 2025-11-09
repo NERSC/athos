@@ -84,10 +84,16 @@ class ConfigLoader:
         models = config_data.get("models")
         if isinstance(models, dict):
             for model_cfg in models.values():
-                if isinstance(model_cfg, dict) and "system_prompt_path" in model_cfg:
-                    prompt = _read_prompt(model_cfg.get("system_prompt_path"))
-                    if prompt is not None:
-                        model_cfg["system_prompt"] = prompt
+                if not isinstance(model_cfg, dict):
+                    continue
+
+                path_value = model_cfg.pop("system_prompt_path", None)
+                if path_value is None:
+                    continue
+
+                prompt = _read_prompt(path_value)
+                if prompt is not None:
+                    model_cfg["system_prompt"] = prompt
 
         flows = config_data.get("flows")
         if isinstance(flows, dict):
@@ -95,12 +101,14 @@ class ConfigLoader:
                 if not isinstance(flow_cfg, dict):
                     continue
 
-                if "system_prompt_path" in flow_cfg:
-                    prompt = _read_prompt(flow_cfg.get("system_prompt_path"))
+                path_value = flow_cfg.pop("system_prompt_path", None)
+                if path_value is not None:
+                    prompt = _read_prompt(path_value)
                     if prompt is not None:
                         flow_cfg["system_prompt"] = prompt
 
-                if "instructions_path" in flow_cfg:
-                    instructions = _read_prompt(flow_cfg.get("instructions_path"))
+                instructions_path = flow_cfg.pop("instructions_path", None)
+                if instructions_path is not None:
+                    instructions = _read_prompt(instructions_path)
                     if instructions is not None:
                         flow_cfg["instructions"] = instructions
