@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from athos.main import main
 from athos.models.execution import FlowResult
 from athos.models.flow import FlowOutput
+from athos.utils.logging_utils import configure_logging
 
 
 @pytest.mark.asyncio
@@ -15,6 +16,17 @@ from athos.models.flow import FlowOutput
 @patch("athos.main.build_config")
 async def test_cli_log_level_override(mock_build_config, mock_flow_runner, monkeypatch):
     mock_build_config.return_value = "CFG"
+
+    # Define a side effect for the mock_build_config
+    def mock_build_config_side_effect(config_path, overrides):
+        # Simulate the logging configuration that the real build_config would do
+        if overrides and "logging_config" in overrides:
+            # The configure_logging function expects a dict like {'level': 'DEBUG'}
+            # The overrides will be {'logging_config': {'level': 'DEBUG'}}
+            configure_logging(overrides["logging_config"])
+        return "CFG" # Return the same value as the original mock
+
+    mock_build_config.side_effect = mock_build_config_side_effect
     mock_runner_instance = AsyncMock()
     mock_runner_instance.execute.return_value = FlowResult(
         success=True, output=FlowOutput(content="OK", artifacts=[]), request_id="123", session_id="cli_session", execution_time=0.5
@@ -41,8 +53,8 @@ async def test_cli_log_level_override(mock_build_config, mock_flow_runner, monke
 
     await main()
 
-    assert root_logger.level == logging.DEBUG
-    mock_build_config.assert_called_once_with("cfg.yaml", None)
+    athos_logger = logging.getLogger("athos")
+    mock_build_config.assert_called_once_with("cfg.yaml", {'logging_config': {'level': 'DEBUG'}})
     mock_flow_runner.assert_called_once_with("CFG")
     mock_runner_instance.execute.assert_called_once_with(
         flow_name="flow",
@@ -216,8 +228,16 @@ async def test_gradio_keyboard_interrupt(mock_build_config, mock_build_flow, mon
     monkeypatch.setattr(sys, "argv", ["athos.main", "--config", "cfg.yaml", "--flow", "flow", "--gradio"])
     monkeypatch.setattr("athos.main.GradioUI", DummyUI)
 
-    with caplog.at_level(logging.INFO):
-        await main()
+    # Ensure the athos logger propagates to root logger for caplog to capture
+    athos_logger = logging.getLogger("athos")
+    original_propagate = athos_logger.propagate
+    athos_logger.propagate = True
 
-    assert "Gradio server stopped by user" in caplog.text
-    flow.cleanup.assert_called_once_with()
+    try:
+        with caplog.at_level(logging.INFO, logger="athos.main"):
+            await main()
+
+        assert "Gradio server stopped by user" in caplog.text
+        flow.cleanup.assert_called_once_with()
+    finally:
+        athos_logger.propagate = original_propagate

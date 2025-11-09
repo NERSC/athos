@@ -49,7 +49,7 @@ async def test_langchain_web_agent_flow(monkeypatch):
     def fake_build_tool(tool_cfg):
         return dummy_tool
 
-    def fake_create_agent(model, tools, *, system_prompt=None):
+    def fake_create_agent(model, tools, *, system_prompt=None, checkpointer=None):
         create_calls.append(
             {
                 "model": model,
@@ -94,4 +94,7 @@ async def test_langchain_web_agent_flow(monkeypatch):
     ]
 
     # Verify max_iterations is passed through as recursion_limit
-    assert dummy_graph.invocations[0][1] == {"recursion_limit": flow_cfg.max_iterations}
+    assert dummy_graph.invocations[0][1] == {
+        "recursion_limit": flow_cfg.max_iterations,
+        "configurable": {"thread_id": "test_session"},
+    }

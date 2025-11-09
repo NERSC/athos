@@ -31,17 +31,20 @@ from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
     from langchain_core.language_models import BaseLanguageModel
+    from langchain_core.runnables import RunnableConfig
     from langchain_core.tools import BaseTool
     from langchain_mcp_adapters.client import MultiServerMCPClient
 
 try:  # pragma: no cover - optional dependency
     from langchain.agents import create_agent
     from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
+    from langgraph.checkpoint.memory import InMemorySaver
 except Exception as exc:  # pragma: no cover - executed only when langchain missing
     create_agent = None  # type: ignore[assignment]
     AIMessage = None  # type: ignore[assignment]
     AIMessageChunk = None  # type: ignore[assignment]
     ToolMessage = None  # type: ignore[assignment]
+    InMemorySaver = None  # type: ignore[assignment]
     _CREATE_AGENT_IMPORT_ERROR: Optional[Exception] = exc
 else:  # pragma: no cover - executed when dependency is available
     _CREATE_AGENT_IMPORT_ERROR = None
@@ -87,6 +90,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         self._graph_needs_rebuild = True
         self._mcp_tool_sync_lock = asyncio.Lock()
         self._mcp_tools_loaded = False
+        self._checkpointer = None  # Will be created in _ensure_graph_built
 
     @classmethod
     async def create(
@@ -159,18 +163,23 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
 
+        # Build config with thread_id from session_id
+        config = self._build_langgraph_config(input.session.session_id)
+
+        # Only build new message (checkpoint has history)
         messages = self._build_messages(input)
 
         logger.info(
-            "Invoking LangChain create_agent graph with %d messages, %d tools",
+            "Invoking LangChain create_agent graph with %d messages (new), thread_id=%s, %d tools",
             len(messages),
+            input.session.session_id,
             len(self.tools),
         )
 
         try:
             result_state = await self._graph.ainvoke(  # type: ignore[attr-defined]
                 {"messages": messages},
-                config={"recursion_limit": self.max_iterations},
+                config=config,
             )
         except Exception as exc:
             logger.error("LangChain create_agent execution failed: %s", exc)
@@ -189,6 +198,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             "model": self.model.model_name,
             "tools_available": len(self.tools),
             "max_iterations": self.max_iterations,
+            "checkpoint_enabled": True,
+            "thread_id": input.session.session_id,
         }
 
         return FlowOutput(content=content, metadata=metadata)
@@ -250,11 +261,16 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
 
+        # Build config with thread_id from session_id
+        config = self._build_langgraph_config(input.session.session_id)
+
+        # Only build new message (checkpoint has history)
         messages = self._build_messages(input)
 
         logger.info(
-            "Streaming LangChain create_agent graph with %d messages, %d tools",
+            "Streaming LangChain create_agent graph with %d messages (new), thread_id=%s, %d tools",
             len(messages),
+            input.session.session_id,
             len(self.tools),
         )
         stream_modes = ["messages", "updates"]
@@ -266,7 +282,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         try:
             async for stream_mode, chunk in self._graph.astream(  # type: ignore[attr-defined]
                 {"messages": messages},
-                config={"recursion_limit": self.max_iterations},
+                config=config,
                 stream_mode=stream_modes,
             ):
                 if stream_mode == "messages":
@@ -477,13 +493,38 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         # Handle non-dict input (rare, but possible)
         return f"Calling tool: {tool_name}({tool_input!r})"
 
-    def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
-        """Build message list from session history + new input."""
+    def _build_langgraph_config(self, session_id: str) -> "RunnableConfig":
+        """Build LangGraph configuration with thread_id.
 
-        messages: List[BaseMessage] = []
-        messages.extend(to_langgraph_messages(input.session.get_history()))
-        messages.append(HumanMessage(input.message))
-        return messages
+        Maps ATHOS session_id to LangGraph thread_id for checkpoint persistence.
+
+        Args:
+            session_id: ATHOS session identifier
+
+        Returns:
+            RunnableConfig with thread_id and recursion_limit configured
+        """
+        return {
+            "configurable": {
+                "thread_id": session_id
+            },
+            "recursion_limit": self.max_iterations
+        }
+
+    def _build_messages(self, input: FlowInput) -> List[BaseMessage]:
+        """Build message list containing only the new user message.
+
+        With checkpointing enabled, the LangGraph checkpoint automatically
+        loads previous conversation history based on the thread_id.
+        We only need to provide the new message.
+
+        Args:
+            input: Flow input containing the new user message
+
+        Returns:
+            List containing only the new HumanMessage
+        """
+        return [HumanMessage(input.message)]
 
     async def _ensure_mcp_tools_loaded(self) -> None:
         """Ensure tools from connected MCP servers are loaded into the flow."""
@@ -528,14 +569,27 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                     "The 'langchain' package is required to use the LangChain create_agent flow."
                 ) from _CREATE_AGENT_IMPORT_ERROR
 
+            # Create checkpointer if not exists
+            if self._checkpointer is None:
+                if InMemorySaver is None:
+                    raise ImportError(
+                        "The 'langgraph' package is required for checkpointing."
+                    ) from _CREATE_AGENT_IMPORT_ERROR
+                self._checkpointer = InMemorySaver()
+                logger.debug("Initialized InMemorySaver checkpointer")
+
             system_prompt = self.instructions or None
             self._graph = create_agent(
-                self.model, list(self.tools), system_prompt=system_prompt
+                self.model,
+                list(self.tools),
+                system_prompt=system_prompt,
+                checkpointer=self._checkpointer
             )
             self._graph_needs_rebuild = False
 
             logger.debug(
-                "Built LangChain create_agent graph with %d tools", len(self.tools)
+                "Built LangChain create_agent graph with %d tools and checkpointing enabled",
+                len(self.tools)
             )
 
     def _extract_response(self, state: Any) -> str:
