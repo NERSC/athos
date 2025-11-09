@@ -98,6 +98,28 @@ flow, use:
 athos --config config/config.yaml --show-config
 ```
 
+### Storing prompts alongside your configuration
+
+Large system prompts or agent instructions can be stored in external files to
+keep `config/config.yaml` concise. Provide a `system_prompt_path` or
+`instructions_path` field anywhere a `system_prompt` or `instructions` string is
+accepted (for example under `models` or within individual flow definitions).
+
+- Paths are resolved **relative to the YAML file** being loaded, so a prompt in
+  `config/prompts/example.md` can be referenced with
+  `system_prompt_path: "prompts/example.md"`.
+- The loader reads each referenced file as UTF-8 text and automatically
+  populates the corresponding inline field. Explicit string values in the YAML
+  continue to work and take precedence when no path is supplied.
+- Environment variables may be embedded in the path using the existing
+  `${VAR}`/`${VAR:-default}` syntax and are expanded before resolution.
+- The `_path` entries are consumed during loading, so the resulting
+  configuration objects only expose the populated `system_prompt`/`instructions`
+  strings.
+
+This project ships with sample prompts in `config/prompts/` that demonstrate the
+convention.
+
 ### Logging
 
 Logging behavior is controlled through the optional `logging_config` section in
