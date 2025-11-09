@@ -283,6 +283,10 @@ class LangGraphChatbotFlowConfig(BaseFlowConfig):
         default=None,
         description="Optional system prompt prepended to every conversation.",
     )
+    system_prompt_path: Optional[str] = Field(
+        default=None,
+        description="Path to file containing the system prompt.",
+    )
     initial_history: Sequence[str] = Field(
         default_factory=list,
         description=(

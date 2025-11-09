@@ -580,6 +580,10 @@ class LangChainAgentFlowConfig(BaseFlowConfig):
         default=None,
         description="Additional instructions injected into the agent context.",
     )
+    instructions_path: Optional[str] = Field(
+        default=None,
+        description="Path to file containing agent instructions.",
+    )
     max_iterations: int = Field(
         default=20,
         gt=0,

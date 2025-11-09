@@ -40,6 +40,10 @@ class ModelConfig(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Model temperature")
     max_tokens: int = Field(default=1024, gt=0, description="Maximum tokens to generate")
     system_prompt: Optional[str] = Field(default=None, description="System prompt for model")
+    system_prompt_path: Optional[str] = Field(
+        default=None,
+        description="Path to external file containing the system prompt",
+    )
 
     @field_validator('api_key', 'api_base', mode='before')
     @classmethod
