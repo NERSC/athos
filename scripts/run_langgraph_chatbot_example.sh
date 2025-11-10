@@ -1,3 +1,3 @@
 #!/bin/bash
 
-python -m athos.examples.langgraph_chatbot --config config/config.yaml --flow-name langgraph_chatbot_demo
+python -m athos.examples.chatbot_example --config config/config.yaml --flow langgraph_chatbot_demo
