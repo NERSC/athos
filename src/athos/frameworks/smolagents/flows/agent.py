@@ -1,9 +1,10 @@
-from typing import ClassVar, List, Optional
+from typing import Any, ClassVar, List, Optional
 from typing_extensions import Literal
 from enum import Enum
 import asyncio
 import logging
-from pydantic import Field
+from pathlib import Path
+from pydantic import Field, model_validator, ValidationInfo
 
 from smolagents import (
     CodeAgent,
@@ -24,7 +25,9 @@ from athos.config.models import (
     ModelConfig,
     ToolConfig,
     ToolFramework,
+    expand_env,
 )
+from athos.utils.paths import resolve_path, read_text_file
 from athos.frameworks.smolagents.factories import (
     build_mcp_client,
     build_model,
@@ -207,7 +210,27 @@ class AgentFlowConfig(BaseFlowConfig):
     verbosity_level: Optional[int] = Field(default=1)
     additional_authorized_imports: List[str] = Field(default_factory=list)
     instructions: Optional[str] = Field(default=None)
+    instructions_path: Optional[str] = Field(default=None)
 
+    @model_validator(mode='before')
+    @classmethod
+    def load_instructions_from_path(cls, data: Any, info: ValidationInfo) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        instructions = data.get('instructions')
+        instructions_path = data.get('instructions_path')
+
+        if instructions and instructions_path:
+            raise ValueError('Provide either instructions or instructions_path, not both')
+
+        if instructions_path:
+            expanded = expand_env(instructions_path)
+            base_dir = Path(info.context['config_dir']) if info.context and 'config_dir' in info.context else Path.cwd()
+            resolved = resolve_path(base_dir, expanded or instructions_path)
+            data['instructions'] = read_text_file(resolved)
+
+        return data
 
 # Set config_class on the flow class
 AgentFlow.config_class = AgentFlowConfig

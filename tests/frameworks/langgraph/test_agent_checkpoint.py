@@ -42,7 +42,7 @@ def flow_config():
         model="gpt_4",
         tools=[],
         mcp_servers=[],
-        instructions="You are a helpful assistant.",
+        system_prompt="You are a helpful assistant.",
         max_iterations=10,
     )
 

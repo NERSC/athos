@@ -1,8 +1,20 @@
 import os
 import re
+from pathlib import Path
 from enum import Enum
 from typing import Dict, List, Any, Optional
-from pydantic import BaseModel, Field, field_validator, model_validator, ConfigDict, SecretStr
+from pydantic import (
+    BaseModel,
+    Field,
+    field_validator,
+    model_validator,
+    ConfigDict,
+    SecretStr,
+    ValidationInfo,
+    ValidationError,
+)
+
+from athos.utils.paths import resolve_path, read_text_file
 
 
 DEFAULT_ENV_VAR_PATTERN = re.compile(r"\$\{([^}:\s]+):-([^}]+)\}")
@@ -40,6 +52,30 @@ class ModelConfig(BaseModel):
     temperature: float = Field(default=0.7, ge=0.0, le=2.0, description="Model temperature")
     max_tokens: int = Field(default=1024, gt=0, description="Maximum tokens to generate")
     system_prompt: Optional[str] = Field(default=None, description="System prompt for model")
+    system_prompt_path: Optional[str] = Field(
+        default=None,
+        description="Path to file containing the system prompt",
+    )
+
+    @model_validator(mode='before')
+    @classmethod
+    def load_system_prompt_from_path(cls, data: Any, info: ValidationInfo) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        system_prompt = data.get('system_prompt')
+        system_prompt_path = data.get('system_prompt_path')
+
+        if system_prompt and system_prompt_path:
+            raise ValueError("Provide either system_prompt or system_prompt_path, not both")
+
+        if system_prompt_path:
+            expanded = expand_env(system_prompt_path)
+            base_dir = Path(info.context['config_dir']) if info.context and 'config_dir' in info.context else Path.cwd()
+            resolved = resolve_path(base_dir, expanded or system_prompt_path)
+            data['system_prompt'] = read_text_file(resolved)
+
+        return data
 
     @field_validator('api_key', 'api_base', mode='before')
     @classmethod
@@ -202,7 +238,7 @@ class AthosConfig(BaseModel):
 
     @model_validator(mode='before')
     @classmethod
-    def validate_and_construct_flows(cls, data: Any) -> Any:
+    def validate_and_construct_flows(cls, data: Any, info: ValidationInfo) -> Any:
         """Dynamically construct and validate flow configs based on registry"""
         if not isinstance(data, dict):
             return data
@@ -218,30 +254,37 @@ class AthosConfig(BaseModel):
             return data
 
         constructed_flows = {}
+        context = info.context if info and info.context else None
 
         for flow_name, flow_data in flows.items():
             # Extract flow type from raw data
             if isinstance(flow_data, dict):
                 flow_type = flow_data.get('type')
-                if not flow_type:
-                    raise ValueError(f"Flow '{flow_name}' missing 'type' field")
             else:
-                raise ValueError(f"Flow '{flow_name}' must be a dictionary with 'type' field")
+                raise ValueError(f"Invalid flow configuration for '{flow_name}'")
 
-            # Look up config class from registry
-            if flow_type not in FLOW_REGISTRY:
-                raise ValueError(f"Unknown flow type '{flow_type}' for flow '{flow_name}'. Available types: {list(FLOW_REGISTRY.keys())}")
+            if not flow_type:
+                raise ValueError(f"Missing 'type' for flow '{flow_name}'")
 
-            config_cls = FLOW_REGISTRY[flow_type].config_cls
+            registration = FLOW_REGISTRY.get(flow_type)
+            if registration is None:
+                raise ValueError(
+                    f"Unknown flow type '{flow_type}' for flow '{flow_name}'"
+                )
+            config_cls = registration.config_cls
 
-            # Dynamically construct the appropriate config
             try:
-                flow_config = config_cls.model_validate(flow_data)
-                constructed_flows[flow_name] = flow_config
-            except Exception as e:
-                raise ValueError(f"Invalid config for flow '{flow_name}' of type '{flow_type}': {e}")
+                if context:
+                    flow_config = config_cls.model_validate(flow_data, context=context)
+                else:
+                    flow_config = config_cls.model_validate(flow_data)
+            except ValidationError as exc:
+                raise ValueError(
+                    f"Invalid config for flow '{flow_name}' of type '{flow_type}': {exc}"
+                ) from exc
 
-        # Replace raw data with constructed configs
+            constructed_flows[flow_name] = flow_config
+
         data['flows'] = constructed_flows
         return data
 

@@ -66,8 +66,8 @@ async def test_langchain_web_agent_flow(monkeypatch):
     flow = await build_flow("langchain_web_agent", cfg)
 
     assert flow.tools == [dummy_tool]
-    assert flow.instructions is not None
-    assert "web search tool" in flow.instructions.lower()
+    assert flow.system_prompt is not None
+    assert "web search tool" in flow.system_prompt.lower()
 
     session = FlowSession(
         session_id="test_session",
@@ -89,7 +89,7 @@ async def test_langchain_web_agent_flow(monkeypatch):
         {
             "model": dummy_model,
             "tools": [dummy_tool],
-            "system_prompt": flow.instructions,
+            "system_prompt": flow.system_prompt,
         }
     ]
 
