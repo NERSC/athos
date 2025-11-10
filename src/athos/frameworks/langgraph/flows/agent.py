@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator, ValidationInfo
 from typing_extensions import Literal
 
 from athos.config.models import (
     AthosConfig,
     BaseFlowConfig,
     ToolFramework,
+    expand_env,
 )
+
+from athos.utils.paths import resolve_path, read_text_file
 from athos.frameworks.langgraph.base import BaseLangGraphFlow
 from athos.frameworks.langgraph.factories import (
     build_mcp_client,
@@ -72,7 +76,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         model: "BaseLanguageModel",
         tools: List["BaseTool"],
         mcp_clients: List["MultiServerMCPClient"],
-        instructions: Optional[str],
+        system_prompt: Optional[str],
         max_iterations: int,
         full_config: AthosConfig,
     ) -> None:
@@ -82,7 +86,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         self.model = model
         self.tools = tools
         self._mcp_clients = mcp_clients
-        self.instructions = instructions
+        self.system_prompt = system_prompt
         self.max_iterations = max_iterations
         self._graph = None  # type: ignore[assignment]
         self._graph_lock = asyncio.Lock()
@@ -118,9 +122,9 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             tools.append(tool_instance)
 
         mcp_clients: List["MultiServerMCPClient"] = []
-        combined_instructions: List[str] = []
-        if flow_config.instructions:
-            combined_instructions.append(flow_config.instructions)
+        prompt_sections: List[str] = []
+        if flow_config.system_prompt:
+            prompt_sections.append(flow_config.system_prompt)
 
         for mcp_name in flow_config.mcp_servers:
             if mcp_name not in athos_config.mcp_servers:
@@ -131,10 +135,10 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             client = build_mcp_client(mcp_name, mcp_cfg)
             mcp_clients.append(client)
             if mcp_cfg.instructions:
-                combined_instructions.append(mcp_cfg.instructions)
+                prompt_sections.append(mcp_cfg.instructions)
 
-        instructions = (
-            "\n\n".join(combined_instructions) if combined_instructions else None
+        system_prompt = (
+            "\n\n".join(prompt_sections) if prompt_sections else None
         )
 
         logger.info(
@@ -149,7 +153,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             model=model,
             tools=tools,
             mcp_clients=mcp_clients,
-            instructions=instructions,
+            system_prompt=system_prompt,
             max_iterations=flow_config.max_iterations,
             full_config=athos_config,
         )
@@ -577,7 +581,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 self._checkpointer = InMemorySaver()
                 logger.debug("Initialized InMemorySaver checkpointer")
 
-            system_prompt = self.instructions or None
+            system_prompt = self.system_prompt or None
             self._graph = create_agent(
                 self.model,
                 list(self.tools),
@@ -629,10 +633,34 @@ class LangChainAgentFlowConfig(BaseFlowConfig):
         default_factory=list,
         description="List of MCP server names from config.mcp_servers to connect to.",
     )
-    instructions: Optional[str] = Field(
+    system_prompt: Optional[str] = Field(
         default=None,
-        description="Additional instructions injected into the agent context.",
+        description="System prompt provided to the LangChain agent.",
     )
+    system_prompt_path: Optional[str] = Field(
+        default=None,
+        description="Path to a file containing the system prompt for the agent.",
+    )
+    @model_validator(mode='before')
+    @classmethod
+    def load_system_prompt_from_path(cls, data: Any, info: ValidationInfo) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        prompt = data.get('system_prompt')
+        prompt_path = data.get('system_prompt_path')
+
+        if prompt and prompt_path:
+            raise ValueError('Provide either system_prompt or system_prompt_path, not both')
+
+        if prompt_path:
+            expanded = expand_env(prompt_path)
+            base_dir = Path(info.context['config_dir']) if info.context and 'config_dir' in info.context else Path.cwd()
+            resolved = resolve_path(base_dir, expanded or prompt_path)
+            data['system_prompt'] = read_text_file(resolved)
+
+        return data
+
     max_iterations: int = Field(
         default=20,
         gt=0,

@@ -1,4 +1,5 @@
-from typing import ClassVar, List, Optional, Type
+from typing import Any, ClassVar, List, Optional
+from pathlib import Path
 import logging
 
 from smolagents import ChatMessage, OpenAIServerModel
@@ -139,10 +140,11 @@ class ChatbotFlow(BaseFlow):
 
 
 # Config and factory ---------------------------------------------------------
-from pydantic import Field
+from pydantic import Field, model_validator, ValidationInfo
 from typing_extensions import Literal
 
-from athos.config.models import BaseFlowConfig
+from athos.config.models import BaseFlowConfig, expand_env
+from athos.utils.paths import resolve_path, read_text_file
 
 
 class ChatbotFlowConfig(BaseFlowConfig):
@@ -151,6 +153,27 @@ class ChatbotFlowConfig(BaseFlowConfig):
     type: Literal["chatbot"]
     model: str = Field(description="Model name reference")
     system_prompt: Optional[str] = Field(default=None)
+    system_prompt_path: Optional[str] = Field(default=None)
+    @model_validator(mode='before')
+    @classmethod
+    def load_system_prompt_from_path(cls, data: Any, info: ValidationInfo) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        prompt = data.get('system_prompt')
+        prompt_path = data.get('system_prompt_path')
+
+        if prompt and prompt_path:
+            raise ValueError('Provide either system_prompt or system_prompt_path, not both')
+
+        if prompt_path:
+            expanded = expand_env(prompt_path)
+            base_dir = Path(info.context['config_dir']) if info.context and 'config_dir' in info.context else Path.cwd()
+            resolved = resolve_path(base_dir, expanded or prompt_path)
+            data['system_prompt'] = read_text_file(resolved)
+
+        return data
+
     max_iterations: int = Field(default=10, gt=0)
 
 
