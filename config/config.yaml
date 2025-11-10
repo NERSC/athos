@@ -224,17 +224,6 @@ flows:
     #   - "Hello!"
     #   - "Hi there! I'm the LangGraph chatbot example ready to assist you."
 
-  # langgraph_react_web_agent_demo:
-  #   description: "LangGraph ReAct agent that uses DuckDuckGo search for web answers"
-  #   type: "langgraph_react_agent"
-  #   model: "cborg_coder"
-  #   tools: ["langchain_tavily_search"]
-  #   instructions: |
-  #     You are a friendly assistant help users with questions. Always consider using
-  #     a web search tool before responding so you can reference up-to-date information.
-  #     Summarize the findings concisely in your reply.
-  #   max_iterations: 16
-
   langchain_web_agent:
     description: "LangChain agent demo with web search tool"
     type: "langchain_agent"

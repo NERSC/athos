@@ -52,8 +52,8 @@ Implementation Steps:
 Acceptance Criteria:
 
  * The ConfigLoader is simplified and contains no flow-specific prompt logic.
- * langchain_agent, langgraph_react_agent, and chatbot flows successfully load prompts using system_prompt
-   or system_prompt_path.
+ * langchain_agent and chatbot flows successfully load prompts using system_prompt or
+   system_prompt_path.
  * The hpc_consultant (smol-agent) flow successfully loads its instructions using instructions or
    instructions_path.
  * Providing both an inline prompt and a path for the same flow (e.g., system_prompt and
