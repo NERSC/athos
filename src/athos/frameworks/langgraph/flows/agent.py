@@ -59,11 +59,10 @@ logger = logging.getLogger(__name__)
 class LangChainAgentFlow(BaseLangGraphFlow):
     """Agent flow powered by LangChain's :func:`create_agent` helper.
 
-    Much like :class:`LangGraphReactAgentFlow`, this flow wires together
-    ATHOS-configured models, tools, and MCP servers. Instead of depending on
-    LangGraph's `create_react_agent`, it builds the agent graph using the
-    higher-level `langchain.agents.create_agent` factory which offers a
-    consistent interface across providers.
+    This flow wires together ATHOS-configured models, tools, and MCP servers
+    using LangChain's ``create_agent`` helper. It provides similar
+    capabilities to previous ReAct-based LangGraph flows while relying on the
+    unified LangChain abstractions for consistency across providers.
     """
 
     name = "langchain_agent"

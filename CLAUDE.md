@@ -271,7 +271,7 @@ The YAML configuration has four main sections:
 
 **LangGraph Flows** (registered in `src/athos/frameworks/langgraph/flows/`):
 - `langgraph_chatbot`: ✅ **MIGRATED** - Now uses `FlowInput`/`FlowOutput`, supports streaming
-- `langgraph_react_agent`: ✅ **MIGRATED** - Full streaming with tool call events, uses new interface
+- `langchain_agent`: ✅ **MIGRATED** - LangChain-powered agent with streaming and tool calls
 
 ### Flow Interface
 

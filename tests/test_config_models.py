@@ -43,7 +43,7 @@ def test_langgraph_flow_rejects_smol_tool():
         },
         "flows": {
             "bad_langgraph": {
-                "type": "langgraph_react_agent",
+                "type": "langchain_agent",
                 "model": "m",
                 "tools": ["smol_tool"],
             }
