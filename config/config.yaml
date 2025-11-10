@@ -265,7 +265,7 @@ flows:
   lc_filesystem_agent:
     description: "Agent with filesystem MCP access"
     type: "langchain_agent"
-    model: "claude_sonnet"
+    model: "cborg_coder"
     mcp_servers: ["filesystem_mcp"]
     instructions_path: "prompts/lc_filesystem_agent_instructions.md"
     max_iterations: 32
