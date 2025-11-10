@@ -229,7 +229,7 @@ flows:
   #   type: "langgraph_react_agent"
   #   model: "cborg_coder"
   #   tools: ["langchain_tavily_search"]
-  #   instructions: |
+  #   system_prompt: |
   #     You are a friendly assistant help users with questions. Always consider using
   #     a web search tool before responding so you can reference up-to-date information.
   #     Summarize the findings concisely in your reply.
@@ -240,7 +240,7 @@ flows:
     type: "langchain_agent"
     model: "cborg_coder"
     tools: ["langchain_tavily_search"]
-    instructions_path: "prompts/langchain_web_agent_instructions.md"
+    system_prompt_path: "prompts/langchain_web_agent_instructions.md"
     max_iterations: 32
 
   # Agent which can call the superfacility API tools
@@ -249,7 +249,7 @@ flows:
     type: "langchain_agent"
     model: "cborg_coder"
     mcp_servers: ["sfapi_mcp"]
-    instructions_path: "prompts/lc_sfapi_agent_instructions.md"
+    system_prompt_path: "prompts/lc_sfapi_agent_instructions.md"
     max_iterations: 12
 
   # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
@@ -258,7 +258,7 @@ flows:
     type: "langchain_agent"
     model: "cborg_coder"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
-    instructions_path: "prompts/lc_docs_agent_instructions.md"
+    system_prompt_path: "prompts/lc_docs_agent_instructions.md"
     max_iterations: 32
 
   # MCP-enabled agent example
@@ -267,7 +267,7 @@ flows:
     type: "langchain_agent"
     model: "cborg_coder"
     mcp_servers: ["filesystem_mcp"]
-    instructions_path: "prompts/lc_filesystem_agent_instructions.md"
+    system_prompt_path: "prompts/lc_filesystem_agent_instructions.md"
     max_iterations: 32
 
   docs_react_agent:
@@ -276,7 +276,7 @@ flows:
     model: "claude_sonnet"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
     max_iterations: 32
-    instructions_path: "prompts/docs_react_agent_instructions.md"
+    system_prompt_path: "prompts/docs_react_agent_instructions.md"
 
 # Logging configuration
 logging_config:

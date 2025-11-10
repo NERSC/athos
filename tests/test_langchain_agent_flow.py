@@ -74,7 +74,7 @@ async def test_agent_flow_executes_and_tracks_history(monkeypatch):
         type="langchain_agent",
         model="test",
         tools=[],
-        instructions="Be concise.",
+        system_prompt="Be concise.",
         max_iterations=7,
     )
 
@@ -195,7 +195,7 @@ async def test_agent_factory_combines_instructions_and_tools(monkeypatch):
         model="demo",
         tools=["demo_tool"],
         mcp_servers=["demo_mcp"],
-        instructions="Primary instruction",
+        system_prompt="Primary instruction",
         max_iterations=3,
     )
 
@@ -222,7 +222,7 @@ async def test_agent_factory_combines_instructions_and_tools(monkeypatch):
 
     flow = await LangChainAgentFlow.create(cfg, full_cfg)
 
-    assert flow.instructions == "Primary instruction\n\nServer instruction"
+    assert flow.system_prompt == "Primary instruction\n\nServer instruction"
 
     session = FlowSession(
         session_id="test_session",
@@ -269,7 +269,7 @@ async def test_agent_handles_optional_dependencies(monkeypatch):
         model="demo",
         tools=[],
         mcp_servers=[],
-        instructions=None,
+        system_prompt=None,
         max_iterations=1,
     )
 

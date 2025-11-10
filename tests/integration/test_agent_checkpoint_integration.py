@@ -29,7 +29,7 @@ def flow_config():
         model="test_model",
         tools=[],
         mcp_servers=[],
-        instructions="You are a helpful assistant that remembers context from the conversation.",
+        system_prompt="You are a helpful assistant that remembers context from the conversation.",
         max_iterations=10,
     )
 
