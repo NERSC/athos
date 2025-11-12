@@ -82,10 +82,10 @@ async def main() -> None:
     )
     parser.add_argument(
         "--flow",
-        default="hpc_chatbot",
+        default="langgraph_chatbot_demo",
         help=(
             "Name of the chatbot flow to run. "
-            "Try 'hpc_chatbot' or 'langgraph_chatbot_demo'."
+            "For example, try 'langgraph_chatbot_demo'."
         ),
     )
     args = parser.parse_args()
@@ -196,7 +196,7 @@ After implementing the changes, verify that the new scripts work correctly by ru
 **Chatbot Example:**
 ```bash
 # Run the smol-agent based chatbot
-python src/athos/examples/chatbot_example.py --flow hpc_chatbot
+python src/athos/examples/chatbot_example.py --flow langgraph_chatbot_demo
 
 # Run the langgraph-based chatbot
 python src/athos/examples/chatbot_example.py --flow langgraph_chatbot_demo
