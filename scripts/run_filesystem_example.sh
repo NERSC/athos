@@ -34,7 +34,7 @@ export ATHOS_WORKSPACE=$(mktemp -d)/athos_workspace
 DEMO_DIR=$ATHOS_WORKSPACE
 
 # Run the demo
-python -m athos.examples.filesystem_agent --flow lc_filesystem_agent --demo-dir "$DEMO_DIR"
+python -m athos.examples.filesystem_agent --flow lang_filesystem_agent --demo-dir "$DEMO_DIR"
 
 echo ""
 echo "📝 Demo completed! Check the '$DEMO_DIR' directory for created files."

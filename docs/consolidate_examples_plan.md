@@ -82,10 +82,10 @@ async def main() -> None:
     )
     parser.add_argument(
         "--flow",
-        default="langgraph_chatbot_demo",
+        default="lang_chat",
         help=(
             "Name of the chatbot flow to run. "
-            "For example, try 'langgraph_chatbot_demo'."
+            "For example, try 'lang_chat'."
         ),
     )
     args = parser.parse_args()
@@ -166,10 +166,10 @@ async def main() -> None:
     )
     parser.add_argument(
         "--flow",
-        default="web_agent",
+        default="smol_web_agent",
         help=(
             "Name of the agent flow to run. "
-            "Try 'web_agent' or 'langchain_web_agent'."
+            "Try 'smol_web_agent' or 'lang_web_agent'."
         ),
     )
     args = parser.parse_args()
@@ -196,18 +196,18 @@ After implementing the changes, verify that the new scripts work correctly by ru
 **Chatbot Example:**
 ```bash
 # Run the smol-agent based chatbot
-python src/athos/examples/chatbot_example.py --flow langgraph_chatbot_demo
+python src/athos/examples/chatbot_example.py --flow lang_chat
 
 # Run the langgraph-based chatbot
-python src/athos/examples/chatbot_example.py --flow langgraph_chatbot_demo
+python src/athos/examples/chatbot_example.py --flow lang_chat
 ```
 
 **Web Agent Example:**
 *Note: This example requires API keys (e.g., for Tavily) to be set in a `.env` file in the project root.*
 ```bash
 # Run the smol-agent based web agent
-python src/athos/examples/web_agent_example.py --flow web_agent
+python src/athos/examples/web_agent_example.py --flow smol_web_agent
 
 # Run the langgraph-based web agent
-python src/athos/examples/web_agent_example.py --flow langchain_web_agent
+python src/athos/examples/web_agent_example.py --flow lang_web_agent
 ```

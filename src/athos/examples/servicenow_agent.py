@@ -243,7 +243,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="ATHOS ServiceNow demo")
     parser.add_argument("--config", default="config/config.yaml",
                         help="Path to configuration YAML file")
-    parser.add_argument("--flow", default="servicenow_agent",
+    parser.add_argument("--flow", default="smol_servicenow_agent",
                         help="Name of the ServiceNow flow to use")
     parser.add_argument(
         "--tasks",

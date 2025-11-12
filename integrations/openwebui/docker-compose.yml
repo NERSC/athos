@@ -11,8 +11,8 @@ services:
       - PIPELINES_API_KEY=0p3n-w3bu!
       - PIPELINES_DIR=/app/pipelines
       - ATHOS_PIPELINE_CONFIG_PATH=/workspace/config/config.yaml
-      - ATHOS_PIPELINE_ENABLED_FLOWS=langchain_web_agent,lc_sfapi_agent,lc_docs_agent,lc_filesystem_agent,docs_react_agent
-      - ATHOS_PIPELINE_DEFAULT_FLOW=langchain_web_agent
+      - ATHOS_PIPELINE_ENABLED_FLOWS=lang_web_agent,lang_sfapi_agent,lang_docs_agent,lang_filesystem_agent,lang_docs_react_agent
+      - ATHOS_PIPELINE_DEFAULT_FLOW=lang_web_agent
       - ATHOS_WORKSPACE=/workspace/athos
       - CBORG_API_URL=${CBORG_API_URL:?must be set}
       - CBORG_API_KEY=${CBORG_API_KEY:?must be set}

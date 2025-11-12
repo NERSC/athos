@@ -89,7 +89,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="ATHOS Docs RAG demo")
     parser.add_argument("--config", default="config/config.yaml",
                         help="Path to configuration YAML file")
-    parser.add_argument("--flow", default="docs_rag_agent",
+    parser.add_argument("--flow", default="smol_docs_agent",
                         help="Name of the Docs RAG flow to use")
     parser.add_argument(
         "--tasks",

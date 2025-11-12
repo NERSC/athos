@@ -41,7 +41,7 @@ class AgentFlow(BaseFlow):
     """General agent flow supporting multiple agent types."""
 
     # ===== Class metadata (new pattern) =====
-    name: ClassVar[str] = "agent"
+    name: ClassVar[str] = "smol_agent"
     description: ClassVar[str] = "SmolAgents tool-calling or code-executing agent"
     framework: ClassVar[ToolFramework] = ToolFramework.SMOLAGENTS
     supported_modes: ClassVar[List[ExecutionMode]] = [ExecutionMode.SYNC]
@@ -201,7 +201,7 @@ class AgentType(str, Enum):
 
 
 class AgentFlowConfig(BaseFlowConfig):
-    type: Literal["agent"]
+    type: Literal["smol_agent"]
     model: str
     agent_type: AgentType = AgentType.CODE
     mcp_servers: List[str] = Field(default_factory=list)

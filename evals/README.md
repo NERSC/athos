@@ -41,15 +41,15 @@ Arguments:
 
 - **HPC troubleshooting cases only** (default):
   ```bash
-  python evals/run_evaluations.py --config config/config.yaml --flow langgraph_chatbot_demo
+  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat
   ```
 - **Q&A cases only**:
   ```bash
-  python evals/run_evaluations.py --config config/config.yaml --flow langgraph_chatbot_demo --qa-file evals/simple_qa.jsonl
+  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --qa-file evals/simple_qa.jsonl
   ```
 - **Both HPC and Q&A cases**:
   ```bash
-  python evals/run_evaluations.py --config config/config.yaml --flow langgraph_chatbot_demo --cases-dir evals/test_cases --qa-file evals/simple_qa.jsonl
+  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --cases-dir evals/test_cases --qa-file evals/simple_qa.jsonl
   ```
 
 ## Available test cases

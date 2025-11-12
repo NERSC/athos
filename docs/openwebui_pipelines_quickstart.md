@@ -54,7 +54,7 @@ containers alongside two Athos pipeline implementations:
 
    - Create a new chat and select one of the models exposed by the
      FlowRunner pipeline (for example `Chatbot that answers general HPC
-     questions (langgraph_chatbot_demo)`).
+     questions (lang_chat)`).
    - Provide any required credentials (such as `CBORG_API_KEY`) in your
      environment or `.env` file so the selected flow can reach its backing
      model.

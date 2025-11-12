@@ -211,7 +211,7 @@ async def main():
     parser = argparse.ArgumentParser(description="ATHOS filesystem demo")
     parser.add_argument("--config", default="config/config.yaml",
                         help="Path to configuration YAML file")
-    parser.add_argument("--flow", default="filesystem_agent",
+    parser.add_argument("--flow", default="smol_filesystem_agent",
                         help="Name of the filesystem flow to use")
     parser.add_argument(
         "--demo-dir",

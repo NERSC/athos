@@ -34,17 +34,17 @@ Copy `.env.template` to `.env` and configure required environment variables:
 ### Running the CLI
 ```bash
 # Basic execution
-athos --config config/config.yaml --flow langgraph_chatbot_demo --input "what is NERSC?"
+athos --config config/config.yaml --flow lang_chat --input "what is NERSC?"
 
 # With log level override
-athos --config config/config.yaml --flow langgraph_chatbot_demo --input "your question" --log-level DEBUG
+athos --config config/config.yaml --flow lang_chat --input "your question" --log-level DEBUG
 
 # With configuration overrides
-athos --config config/config.yaml --flow langgraph_chatbot_demo --input "hi" \
+athos --config config/config.yaml --flow lang_chat --input "hi" \
   --set models.gpt_4o.temperature=0.5 --set models.gpt_4o.max_tokens=50
 
 # Launch Gradio interface
-athos --config config/config.yaml --flow langgraph_chatbot_demo --gradio --port 7860
+athos --config config/config.yaml --flow lang_chat --gradio --port 7860
 
 # Show configuration summary
 athos --config config/config.yaml --show-config
@@ -68,14 +68,14 @@ pytest --cov=athos
 ### Evaluations
 ```bash
 # Run evaluations on a flow
-python evals/run_evaluations.py --config config/config.yaml --flow langgraph_chatbot_demo
+python evals/run_evaluations.py --config config/config.yaml --flow lang_chat
 
 # With Q&A dataset
-python evals/run_evaluations.py --config config/config.yaml --flow langgraph_chatbot_demo --qa-file evals/simple_qa.jsonl
+python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --qa-file evals/simple_qa.jsonl
 
 # Multiple flows and custom output
 python evals/run_evaluations.py --config config/config.yaml \
-  --flow langgraph_chatbot_demo --flow docs_rag_agent \
+  --flow lang_chat --flow smol_docs_agent \
   --output results.json
 ```
 
@@ -461,7 +461,7 @@ LangGraph flows have special integration considerations:
 Use `--set` with dot notation to override config values at runtime:
 ```bash
 --set models.gpt_4o.temperature=0.5
---set flows.langgraph_chatbot_demo.system_prompt="Custom prompt"
+--set flows.lang_chat.system_prompt="Custom prompt"
 ```
 
 Values are parsed as YAML, so wrap strings in quotes. Nested dictionary keys are separated by dots.

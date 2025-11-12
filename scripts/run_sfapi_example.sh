@@ -1,6 +1,6 @@
 #!/bin/bash
 
-flow=lc_sfapi_agent # lc_sfapi_agent or sfapi_agent
+flow=lang_sfapi_agent # lang_sfapi_agent or smol_sfapi_agent
 tasks=systems #,outages #,projects
 export ATHOS_LOG_LEVEL=DEBUG
 
