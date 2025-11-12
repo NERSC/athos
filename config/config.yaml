@@ -153,13 +153,6 @@ tools:
 
 # Agent flows define the agent system
 flows:
-  # Simple chatbot for general HPC questions
-  hpc_chatbot:
-    description: "Chatbot that answers general HPC questions using CBORG chat"
-    type: "chatbot"
-    model: "cborg_chat"
-    system_prompt_path: "prompts/hpc_chatbot_system_prompt.txt"
-
   # Web agent example
   web_agent:
     description: "Web-enabled agent leveraging DuckDuckGo and webpage tools"

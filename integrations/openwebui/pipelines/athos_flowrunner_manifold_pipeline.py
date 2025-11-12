@@ -41,7 +41,7 @@ class Pipeline:
             description="Absolute path to the ATHOS configuration file.",
         )
         default_flow: str = Field(
-            default="hpc_chatbot",
+            default="langgraph_chatbot_demo",
             description="Flow to use when the selected model is unavailable.",
         )
         enabled_flows: List[str] = Field(

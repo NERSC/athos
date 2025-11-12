@@ -1,40 +1,43 @@
 import pytest
 import yaml
-from athos.runtime.builder import build_config, build_flow
-from athos.frameworks.smolagents.flows import ChatbotFlow
-from athos.config import AthosConfig
 from types import SimpleNamespace
 from unittest.mock import Mock
+
+from athos.config import AthosConfig
+from athos.frameworks.smolagents.flows import AgentFlow
+from athos.runtime.builder import build_config, build_flow
 
 # Import flows to ensure they are registered
 from athos.frameworks.smolagents import flows as smol_flows  # noqa: F401
 
 
 @pytest.mark.asyncio
-async def test_build_config_and_flow(tmp_path, monkeypatch):
+async def test_build_config_and_agent_flow(tmp_path, monkeypatch):
     cfg_yaml = """
 workspace_dir: "/tmp"
 models:
   test_model:
     model_id: "openai/gpt4"
 flows:
-  chat:
-    type: "chatbot"
+  agent_flow:
+    type: "agent"
     model: "test_model"
-    system_prompt: "hello"
 """
     cfg_file = tmp_path / "cfg.yaml"
     cfg_file.write_text(cfg_yaml)
-    mock_model = lambda messages, stop_sequences=None: type(
-        "Resp", (), {"content": "ok"}
-    )()
+    mock_model = Mock()
+    mock_agent = SimpleNamespace(run=lambda *_, **__: "ok", tools=[])
     monkeypatch.setattr(
-        "athos.frameworks.smolagents.flows.chatbot.build_model",
+        "athos.frameworks.smolagents.flows.agent.build_model",
         lambda cfg: mock_model,
     )
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.agent.CodeAgent",
+        lambda **_: mock_agent,
+    )
     cfg = build_config(str(cfg_file))
-    flow = await build_flow("chat", cfg)
-    assert isinstance(flow, ChatbotFlow)
+    flow = await build_flow("agent_flow", cfg)
+    assert isinstance(flow, AgentFlow)
 
 
 @pytest.mark.asyncio
@@ -59,6 +62,11 @@ flows:
     monkeypatch.setattr(
         "athos.frameworks.smolagents.flows.agent.build_model",
         lambda cfg: lambda m: None,
+    )
+    mock_agent = SimpleNamespace(run=lambda *_, **__: "ok", tools=[])
+    monkeypatch.setattr(
+        "athos.frameworks.smolagents.flows.agent.CodeAgent",
+        lambda **_: mock_agent,
     )
     dummy_client = SimpleNamespace(disconnect=Mock(), get_tools=lambda: [])
     monkeypatch.setattr(

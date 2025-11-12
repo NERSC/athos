@@ -61,10 +61,10 @@ async def main() -> None:
     )
     parser.add_argument(
         "--flow",
-        default="hpc_chatbot",
+        default="langgraph_chatbot_demo",
         help=(
             "Name of the chatbot flow to run. "
-            "Try 'hpc_chatbot' or 'langgraph_chatbot_demo'."
+            "For example, try 'langgraph_chatbot_demo'."
         ),
     )
     args = parser.parse_args()
