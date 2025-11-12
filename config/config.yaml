@@ -154,25 +154,25 @@ tools:
 # Agent flows define the agent system
 flows:
   # Web agent example
-  web_agent:
+  smol_web_agent:
     description: "Web-enabled agent leveraging DuckDuckGo and webpage tools"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "tool_calling"
     model: "o4_mini"
     tools: ["websearch", "webvisit"]
 
   # MCP-enabled agent example
-  filesystem_agent:
+  smol_filesystem_agent:
     description: "Code agent with filesystem MCP access"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     mcp_servers: ["filesystem_mcp"]
 
   # ServiceNow integration agent
-  servicenow_agent:
+  smol_servicenow_agent:
     description: "Code agent for interacting with ServiceNow"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     mcp_servers: ["servicenow_mcp"]
@@ -180,27 +180,27 @@ flows:
     verbosity_level: 1  # 0: ERROR, 1: INFO, 2: DEBUG
 
   # Agent which can call the superfacility API tools
-  sfapi_agent:
+  smol_sfapi_agent:
     description: "Agent preconfigured for Superfacility API workflows"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     additional_authorized_imports: ["json"]
     mcp_servers: ["sfapi_mcp"]
 
   # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
-  docs_rag_agent:
+  smol_docs_agent:
     description: "Agent that uses documentation RAG MCP servers for retrieval"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
     verbosity_level: 2  # 0: ERROR, 1: INFO, 2: DEBUG
 
   # Agent that can interact with servicenow and read from docs
-  hpc_consultant:
+  smol_hpc_consultant:
     description: "Consultant agent that combines ServiceNow and documentation tools"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     additional_authorized_imports: ["json"]
@@ -208,7 +208,7 @@ flows:
     instructions_path: "prompts/hpc_consultant_instructions.md"
 
   # LangGraph chatbot flow example
-  langgraph_chatbot_demo:
+  lang_chat:
     description: "Minimal LangGraph chatbot flow using the CBORG chat model"
     type: "langgraph_chatbot"
     model: "cborg_coder"
@@ -217,7 +217,7 @@ flows:
     #   - "Hello!"
     #   - "Hi there! I'm the LangGraph chatbot example ready to assist you."
 
-  langchain_web_agent:
+  lang_web_agent:
     description: "LangChain agent demo with web search tool"
     type: "langchain_agent"
     model: "cborg_coder"
@@ -226,7 +226,7 @@ flows:
     max_iterations: 32
 
   # Agent which can call the superfacility API tools
-  lc_sfapi_agent:
+  lang_sfapi_agent:
     description: "LangChain agent preconfigured for Superfacility API workflows"
     type: "langchain_agent"
     model: "cborg_coder"
@@ -235,7 +235,7 @@ flows:
     max_iterations: 12
 
   # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
-  lc_docs_agent:
+  lang_docs_agent:
     description: "Agent that uses documentation RAG MCP servers for retrieval"
     type: "langchain_agent"
     model: "cborg_coder"
@@ -244,7 +244,7 @@ flows:
     max_iterations: 32
 
   # MCP-enabled agent example
-  lc_filesystem_agent:
+  lang_filesystem_agent:
     description: "Agent with filesystem MCP access"
     type: "langchain_agent"
     model: "cborg_coder"
@@ -252,7 +252,7 @@ flows:
     system_prompt_path: "prompts/lc_filesystem_agent_instructions.md"
     max_iterations: 32
 
-  docs_react_agent:
+  lang_docs_react_agent:
     description: "Agent that uses documentation RAG MCP servers for retrieval"
     type: "langchain_agent"
     model: "claude_sonnet"

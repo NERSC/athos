@@ -2,5 +2,5 @@
 
 python -m athos.main \
     --config config/config.yaml \
-    --flow langgraph_chatbot_demo \
+    --flow lang_chat \
     --input "what is NERSC?"

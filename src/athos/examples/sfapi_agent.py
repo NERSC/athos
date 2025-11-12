@@ -137,7 +137,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="ATHOS SFAPI demo")
     parser.add_argument("--config", default="config/config.yaml",
                         help="Path to configuration YAML file")
-    parser.add_argument("--flow", default="sfapi_agent",
+    parser.add_argument("--flow", default="smol_sfapi_agent",
                         help="Name of the SFAPI flow to use")
     parser.add_argument(
         "--tasks",

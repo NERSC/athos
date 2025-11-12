@@ -18,7 +18,7 @@ class DummyGraph:
 
 
 @pytest.mark.asyncio
-async def test_langchain_web_agent_flow(monkeypatch):
+async def test_lang_web_agent_flow(monkeypatch):
     from pathlib import Path
 
     from athos.models.enums import ExecutionMode
@@ -30,7 +30,7 @@ async def test_langchain_web_agent_flow(monkeypatch):
 
     cfg = build_config("config/config.yaml")
 
-    flow_cfg = cfg.flows["langchain_web_agent"]
+    flow_cfg = cfg.flows["lang_web_agent"]
     assert flow_cfg.type == "langchain_agent"
     assert flow_cfg.tools == ["langchain_tavily_search"]
     assert flow_cfg.max_iterations > 0  # Verify it's configured, not the specific value
@@ -63,7 +63,7 @@ async def test_langchain_web_agent_flow(monkeypatch):
     monkeypatch.setattr(agent_module, "build_tool", fake_build_tool)
     monkeypatch.setattr(agent_module, "create_agent", fake_create_agent)
 
-    flow = await build_flow("langchain_web_agent", cfg)
+    flow = await build_flow("lang_web_agent", cfg)
 
     assert flow.tools == [dummy_tool]
     assert flow.system_prompt is not None

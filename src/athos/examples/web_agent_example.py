@@ -62,10 +62,10 @@ async def main() -> None:
     )
     parser.add_argument(
         "--flow",
-        default="web_agent",
+        default="smol_web_agent",
         help=(
             "Name of the agent flow to run. "
-            "Try 'web_agent' or 'langchain_web_agent'."
+            "Try 'smol_web_agent' or 'lang_web_agent'."
         ),
     )
     args = parser.parse_args()
