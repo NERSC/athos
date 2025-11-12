@@ -217,6 +217,13 @@ flows:
     #   - "Hello!"
     #   - "Hi there! I'm the LangGraph chatbot example ready to assist you."
 
+  lang_agent:
+    description: "LangChain agent configured as a simple chatbot without tools"
+    type: "langchain_agent"
+    model: "cborg_coder"
+    system_prompt_path: "prompts/langgraph_chatbot_demo_system_prompt.txt"
+    max_iterations: 20
+
   lang_web_agent:
     description: "LangChain agent demo with web search tool"
     type: "langchain_agent"
