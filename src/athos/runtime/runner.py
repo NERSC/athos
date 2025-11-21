@@ -35,7 +35,7 @@ class FlowRunner:
     async def execute(
         self,
         flow_name: str,
-        message: str,
+        message: str,  # TODO: Support str | BaseMessage for multimodal inputs
         session_id: str,
         user_id: str,
         *,
@@ -43,7 +43,20 @@ class FlowRunner:
         interface: str = "unknown",
         metadata: Optional[dict] = None,
     ) -> FlowResult:
-        """Execute a flow synchronously and capture structured results."""
+        """Execute a flow synchronously and capture structured results.
+
+        Args:
+            flow_name: Name of the flow to execute
+            message: User message (currently text-only; future: BaseMessage for multimodal)
+            session_id: Unique session identifier
+            user_id: User identifier
+            mode: Execution mode (sync or streaming)
+            interface: Interface name (e.g., "cli", "api", "openwebui")
+            metadata: Optional metadata to attach to the execution
+
+        Returns:
+            FlowResult with success status, output, and metadata
+        """
 
         request = FlowRequest(
             request_id=self._generate_request_id(),
@@ -132,14 +145,26 @@ class FlowRunner:
     async def stream(
         self,
         flow_name: str,
-        message: str,
+        message: str,  # TODO: Support str | BaseMessage for multimodal inputs
         session_id: str,
         user_id: str,
         *,
         interface: str = "unknown",
         metadata: Optional[dict] = None,
     ) -> AsyncGenerator[FlowOutput, None]:
-        """Execute a flow with streaming semantics."""
+        """Execute a flow with streaming semantics.
+
+        Args:
+            flow_name: Name of the flow to execute
+            message: User message (currently text-only; future: BaseMessage for multimodal)
+            session_id: Unique session identifier
+            user_id: User identifier
+            interface: Interface name (e.g., "cli", "api", "openwebui")
+            metadata: Optional metadata to attach to the execution
+
+        Yields:
+            FlowOutput chunks as they become available
+        """
 
         request = FlowRequest(
             request_id=self._generate_request_id(),
