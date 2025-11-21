@@ -43,7 +43,7 @@ async def test_create_agent_flow_appends_mcp_instructions(monkeypatch):
     )
 
     cfg = AgentFlowConfig(
-        type="agent",
+        type="smol_agent",
         model="m1",
         instructions=instructions,
         mcp_servers=["mcp1"],
