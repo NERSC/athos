@@ -19,7 +19,6 @@ from athos.frameworks.langgraph.utils.messages import (
     HumanMessage,
     SystemMessage,
 )
-from athos.frameworks.langgraph.utils.translation import to_langgraph_messages
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.registry.flow_registry import register_flow
@@ -183,7 +182,8 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         if self._initial_history:
             messages.extend(self._initial_history)
 
-        messages.extend(to_langgraph_messages(input.session.get_history()))
+        # Session history is already in BaseMessage format
+        messages.extend(input.session.get_history())
         messages.append(HumanMessage(input.message))
         return messages
 
