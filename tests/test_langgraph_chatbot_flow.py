@@ -60,8 +60,8 @@ async def test_chatbot_flow_execute_returns_structured_output(monkeypatch):
     flow = await LangGraphChatbotFlow.create(cfg, athos_config)
 
     session = FlowSession(session_id="s", user_id="u")
-    session.add_message("user", "Previous question")
-    session.add_message("assistant", "Previous answer")
+    session.add_user_message("Previous question")
+    session.add_assistant_message("Previous answer")
 
     flow_input = FlowInput(
         message="How are you?",
