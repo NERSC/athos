@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from langchain_core.messages import AIMessage, HumanMessage
 
 from athos.config.models import AthosConfig, ModelConfig
 from athos.frameworks.langgraph.flows.agent import LangChainAgentFlow, LangChainAgentFlowConfig
@@ -124,10 +125,10 @@ async def test_build_messages_only_new_message(flow):
         session_id=SESSION_ID_BASIC,
         user_id=USER_ID,
         messages=[
-            {"role": "user", "content": "First message"},
-            {"role": "assistant", "content": "First response"},
-            {"role": "user", "content": "Second message"},
-            {"role": "assistant", "content": "Second response"},
+            HumanMessage(content="First message"),
+            AIMessage(content="First response"),
+            HumanMessage(content="Second message"),
+            AIMessage(content="Second response"),
         ]
     )
 
@@ -141,7 +142,6 @@ async def test_build_messages_only_new_message(flow):
 
     # Should only contain the new message
     assert len(messages) == 1
-    from langchain_core.messages import HumanMessage
     assert isinstance(messages[0], HumanMessage)
     assert messages[0].content == "Third message"
 

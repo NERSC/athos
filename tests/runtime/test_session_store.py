@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage
 
 from athos.models.session import FlowSession
 from athos.runtime.session_store import InMemorySessionStore, SessionStore
@@ -25,13 +26,16 @@ async def test_get_or_create_returns_existing_session() -> None:
     store = InMemorySessionStore()
 
     first = await store.get_or_create("session-1", "user-1")
-    first.add_message("user", "hello")
+    first.add_user_message("hello")
     await store.save(first)
 
     second = await store.get_or_create("session-1", "user-1")
 
     assert second is first
-    assert second.get_history() == [{"role": "user", "content": "hello"}]
+    history = second.get_history()
+    assert len(history) == 1
+    assert isinstance(history[0], HumanMessage)
+    assert history[0].content == "hello"
 
 
 @pytest.mark.asyncio
@@ -41,11 +45,19 @@ async def test_sessions_are_isolated_by_id() -> None:
     session_a = await store.get_or_create("session-1", "user-1")
     session_b = await store.get_or_create("session-2", "user-1")
 
-    session_a.add_message("assistant", "A")
-    session_b.add_message("assistant", "B")
+    session_a.add_assistant_message("A")
+    session_b.add_assistant_message("B")
 
-    assert session_a.get_history() == [{"role": "assistant", "content": "A"}]
-    assert session_b.get_history() == [{"role": "assistant", "content": "B"}]
+    history_a = session_a.get_history()
+    history_b = session_b.get_history()
+
+    assert len(history_a) == 1
+    assert isinstance(history_a[0], AIMessage)
+    assert history_a[0].content == "A"
+
+    assert len(history_b) == 1
+    assert isinstance(history_b[0], AIMessage)
+    assert history_b[0].content == "B"
 
 
 @pytest.mark.asyncio

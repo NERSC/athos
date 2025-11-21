@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import AsyncGenerator
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage
 
 from athos.config.models import AthosConfig, BaseFlowConfig, ModelConfig, ToolFramework
 from athos.interfaces.base_flow import BaseFlow
@@ -177,10 +178,12 @@ async def test_execute_success(tmp_path: Path) -> None:
     assert result.output is not None
     assert result.output.content == "Response: hello"
     session = await runner.session_store.get_or_create("session-1", "user-1")
-    assert session.get_history() == [
-        {"role": "user", "content": "hello"},
-        {"role": "assistant", "content": "Response: hello"},
-    ]
+    history = session.get_history()
+    assert len(history) == 2
+    assert isinstance(history[0], HumanMessage)
+    assert history[0].content == "hello"
+    assert isinstance(history[1], AIMessage)
+    assert history[1].content == "Response: hello"
 
 
 @pytest.mark.asyncio
@@ -218,7 +221,8 @@ async def test_session_reuse(tmp_path: Path) -> None:
     )
 
     session = await runner.session_store.get_or_create("shared", "user-1")
-    assert [msg["content"] for msg in session.get_history()] == [
+    history = session.get_history()
+    assert [msg.content for msg in history] == [
         "first",
         "Response: first",
         "second",
@@ -276,10 +280,12 @@ async def test_streaming_flow_records_incremental_history(tmp_path: Path) -> Non
     assert chunks[-1].metadata.get("final") is True
 
     session = await runner.session_store.get_or_create("stream-session", "stream-user")
-    assert session.get_history() == [
-        {"role": "user", "content": "hello"},
-        {"role": "assistant", "content": "Hello"},
-    ]
+    history = session.get_history()
+    assert len(history) == 2
+    assert isinstance(history[0], HumanMessage)
+    assert history[0].content == "hello"
+    assert isinstance(history[1], AIMessage)
+    assert history[1].content == "Hello"
 
 
 @pytest.mark.asyncio
@@ -313,7 +319,9 @@ async def test_streaming_flow_records_partial_history_on_error(tmp_path: Path) -
         await anext(stream)
 
     session = await runner.session_store.get_or_create("fail-session", "stream-user")
-    assert session.get_history() == [
-        {"role": "user", "content": "uh oh"},
-        {"role": "assistant", "content": "Hi"},
-    ]
+    history = session.get_history()
+    assert len(history) == 2
+    assert isinstance(history[0], HumanMessage)
+    assert history[0].content == "uh oh"
+    assert isinstance(history[1], AIMessage)
+    assert history[1].content == "Hi"
