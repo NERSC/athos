@@ -273,8 +273,8 @@ class FlowRunner:
     def _record_interaction(self, session: FlowSession, message: str, response: str) -> None:
         """Persist user ↔ assistant messages into the session."""
 
-        session.add_message("user", message)
-        session.add_message("assistant", response)
+        session.add_user_message(message)
+        session.add_assistant_message(response)
 
     def _generate_request_id(self) -> str:
         """Generate a human-readable request identifier."""
