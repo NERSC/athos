@@ -120,3 +120,21 @@ def test_session_serialization_roundtrip():
     assert restored.messages[0].content == "Hello"
     assert restored.messages[1].content == "Hi there!"
     assert restored.messages[3].tool_call_id == "call_123"
+
+
+def test_session_validate_accepts_pydantic_kwargs():
+    """Test that model_validate accepts Pydantic's keyword arguments."""
+    data = {
+        "session_id": "sess-8",
+        "user_id": "user-8",
+        "workspace": "/tmp",
+        "messages": [],
+    }
+
+    # Should accept strict parameter (Pydantic validation option)
+    session = FlowSession.model_validate(data, strict=False)
+    assert session.session_id == "sess-8"
+
+    # Should accept context parameter
+    session_with_context = FlowSession.model_validate(data, context={"test": "value"})
+    assert session_with_context.session_id == "sess-8"

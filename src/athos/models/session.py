@@ -115,11 +115,13 @@ class FlowSession(BaseModel):
         return data
 
     @classmethod
-    def model_validate(cls, obj: Any) -> FlowSession:
+    def model_validate(cls, obj: Any, **kwargs: Any) -> FlowSession:
         """Deserialize session from storage, converting dict to BaseMessage format.
 
         Args:
             obj: Dictionary or object to validate and convert
+            **kwargs: Additional validation parameters (strict, from_attributes, context, etc.)
+                     passed through to Pydantic's BaseModel.model_validate
 
         Returns:
             FlowSession instance with BaseMessage objects
@@ -131,4 +133,4 @@ class FlowSession(BaseModel):
             # Convert string workspace back to Path
             if "workspace" in obj and isinstance(obj["workspace"], str):
                 obj["workspace"] = Path(obj["workspace"])
-        return super().model_validate(obj)
+        return super().model_validate(obj, **kwargs)
