@@ -138,3 +138,45 @@ def test_session_validate_accepts_pydantic_kwargs():
     # Should accept context parameter
     session_with_context = FlowSession.model_validate(data, context={"test": "value"})
     assert session_with_context.session_id == "sess-8"
+
+
+def test_session_dump_respects_exclude():
+    """Test that model_dump respects exclude parameter."""
+    session = FlowSession(session_id="sess-9", user_id="user-9")
+    session.add_user_message("Large message history")
+    session.add_assistant_message("Response")
+
+    # Exclude messages - should not include messages in output
+    data = session.model_dump(exclude={"messages"})
+    assert "messages" not in data
+    assert "session_id" in data
+    assert data["session_id"] == "sess-9"
+
+    # Exclude workspace - should not include workspace
+    data = session.model_dump(exclude={"workspace"})
+    assert "workspace" not in data
+    assert "messages" in data
+
+    # Exclude both
+    data = session.model_dump(exclude={"messages", "workspace"})
+    assert "messages" not in data
+    assert "workspace" not in data
+
+
+def test_session_dump_respects_include():
+    """Test that model_dump respects include parameter."""
+    session = FlowSession(session_id="sess-10", user_id="user-10")
+    session.add_user_message("Message")
+
+    # Include only session_id - should only have session_id
+    data = session.model_dump(include={"session_id"})
+    assert "session_id" in data
+    assert "messages" not in data
+    assert "workspace" not in data
+    assert "user_id" not in data
+
+    # Include session_id and user_id only
+    data = session.model_dump(include={"session_id", "user_id"})
+    assert "session_id" in data
+    assert "user_id" in data
+    assert "messages" not in data

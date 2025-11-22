@@ -104,14 +104,23 @@ class FlowSession(BaseModel):
     def model_dump(self, **kwargs: Any) -> Dict[str, Any]:
         """Serialize session for storage, converting BaseMessage to dict format.
 
+        Args:
+            **kwargs: Serialization parameters (mode, include, exclude, by_alias, etc.)
+                     passed through to Pydantic's BaseModel.model_dump
+
         Returns:
             Dictionary representation suitable for JSON serialization
         """
         data = super().model_dump(**kwargs)
-        # Convert BaseMessage objects to dicts using LangChain's serialization
-        data["messages"] = messages_to_dict(self.messages)
-        # Convert Path to string for JSON serialization
-        data["workspace"] = str(self.workspace)
+
+        # Only serialize messages if they were included in the dump (respect exclude/include)
+        if "messages" in data:
+            data["messages"] = messages_to_dict(self.messages)
+
+        # Only serialize workspace if it was included in the dump (respect exclude/include)
+        if "workspace" in data:
+            data["workspace"] = str(self.workspace)
+
         return data
 
     @classmethod
