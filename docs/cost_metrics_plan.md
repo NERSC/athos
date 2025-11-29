@@ -26,9 +26,6 @@ File: athos/frameworks/smolagents/flows/agent.py
 - Extract step count → metadata["step_count"]
 - Use standardized ExecutionMetrics model
 
-File: athos/frameworks/smolagents/flows/chatbot.py
-- Extract token usage from chatbot responses (similar approach)
-
 3. Update LangGraph Flows
 
 File: athos/frameworks/langgraph/flows/agent.py
@@ -96,7 +93,6 @@ File: tests/test_evaluations.py (new or enhanced)
 
 - NEW: athos/models/metrics.py
 - MODIFIED: athos/frameworks/smolagents/flows/agent.py
-- MODIFIED: athos/frameworks/smolagents/flows/chatbot.py
 - MODIFIED: athos/frameworks/langgraph/flows/agent.py
 - MODIFIED: athos/frameworks/langgraph/flows/chatbot.py
 - MODIFIED: athos/runtime/runner.py
@@ -120,9 +116,8 @@ Based on a recent evaluation, here is the status of each implementation step.
 
 *   **1. Define Standardized Metrics Schema:** [COMPLETED]
     *   `src/athos/models/metrics.py` has been created with the specified Pydantic models.
-*   **2. Update SmolAgents Flows:** [PARTIALLY COMPLETED]
+*   **2. Update SmolAgents Flows:** [COMPLETED]
     *   `src/athos/frameworks/smolagents/flows/agent.py`: [COMPLETED] - Metrics are being extracted.
-    *   `src/athos/frameworks/smolagents/flows/chatbot.py`: [NOT STARTED] - File does not exist.
 *   **3. Update LangGraph Flows:** [COMPLETED]
     *   `src/athos/frameworks/langgraph/flows/agent.py`: [COMPLETED] - Metrics are being extracted.
     *   `src/athos/frameworks/langgraph/flows/chatbot.py`: [COMPLETED] - Metrics are being extracted using the standardized schema.
@@ -146,4 +141,4 @@ Based on a recent evaluation, here is the status of each implementation step.
 
 **Summary:**
 
-The core implementation is largely in place, but there is a significant gap in testing coverage for the new metrics functionality within the flows and the end-to-end evaluation script. The absence of `smolagents/flows/chatbot.py` also needs to be addressed.
+The core implementation is largely in place, but there is a significant gap in testing coverage for the new metrics functionality within the flows and the end-to-end evaluation script.
