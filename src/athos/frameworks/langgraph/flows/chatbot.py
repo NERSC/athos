@@ -22,6 +22,7 @@ from athos.frameworks.langgraph.utils.messages import (
 from athos.frameworks.langgraph.utils.translation import to_langgraph_messages
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.metrics import ExecutionMetrics, TokenUsage
 from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - only for static analysis
@@ -123,13 +124,55 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             )
 
         content = self._extract_response_content(response)
+
+        # Build execution metrics
+        metrics = ExecutionMetrics(
+            model_name=self.model.model_name if hasattr(self.model, 'model_name') else None
+        )
+
+        # Extract token usage from response
+        # Try usage_metadata (newer LangChain versions)
+        usage_metadata = getattr(response, "usage_metadata", None)
+        if usage_metadata:
+            input_tokens = getattr(usage_metadata, "input_tokens", 0) or getattr(
+                usage_metadata, "prompt_tokens", 0
+            )
+            output_tokens = getattr(usage_metadata, "output_tokens", 0) or getattr(
+                usage_metadata, "completion_tokens", 0
+            )
+            if input_tokens or output_tokens:
+                metrics.token_usage = TokenUsage(
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
+        # Try older 'usage' attribute (response_metadata.usage)
+        elif hasattr(response, "usage"):
+            usage = response.usage
+            if usage:
+                # Handle different usage formats
+                if hasattr(usage, "input_tokens"):
+                    # Pydantic model or object with attributes
+                    input_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+                    output_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+                elif isinstance(usage, dict):
+                    # Dict format
+                    input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
+                    output_tokens = usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
+                else:
+                    input_tokens = 0
+                    output_tokens = 0
+
+                if input_tokens or output_tokens:
+                    metrics.token_usage = TokenUsage(
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                    )
+
+        # Build metadata from metrics
         metadata = {
             "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         }
-
-        usage = getattr(response, "usage", None)
-        if usage is not None:
-            metadata["tokens"] = usage
+        metadata.update(metrics.to_dict())
 
         return FlowOutput(content=content, metadata=metadata)
 

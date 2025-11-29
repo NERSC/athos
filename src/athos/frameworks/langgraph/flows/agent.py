@@ -31,6 +31,7 @@ from athos.frameworks.langgraph.utils.messages import (
 from athos.frameworks.langgraph.utils.translation import to_langgraph_messages
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.metrics import ExecutionMetrics, TokenUsage, ToolCallInfo
 from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -197,6 +198,11 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 message.pretty_print()
 
         content = self._extract_response(result_state)
+
+        # Extract execution metrics from result state
+        metrics = self._extract_metrics(result_state)
+
+        # Build metadata
         metadata = {
             "model": self.model.model_name,
             "tools_available": len(self.tools),
@@ -204,6 +210,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             "checkpoint_enabled": True,
             "thread_id": input.session.session_id,
         }
+        metadata.update(metrics.to_dict())
 
         return FlowOutput(content=content, metadata=metadata)
 
@@ -619,6 +626,102 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 return str(message.content)
 
         raise RuntimeError("LangChain create_agent graph did not produce a response")
+
+    def _extract_metrics(self, state: Any) -> ExecutionMetrics:
+        """Extract execution metrics from the agent result state.
+
+        Aggregates token usage and tool calls across all messages in the state.
+
+        Args:
+            state: The result state from the agent graph execution
+
+        Returns:
+            ExecutionMetrics with token usage and tool call information
+        """
+        metrics = ExecutionMetrics(
+            model_name=self.model.model_name if hasattr(self.model, 'model_name') else None
+        )
+
+        # Extract messages from state
+        messages: Sequence["BaseMessage"]
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        # Track total tokens across all messages
+        total_input_tokens = 0
+        total_output_tokens = 0
+        token_usage_found = False
+
+        # Track tool calls
+        tool_calls_map = {}
+
+        for message in messages:
+            # Extract token usage from AIMessage
+            if AIMessage and isinstance(message, AIMessage):
+                # Try usage_metadata (newer LangChain versions)
+                usage_metadata = getattr(message, "usage_metadata", None)
+                if usage_metadata:
+                    input_tokens = getattr(usage_metadata, "input_tokens", 0) or getattr(
+                        usage_metadata, "prompt_tokens", 0
+                    )
+                    output_tokens = getattr(usage_metadata, "output_tokens", 0) or getattr(
+                        usage_metadata, "completion_tokens", 0
+                    )
+                    if input_tokens or output_tokens:
+                        total_input_tokens += input_tokens
+                        total_output_tokens += output_tokens
+                        token_usage_found = True
+
+                # Try response_metadata.token_usage (older format)
+                elif hasattr(message, "response_metadata"):
+                    resp_meta = message.response_metadata
+                    if isinstance(resp_meta, dict):
+                        usage = resp_meta.get("token_usage") or resp_meta.get("usage")
+                        if usage and isinstance(usage, dict):
+                            input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
+                            output_tokens = usage.get("output_tokens", 0) or usage.get("completion_tokens", 0)
+                            if input_tokens or output_tokens:
+                                total_input_tokens += input_tokens
+                                total_output_tokens += output_tokens
+                                token_usage_found = True
+
+                # Extract tool calls from this message
+                tool_calls = getattr(message, "tool_calls", None)
+                if tool_calls:
+                    for tc in tool_calls:
+                        tool_name = None
+                        if isinstance(tc, dict):
+                            tool_name = tc.get("name")
+                        elif hasattr(tc, "name"):
+                            tool_name = tc.name
+
+                        if tool_name:
+                            if tool_name in tool_calls_map:
+                                tool_calls_map[tool_name].call_count += 1
+                            else:
+                                tool_calls_map[tool_name] = ToolCallInfo(name=tool_name, call_count=1)
+
+        # Set token usage if we found any
+        if token_usage_found:
+            metrics.token_usage = TokenUsage(
+                input_tokens=total_input_tokens,
+                output_tokens=total_output_tokens,
+            )
+
+        # Set tool calls
+        if tool_calls_map:
+            metrics.tool_calls = list(tool_calls_map.values())
+
+        # Count steps (number of model invocations = number of AIMessages)
+        ai_message_count = sum(
+            1 for msg in messages if AIMessage and isinstance(msg, AIMessage)
+        )
+        if ai_message_count > 0:
+            metrics.step_count = ai_message_count
+
+        return metrics
 
 
 class LangChainAgentFlowConfig(BaseFlowConfig):
