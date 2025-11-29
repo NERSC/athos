@@ -111,3 +111,39 @@ File: tests/test_evaluations.py (new or enhanced)
 - Evaluation framework shows per-test-case and aggregate cost metrics
 - Easy comparison of cost/performance across different flows and configurations
 - Foundation for future observability enhancements (hooks, Prometheus metrics)
+
+## Progress Tracking (as of 2025-11-29)
+
+Based on a recent evaluation, here is the status of each implementation step.
+
+**Implementation Status:**
+
+*   **1. Define Standardized Metrics Schema:** [COMPLETED]
+    *   `src/athos/models/metrics.py` has been created with the specified Pydantic models.
+*   **2. Update SmolAgents Flows:** [PARTIALLY COMPLETED]
+    *   `src/athos/frameworks/smolagents/flows/agent.py`: [COMPLETED] - Metrics are being extracted.
+    *   `src/athos/frameworks/smolagents/flows/chatbot.py`: [NOT STARTED] - File does not exist.
+*   **3. Update LangGraph Flows:** [COMPLETED]
+    *   `src/athos/frameworks/langgraph/flows/agent.py`: [COMPLETED] - Metrics are being extracted.
+    *   `src/athos/frameworks/langgraph/flows/chatbot.py`: [COMPLETED] - Metrics are being extracted using the standardized schema.
+*   **4. Enhance FlowRunner:** [COMPLETED]
+    *   `src/athos/runtime/runner.py` correctly aggregates metrics from `FlowOutput` and adds latency.
+*   **5. Update Evaluation Framework:** [COMPLETED]
+    *   `evals/run_evaluations.py` has been updated to process, aggregate, and report metrics.
+
+**Testing Status:**
+
+*   **`tests/models/test_metrics.py`:** [COMPLETED]
+    *   The new metrics models are well-tested.
+*   **`tests/frameworks/*/test_*_flows.py`:** [INCOMPLETE]
+    *   Tests for `smol_agent` flow metrics are **missing**.
+    *   Tests for `langchain_agent` flow metrics are **missing**.
+    *   Tests for `langgraph_chatbot` flow metrics are **missing**.
+*   **`tests/runtime/test_runner.py`:** [COMPLETED]
+    *   The `FlowRunner`'s metric aggregation logic is tested.
+*   **`tests/test_evaluations.py`:** [INCOMPLETE]
+    *   The test for the evaluation script (`test_run_evaluations.py`) does not cover the new metrics functionality.
+
+**Summary:**
+
+The core implementation is largely in place, but there is a significant gap in testing coverage for the new metrics functionality within the flows and the end-to-end evaluation script. The absence of `smolagents/flows/chatbot.py` also needs to be addressed.
