@@ -11,6 +11,7 @@ from athos.config.models import AthosConfig, BaseFlowConfig, ModelConfig, ToolFr
 from athos.interfaces.base_flow import BaseFlow
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.metrics import ExecutionMetrics, TokenUsage, ToolCallInfo
 from athos.registry.flow_registry import (
     FLOW_REGISTRY,
     FlowRegistration,
@@ -317,3 +318,110 @@ async def test_streaming_flow_records_partial_history_on_error(tmp_path: Path) -
         {"role": "user", "content": "uh oh"},
         {"role": "assistant", "content": "Hi"},
     ]
+
+@pytest.mark.asyncio
+async def test_runner_aggregates_metrics_from_flow_output(tmp_path: Path):
+    """Test that FlowRunner aggregates metrics from FlowOutput into FlowResult."""
+
+    class MetricsFlowConfig(BaseFlowConfig):
+        type: str = "test.metrics"
+        include_metrics: bool = True
+
+    class MetricsFlow(BaseFlow):
+        name = "test.metrics"
+        config_class = MetricsFlowConfig
+        framework = ToolFramework.SMOLAGENTS
+        supported_modes = [ExecutionMode.SYNC]
+
+        def __init__(self, config: MetricsFlowConfig):
+            self._config = config
+
+        @classmethod
+        async def create(cls, flow_config: MetricsFlowConfig, athos_config: AthosConfig):
+            return cls(flow_config)
+
+        async def execute(self, input: FlowInput) -> FlowOutput:
+            if not self._config.include_metrics:
+                return FlowOutput(content="No metrics")
+
+            # Return output with execution metrics
+            metrics = ExecutionMetrics(
+                token_usage=TokenUsage(input_tokens=100, output_tokens=50),
+                tool_calls=[
+                    ToolCallInfo(name="search", call_count=2),
+                    ToolCallInfo(name="calculator", call_count=1),
+                ],
+                step_count=3,
+                model_name="test-model",
+            )
+            return FlowOutput(
+                content="With metrics",
+                metadata=metrics.to_dict()
+            )
+
+    # Register the test flow
+    register_flow(MetricsFlow)
+
+    try:
+        config = AthosConfig(
+            workspace_dir=str(tmp_path),
+            models={"m1": ModelConfig(model_id="test-model")},
+            flows={
+                "with-metrics": {"type": "test.metrics", "model": "m1", "include_metrics": True},
+                "without-metrics": {"type": "test.metrics", "model": "m1", "include_metrics": False},
+            },
+        )
+
+        runner = FlowRunner(config, session_store=InMemorySessionStore())
+
+        # Test with metrics
+        result = await runner.execute(
+            flow_name="with-metrics",
+            message="test",
+            session_id="metrics-session",
+            user_id="test-user",
+        )
+
+        assert result.success
+        assert result.metadata["flow_name"] == "with-metrics"
+
+        # Check that metrics were aggregated from FlowOutput
+        assert "token_usage" in result.metadata
+        assert result.metadata["token_usage"]["input_tokens"] == 100
+        assert result.metadata["token_usage"]["output_tokens"] == 50
+        assert result.metadata["token_usage"]["total_tokens"] == 150
+
+        assert "tool_calls" in result.metadata
+        assert len(result.metadata["tool_calls"]) == 2
+
+        assert "step_count" in result.metadata
+        assert result.metadata["step_count"] == 3
+
+        assert "model_name" in result.metadata
+        assert result.metadata["model_name"] == "test-model"
+
+        # Check that latency was added by runner
+        assert "latency_ms" in result.metadata
+        assert result.metadata["latency_ms"] > 0
+
+        # Test without metrics
+        result_no_metrics = await runner.execute(
+            flow_name="without-metrics",
+            message="test",
+            session_id="no-metrics-session",
+            user_id="test-user",
+        )
+
+        assert result_no_metrics.success
+        assert result_no_metrics.metadata["flow_name"] == "without-metrics"
+        # Should still have latency even without other metrics
+        assert "latency_ms" in result_no_metrics.metadata
+        assert result_no_metrics.metadata["latency_ms"] > 0
+        # But should not have token usage or other metrics
+        assert "token_usage" not in result_no_metrics.metadata
+        assert "tool_calls" not in result_no_metrics.metadata
+
+    finally:
+        # Clean up registration
+        if "test.metrics" in FLOW_REGISTRY:
+            del FLOW_REGISTRY["test.metrics"]
