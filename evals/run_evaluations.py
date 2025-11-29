@@ -12,6 +12,7 @@ from smolagents import ChatMessage
 from athos import build_config, build_flow
 from athos.frameworks.smolagents import factories as smolagents_factories
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.metrics import ExecutionMetrics
 from athos.models.session import FlowSession
 from athos.models.enums import ExecutionMode
 
@@ -237,41 +238,131 @@ async def main():
                 try:
                     output = await flow.execute(flow_input)
                     response = output.content if isinstance(output, FlowOutput) else str(output)
+
+                    # Extract metrics from output
+                    metrics = None
+                    if isinstance(output, FlowOutput):
+                        metrics = ExecutionMetrics.from_metadata(output.metadata)
                 except Exception as e:
                     response = f"Error executing flow: {e}"
+                    metrics = None
+
                 score, feedback = evaluate_response(
                     eval_model_instance, sol, response
                 )
-                results.append(
-                    {
-                        "test_case": name,
-                        "response": response,
-                        "score": score,
-                        "feedback": feedback,
-                    }
-                )
+
+                result_entry = {
+                    "test_case": name,
+                    "response": response,
+                    "score": score,
+                    "feedback": feedback,
+                }
+
+                # Add metrics if available
+                if metrics:
+                    result_entry["metrics"] = metrics.to_dict()
+
+                results.append(result_entry)
 
             total = 0
             count = 0
             passes = 0
+
+            # Initialize metrics aggregates
+            total_tokens = 0
+            total_input_tokens = 0
+            total_output_tokens = 0
+            total_latency_ms = 0
+            metrics_count = 0
+            tool_call_counts = {}
+
             print(f"\nEvaluation Results for {flow_name} on {dataset_name}:")
             for r in results:
                 s = r["score"]
-                print(f"- {r['test_case']}: score={s}")
+                metrics_data = r.get("metrics")
+
+                # Display test case result
+                display_parts = [f"- {r['test_case']}: score={s}"]
+
+                # Add metrics to display if available
+                if metrics_data:
+                    metrics_parts = []
+                    if "token_usage" in metrics_data:
+                        token_usage = metrics_data["token_usage"]
+                        total_tok = token_usage.get("total_tokens", 0)
+                        metrics_parts.append(f"tokens={total_tok}")
+                    if "latency_ms" in metrics_data:
+                        latency = metrics_data["latency_ms"]
+                        metrics_parts.append(f"latency={latency:.0f}ms")
+
+                    if metrics_parts:
+                        display_parts.append(f"({', '.join(metrics_parts)})")
+
+                print(" ".join(display_parts))
+
+                # Aggregate scores
                 if isinstance(s, (int, float)):
                     total += s
                     count += 1
                     if s >= args.passing_score:
                         passes += 1
+
+                # Aggregate metrics
+                if metrics_data:
+                    metrics_count += 1
+
+                    if "token_usage" in metrics_data:
+                        token_usage = metrics_data["token_usage"]
+                        total_input_tokens += token_usage.get("input_tokens", 0)
+                        total_output_tokens += token_usage.get("output_tokens", 0)
+                        total_tokens += token_usage.get("total_tokens", 0)
+
+                    if "latency_ms" in metrics_data:
+                        total_latency_ms += metrics_data["latency_ms"]
+
+                    if "tool_calls" in metrics_data:
+                        for tc in metrics_data["tool_calls"]:
+                            tool_name = tc.get("name")
+                            call_count = tc.get("call_count", 1)
+                            if tool_name:
+                                tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + call_count
+
+            # Print accuracy stats
             if count > 0:
                 avg = total / count
                 acc = passes / count
                 print(
-                    f"Average score for {flow_name} on {dataset_name}: {avg:.2f}"
+                    f"\nAccuracy Metrics for {flow_name} on {dataset_name}:"
                 )
-                print(
-                    f"Accuracy for {flow_name} on {dataset_name}: {acc:.2%}\n"
-                )
+                print(f"  Average score: {avg:.2f}")
+                print(f"  Accuracy (>= {args.passing_score}): {acc:.2%}")
+
+            # Print cost metrics
+            if metrics_count > 0:
+                print(f"\nCost Metrics for {flow_name} on {dataset_name}:")
+
+                if total_tokens > 0:
+                    avg_tokens = total_tokens / metrics_count
+                    avg_input_tokens = total_input_tokens / metrics_count
+                    avg_output_tokens = total_output_tokens / metrics_count
+                    print(f"  Token Usage:")
+                    print(f"    Total: {total_tokens:,} tokens")
+                    print(f"    Average per test: {avg_tokens:.0f} tokens")
+                    print(f"      Input: {avg_input_tokens:.0f} tokens")
+                    print(f"      Output: {avg_output_tokens:.0f} tokens")
+
+                if total_latency_ms > 0:
+                    avg_latency = total_latency_ms / metrics_count
+                    print(f"  Latency:")
+                    print(f"    Total: {total_latency_ms:.0f} ms")
+                    print(f"    Average per test: {avg_latency:.0f} ms")
+
+                if tool_call_counts:
+                    print(f"  Tool Calls:")
+                    for tool_name, call_count in sorted(tool_call_counts.items()):
+                        print(f"    {tool_name}: {call_count} calls")
+
+            print()  # Blank line between datasets
 
             all_results[flow_name][dataset_name] = results
 
