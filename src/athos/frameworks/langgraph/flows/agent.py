@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING, Self
+from typing import Any, AsyncGenerator, Dict, List, Mapping, Optional, Sequence, TYPE_CHECKING, Self
 
 from pydantic import Field, model_validator, ValidationInfo
 from typing_extensions import Literal
@@ -663,12 +663,21 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 # Try usage_metadata (newer LangChain versions)
                 usage_metadata = getattr(message, "usage_metadata", None)
                 if usage_metadata:
-                    input_tokens = getattr(usage_metadata, "input_tokens", 0) or getattr(
-                        usage_metadata, "prompt_tokens", 0
-                    )
-                    output_tokens = getattr(usage_metadata, "output_tokens", 0) or getattr(
-                        usage_metadata, "completion_tokens", 0
-                    )
+                    if isinstance(usage_metadata, Mapping):
+                        input_tokens = usage_metadata.get("input_tokens", 0) or usage_metadata.get(
+                            "prompt_tokens", 0
+                        )
+                        output_tokens = usage_metadata.get("output_tokens", 0) or usage_metadata.get(
+                            "completion_tokens", 0
+                        )
+                    else:
+                        input_tokens = getattr(usage_metadata, "input_tokens", 0) or getattr(
+                            usage_metadata, "prompt_tokens", 0
+                        )
+                        output_tokens = getattr(usage_metadata, "output_tokens", 0) or getattr(
+                            usage_metadata, "completion_tokens", 0
+                        )
+
                     if input_tokens or output_tokens:
                         total_input_tokens += input_tokens
                         total_output_tokens += output_tokens
