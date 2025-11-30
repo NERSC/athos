@@ -274,6 +274,8 @@ async def main():
             total_output_tokens = 0
             total_latency_ms = 0
             metrics_count = 0
+            token_metrics_count = 0
+            latency_metrics_count = 0
             tool_call_counts = {}
 
             print(f"\nEvaluation Results for {flow_name} on {dataset_name}:")
@@ -325,9 +327,11 @@ async def main():
                         total_input_tokens += token_usage.get("input_tokens", 0)
                         total_output_tokens += token_usage.get("output_tokens", 0)
                         total_tokens += total_tok
+                        token_metrics_count += 1
 
                     if "latency_ms" in metrics_data:
                         total_latency_ms += metrics_data["latency_ms"]
+                        latency_metrics_count += 1
 
                     if "tool_calls" in metrics_data:
                         for tc in metrics_data["tool_calls"]:
@@ -350,18 +354,18 @@ async def main():
             if metrics_count > 0:
                 print(f"\nCost Metrics for {flow_name} on {dataset_name}:")
 
-                if total_tokens > 0:
-                    avg_tokens = total_tokens / metrics_count
-                    avg_input_tokens = total_input_tokens / metrics_count
-                    avg_output_tokens = total_output_tokens / metrics_count
+                if total_tokens > 0 and token_metrics_count > 0:
+                    avg_tokens = total_tokens / token_metrics_count
+                    avg_input_tokens = total_input_tokens / token_metrics_count
+                    avg_output_tokens = total_output_tokens / token_metrics_count
                     print(f"  Token Usage:")
                     print(f"    Total: {total_tokens:,} tokens")
                     print(f"    Average per test: {avg_tokens:.0f} tokens")
                     print(f"      Input: {avg_input_tokens:.0f} tokens")
                     print(f"      Output: {avg_output_tokens:.0f} tokens")
 
-                if total_latency_ms > 0:
-                    avg_latency = total_latency_ms / metrics_count
+                if total_latency_ms > 0 and latency_metrics_count > 0:
+                    avg_latency = total_latency_ms / latency_metrics_count
                     print(f"  Latency:")
                     print(f"    Total: {total_latency_ms:.0f} ms")
                     print(f"    Average per test: {avg_latency:.0f} ms")
