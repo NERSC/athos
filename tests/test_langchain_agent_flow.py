@@ -255,6 +255,81 @@ async def test_agent_factory_combines_instructions_and_tools(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_agent_flow_emits_standardized_metrics(monkeypatch):
+    metrics_graph_invocations = []
+
+    class MetricsDummyGraph:
+        async def ainvoke(self, state, config=None):
+            metrics_graph_invocations.append((state, config))
+            messages = list(state["messages"])
+
+            # Simulate an AI message with token usage and tool calls
+            usage_metadata = type("Usage", (), {"input_tokens": 12, "output_tokens": 34})()
+            ai_message = agent_module.AIMessage(content="Metrics response")
+            ai_message.usage_metadata = usage_metadata
+            ai_message.tool_calls = [{"name": "search"}]
+
+            messages.append(ai_message)
+            return {"messages": messages}
+
+    def fake_create_agent(model, tools, *, system_prompt=None, checkpointer=None):
+        return MetricsDummyGraph()
+
+    class DummyModel:
+        model_name = "metrics-model"
+
+    monkeypatch.setattr(agent_module, "build_model", lambda cfg: DummyModel())
+    monkeypatch.setattr(agent_module, "create_agent", fake_create_agent)
+
+    cfg = LangChainAgentFlowConfig(
+        type="langchain_agent",
+        model="metrics",
+        tools=[],
+        mcp_servers=[],
+        system_prompt=None,
+        max_iterations=2,
+    )
+
+    full_cfg = AthosConfig(
+        workspace_dir="/tmp",
+        models={"metrics": ModelConfig(model_id="metrics-model")},
+        tools={},
+        mcp_servers={},
+    )
+
+    flow = await LangChainAgentFlow.create(cfg, full_cfg)
+
+    session = FlowSession(
+        session_id="metrics_session",
+        user_id="metrics_user",
+        workspace=Path("/tmp/test"),
+    )
+
+    input_data = FlowInput(
+        message="Measure tokens",
+        session=session,
+        mode=ExecutionMode.SYNC,
+        metadata={},
+    )
+
+    result = await flow.execute(input_data)
+
+    assert result.metadata["token_usage"] == {
+        "input_tokens": 12,
+        "output_tokens": 34,
+        "total_tokens": 46,
+    }
+    assert result.metadata["tool_calls"] == [{"name": "search", "call_count": 1}]
+    assert result.metadata["step_count"] == 1
+
+    # Ensure the invocation used the expected config/thread_id
+    assert metrics_graph_invocations[0][1] == {
+        "configurable": {"thread_id": "metrics_session"},
+        "recursion_limit": 2
+    }
+
+
+@pytest.mark.asyncio
 async def test_agent_handles_optional_dependencies(monkeypatch):
     monkeypatch.setattr(agent_module, "create_agent", None)
     monkeypatch.setattr(agent_module, "_CREATE_AGENT_IMPORT_ERROR", ImportError("boom"))
