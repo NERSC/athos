@@ -180,6 +180,10 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             len(self.tools),
         )
 
+        previous_message_count = input.session.state.get(
+            "langgraph_agent_message_count", 0
+        )
+
         try:
             result_state = await self._graph.ainvoke(  # type: ignore[attr-defined]
                 {"messages": messages},
@@ -200,7 +204,14 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         content = self._extract_response(result_state)
 
         # Extract execution metrics from result state
-        metrics = self._extract_metrics(result_state)
+        metrics = self._extract_metrics(
+            result_state, previous_message_count=previous_message_count
+        )
+
+        if isinstance(result_state, dict) and "messages" in result_state:
+            input.session.state["langgraph_agent_message_count"] = len(
+                result_state["messages"]
+            )
 
         # Build metadata
         metadata = {
@@ -627,7 +638,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         raise RuntimeError("LangChain create_agent graph did not produce a response")
 
-    def _extract_metrics(self, state: Any) -> ExecutionMetrics:
+    def _extract_metrics(self, state: Any, *, previous_message_count: int = 0) -> ExecutionMetrics:
         """Extract execution metrics from the agent result state.
 
         Aggregates token usage and tool calls across all messages in the state.
@@ -649,6 +660,9 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         else:
             messages = getattr(state, "messages", [])
 
+        start_index = min(max(previous_message_count, 0), len(messages))
+        new_messages = messages[start_index:]
+
         # Track total tokens across all messages
         total_input_tokens = 0
         total_output_tokens = 0
@@ -657,7 +671,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         # Track tool calls
         tool_calls_map = {}
 
-        for message in messages:
+        for message in new_messages:
             # Extract token usage from AIMessage
             if AIMessage and isinstance(message, AIMessage):
                 # Try usage_metadata (newer LangChain versions)
@@ -725,7 +739,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         # Count steps (number of model invocations = number of AIMessages)
         ai_message_count = sum(
-            1 for msg in messages if AIMessage and isinstance(msg, AIMessage)
+            1 for msg in new_messages if AIMessage and isinstance(msg, AIMessage)
         )
         if ai_message_count > 0:
             metrics.step_count = ai_message_count
