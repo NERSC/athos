@@ -289,7 +289,11 @@ async def main():
                     metrics_parts = []
                     if "token_usage" in metrics_data:
                         token_usage = metrics_data["token_usage"]
-                        total_tok = token_usage.get("total_tokens", 0)
+                        total_tok = token_usage.get(
+                            "total_tokens",
+                            token_usage.get("input_tokens", 0)
+                            + token_usage.get("output_tokens", 0),
+                        )
                         metrics_parts.append(f"tokens={total_tok}")
                     if "latency_ms" in metrics_data:
                         latency = metrics_data["latency_ms"]
@@ -313,9 +317,14 @@ async def main():
 
                     if "token_usage" in metrics_data:
                         token_usage = metrics_data["token_usage"]
+                        total_tok = token_usage.get(
+                            "total_tokens",
+                            token_usage.get("input_tokens", 0)
+                            + token_usage.get("output_tokens", 0),
+                        )
                         total_input_tokens += token_usage.get("input_tokens", 0)
                         total_output_tokens += token_usage.get("output_tokens", 0)
-                        total_tokens += token_usage.get("total_tokens", 0)
+                        total_tokens += total_tok
 
                     if "latency_ms" in metrics_data:
                         total_latency_ms += metrics_data["latency_ms"]
