@@ -130,15 +130,15 @@ Based on a recent evaluation, here is the status of each implementation step.
 
 *   **`tests/models/test_metrics.py`:** [COMPLETED]
     *   The new metrics models are well-tested.
-*   **`tests/frameworks/*/test_*_flows.py`:** [INCOMPLETE]
-    *   Tests for `smol_agent` flow metrics are **missing**.
-    *   Tests for `langchain_agent` flow metrics are **missing**.
-    *   Tests for `langgraph_chatbot` flow metrics are **missing**.
+*   **`tests/frameworks/*/test_*_flows.py`:** [COMPLETED]
+    *   Tests for `smol_agent` flow metrics are covered.
+    *   Tests for `langchain_agent` flow metrics are covered.
+    *   Tests for `langgraph_chatbot` flow metrics are covered.
 *   **`tests/runtime/test_runner.py`:** [COMPLETED]
     *   The `FlowRunner`'s metric aggregation logic is tested.
-*   **`tests/test_evaluations.py`:** [INCOMPLETE]
-    *   The test for the evaluation script (`test_run_evaluations.py`) does not cover the new metrics functionality.
+*   **`tests/test_evaluations.py`:** [COMPLETED]
+    *   The test for the evaluation script (`test_run_evaluations.py`) covers the new metrics functionality.
 
 **Summary:**
 
-The core implementation is largely in place, but there is a significant gap in testing coverage for the new metrics functionality within the flows and the end-to-end evaluation script.
+The implementation and corresponding tests are complete, providing full metrics coverage across the flows and end-to-end evaluation script.
