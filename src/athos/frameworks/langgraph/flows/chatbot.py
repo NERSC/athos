@@ -127,7 +127,8 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
 
         # Build execution metrics
         metrics = ExecutionMetrics(
-            model_name=self.model.model_name if hasattr(self.model, 'model_name') else None
+            model_name=self.model.model_name if hasattr(self.model, 'model_name') else None,
+            step_count=1,
         )
 
         # Extract token usage from response
