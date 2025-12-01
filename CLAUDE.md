@@ -134,17 +134,17 @@ The following components are **fully implemented and tested**:
    - Validates class metadata (name, config_class, framework)
    - Ensures create() classmethod exists
 
-6. **LangGraph Integration Utilities** (`athos/frameworks/langgraph/utils/translation.py`):
-   - `to_langgraph_messages()`: Convert ATHOS session messages to LangChain format
-   - `from_langgraph_messages()`: Convert LangChain messages back to ATHOS format
-   - `build_langgraph_config()`: Build LangGraph config with `thread_id = session_id`
-   - Enables LangGraph to use its own checkpointing while syncing with ATHOS sessions
+6. **LangChain Message Types** (✅ **STANDARDIZED**):
+   - FlowSession now uses `List[BaseMessage]` natively (not dicts)
+   - Translation layer **removed** - no conversion overhead
+   - Direct use of `HumanMessage`, `AIMessage`, `SystemMessage`, `ToolMessage`
+   - Serialization/deserialization via LangChain's `messages_to_dict()`/`messages_from_dict()`
 
-7. **Migrated LangGraph Chatbot** (`athos/frameworks/langgraph/flows/chatbot.py`):
+7. **Migrated LangGraph Flows** (`athos/frameworks/langgraph/flows/`):
    - Fully refactored to use `FlowInput`/`FlowOutput`
    - Stateless design (reads history from `input.session`)
    - Supports both `execute()` and `stream()` modes
-   - Uses translation utilities for message conversion
+   - **No translation needed** - session history is already `List[BaseMessage]`
 
 8. **Updated CLI** (`athos/main.py`):
    - Now routes execution through `FlowRunner`
@@ -209,14 +209,13 @@ athos/
 ├── frameworks/                    # Framework implementations
 │   ├── langgraph/
 │   │   ├── flows/
-│   │   │   ├── chatbot.py       # ✅ MIGRATED to new interface
-│   │   │   └── react_agent.py   # ⏳ TODO: Migrate to new interface
+│   │   │   ├── chatbot.py       # ✅ MIGRATED - uses BaseMessage natively
+│   │   │   └── agent.py         # ✅ MIGRATED - uses BaseMessage natively
 │   │   ├── utils/
-│   │   │   ├── messages.py
-│   │   │   └── translation.py   # NEW: LangGraph ↔ ATHOS translation
+│   │   │   └── messages.py      # LangChain message re-exports and helpers
 │   │   └── factories.py
 │   └── smolagents/
-│       └── flows/                # ⏳ TODO: Migrate to new interface
+│       └── flows/                # ✅ MIGRATED - stateless, no history usage
 │
 ├── integrations/                  # External system integrations
 │   ├── servicenow/               # ServiceNow ticket integration
@@ -413,17 +412,17 @@ register_flow(MyCustomFlow)
 
 **Working with LangGraph Flows**:
 LangGraph flows have special integration considerations:
-- Use `athos.frameworks.langgraph.utils.translation` utilities to convert messages
+- **No message translation needed** - FlowSession uses `List[BaseMessage]` natively
 - LangGraph manages its own checkpointing using `thread_id = session_id`
-- Sync conversation history back to `FlowSession.messages` for consistency
-- See `athos/frameworks/langgraph/flows/chatbot.py` for reference implementation
+- Session history is already in LangChain format, use directly with `input.session.get_history()`
+- See `athos/frameworks/langgraph/flows/chatbot.py` and `agent.py` for reference implementations
 
 ### Session and Workspace Management
 
-**Session Management** (new in refactoring):
+**Session Management**:
 - Sessions are managed by `FlowRunner` via the `SessionStore` abstraction
 - Each session has a unique `session_id` and contains:
-  - Conversation history (`messages`: list of `{"role": "user/assistant", "content": "..."}`)
+  - Conversation history (`messages`: `List[BaseMessage]` from LangChain)
   - Workspace directory for file storage
   - Custom state dictionary for flow-specific data
   - Metadata (created_at, updated_at, interface)
@@ -441,10 +440,10 @@ LangGraph flows have special integration considerations:
 
 - **Unit tests**: Test individual components in isolation using mocks
   - ✅ Models: Serialization, validation, state management (`tests/models/`)
+  - ✅ BaseMessage integration: Message type handling, serialization (`tests/models/test_session_model.py`)
   - ✅ SessionStore: Concurrent access, session isolation (`tests/runtime/test_session_store.py`)
   - ✅ FlowRunner: Execution, caching, error handling (`tests/runtime/test_runner.py`)
   - ✅ Flow Registration: Metadata validation, create() enforcement (`tests/runtime/test_dual_interface.py`)
-  - ✅ LangGraph translation: Message conversion, config building (`tests/frameworks/langgraph/test_translation.py`)
 - **Integration tests**: Test CLI execution and flow creation from configuration
   - ✅ CLI using FlowRunner (`tests/test_cli_integration.py`)
   - ⏳ TODO: OpenWebUI Pipeline integration tests (Milestone 3)
@@ -453,7 +452,7 @@ LangGraph flows have special integration considerations:
   - Q&A datasets and structured test cases
   - Currently uses legacy interface; needs updating for `FlowRunner`
 - **Framework-specific tests**:
-  - ✅ LangGraph: State management, checkpointing, message translation
+  - ✅ LangGraph: State management, checkpointing, BaseMessage handling
   - ServiceNow MCP: Authentication, incident operations, read-only mode
 
 ## Configuration Overrides
@@ -494,10 +493,10 @@ Log levels: DEBUG, INFO, WARNING, ERROR. Use `--log-level` CLI flag to override 
 - **SmolAgents code agents**: The `additional_authorized_imports` field controls which Python modules can be imported in generated code
 - **LangGraph checkpointing**:
   - LangGraph manages its own state using `thread_id = session_id`
-  - Use `athos.frameworks.langgraph.utils.translation.build_langgraph_config()` to create config
-  - Always sync final messages back to `input.session.messages` for consistency
-  - For persistent checkpointing, configure a file-based `SqliteSaver` instead of `:memory:`
-  - See `chatbot.py` for reference implementation
+  - Build config with: `{"configurable": {"thread_id": session_id}}`
+  - Session history is already in `BaseMessage` format - use `input.session.get_history()` directly
+  - For persistent checkpointing, configure a file-based `SqliteSaver` instead of `InMemorySaver`
+  - See `chatbot.py` and `agent.py` for reference implementations
 
 ### Current Implementation Status
 - **All flows migrated**: All built-in flows use `FlowInput`/`FlowOutput` and create() pattern
@@ -527,8 +526,8 @@ The OpenWebUI integration plan is documented in detail in `docs/athos_openwebui_
 
 **Milestone 2: Runtime Compatibility** ✅
 - Legacy flow adapter
-- LangGraph translation utilities
-- LangGraph chatbot migrated to new interface
+- ✅ **LangChain Message Standardization** - Translation layer removed, native BaseMessage usage
+- LangGraph flows migrated to new interface (chatbot, agent)
 - CLI updated to use FlowRunner
 
 ### Current Focus
@@ -689,7 +688,7 @@ register_flow(MyFlow)
 - **Design questions**: Refer to `docs/athos_openwebui_integration_plan_v3.0.md`
 - **Current status**: Check `docs/athos_openwebui_integration_status.md`
 - **Reference implementations**:
-  - New interface: `athos/frameworks/langgraph/flows/chatbot.py`
-  - LangGraph integration: `athos/frameworks/langgraph/utils/translation.py`
+  - New interface: `athos/frameworks/langgraph/flows/chatbot.py` and `agent.py`
+  - BaseMessage usage: `athos/models/session.py` (FlowSession)
   - FlowRunner usage: `athos/main.py` (CLI)
 - **Data models**: All Pydantic models in `athos/models/`

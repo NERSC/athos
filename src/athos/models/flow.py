@@ -33,10 +33,26 @@ class FlowOutput(BaseModel):
 
 
 class FlowInput(BaseModel):
-    """Rich input payload provided to flow implementations."""
+    """Rich input payload provided to flow implementations.
+
+    TODO: Consider migrating message field to BaseMessage for multimodal support.
+    This would enable:
+    - Image inputs for vision models
+    - File attachments in conversations
+    - Rich tool result formatting
+    - Consistent typing with session.messages (List[BaseMessage])
+
+    Migration would require:
+    1. Change FlowRunner.execute(message: str | BaseMessage)
+    2. Change FlowInput.message: BaseMessage
+    3. Add .text property for flows that only need text
+    4. Update _record_interaction() to handle BaseMessage directly
+    """
 
     model_config = ConfigDict(frozen=True)
 
+    # Currently a simple string for text-only use cases.
+    # Future: Migrate to BaseMessage to support multimodal inputs.
     message: str
     session: FlowSession
     mode: ExecutionMode
