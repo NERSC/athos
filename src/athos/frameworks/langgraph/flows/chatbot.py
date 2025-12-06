@@ -19,9 +19,9 @@ from athos.frameworks.langgraph.utils.messages import (
     HumanMessage,
     SystemMessage,
 )
-from athos.frameworks.langgraph.utils.translation import to_langgraph_messages
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.message import Message
 from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - only for static analysis
@@ -183,8 +183,8 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         if self._initial_history:
             messages.extend(self._initial_history)
 
-        messages.extend(to_langgraph_messages(input.session.get_history()))
-        messages.append(HumanMessage(input.message))
+        messages.extend(Message.to_langchain_list(input.session.get_history()))
+        messages.append(input.message.to_langchain())
         return messages
 
     @staticmethod

@@ -101,8 +101,8 @@ async def test_agent_flow_executes_and_tracks_history(monkeypatch):
 
     first_result = await flow.execute(input1)
 
-    session2.add_message("user", "Hello there")
-    session2.add_message("assistant", first_result.content)
+    session2.add_user_message("Hello there")
+    session2.add_assistant_message(first_result.content)
 
     input2 = FlowInput(
         message="How are you?",

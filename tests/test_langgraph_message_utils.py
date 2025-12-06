@@ -11,6 +11,7 @@ from athos.frameworks.langgraph.utils.messages import (
     coerce_single_message,
     coerce_to_messages,
 )
+from athos.models.message import Message, MessageRole
 
 
 class TestCoerceSingleMessage:
@@ -25,6 +26,13 @@ class TestCoerceSingleMessage:
     def test_converts_string_to_human_message(self):
         """Strings should be converted to HumanMessage."""
         result = coerce_single_message("Hello")
+        assert isinstance(result, HumanMessage)
+        assert result.content == "Hello"
+
+    def test_converts_internal_message(self):
+        """Internal Message should be converted to LangChain message."""
+        msg = Message(role=MessageRole.USER, content="Hello")
+        result = coerce_single_message(msg)
         assert isinstance(result, HumanMessage)
         assert result.content == "Hello"
 

@@ -1,13 +1,14 @@
 import pytest
 
 from athos.models import ExecutionMode, FlowOutput, FlowRequest, FlowResult
+from athos.models.message import Message
 
 
 def test_flow_request_serialization():
     request = FlowRequest(
         request_id="req-1",
         flow_name="demo",
-        message="Run",
+        message=Message(role="user", content="Run"),
         session_id="sess-1",
         user_id="user-1",
         mode=ExecutionMode.SYNC,
@@ -42,7 +43,7 @@ def test_flow_request_is_immutable():
     request = FlowRequest(
         request_id="req-2",
         flow_name="demo",
-        message="Run",
+        message=Message(role="user", content="Run"),
         session_id="sess-2",
         user_id="user-2",
         mode=ExecutionMode.SYNC,

@@ -59,7 +59,7 @@ class TrackingEchoFlow(BaseFlow):
     async def execute(self, input: FlowInput) -> FlowOutput:  # type: ignore[override]
         if self._config.should_fail:
             raise RuntimeError("Flow failure triggered")
-        return FlowOutput(content=f"{self._config.response_text}: {input.message}")
+        return FlowOutput(content=f"{self._config.response_text}: {input.message.content}")
 
     async def cleanup(self) -> None:  # type: ignore[override]
         TrackingEchoFlow.cleanup_calls += 1
@@ -177,10 +177,12 @@ async def test_execute_success(tmp_path: Path) -> None:
     assert result.output is not None
     assert result.output.content == "Response: hello"
     session = await runner.session_store.get_or_create("session-1", "user-1")
-    assert session.get_history() == [
-        {"role": "user", "content": "hello"},
-        {"role": "assistant", "content": "Response: hello"},
-    ]
+    history = session.get_history()
+    assert len(history) == 2
+    assert history[0].content == "hello"
+    assert history[0].role.value == "user"
+    assert history[1].content == "Response: hello"
+    assert history[1].role.value == "assistant"
 
 
 @pytest.mark.asyncio
@@ -218,7 +220,7 @@ async def test_session_reuse(tmp_path: Path) -> None:
     )
 
     session = await runner.session_store.get_or_create("shared", "user-1")
-    assert [msg["content"] for msg in session.get_history()] == [
+    assert [msg.content for msg in session.get_history()] == [
         "first",
         "Response: first",
         "second",
@@ -276,10 +278,10 @@ async def test_streaming_flow_records_incremental_history(tmp_path: Path) -> Non
     assert chunks[-1].metadata.get("final") is True
 
     session = await runner.session_store.get_or_create("stream-session", "stream-user")
-    assert session.get_history() == [
-        {"role": "user", "content": "hello"},
-        {"role": "assistant", "content": "Hello"},
-    ]
+    history = session.get_history()
+    assert len(history) == 2
+    assert history[0].content == "hello"
+    assert history[1].content == "Hello"
 
 
 @pytest.mark.asyncio
@@ -313,7 +315,7 @@ async def test_streaming_flow_records_partial_history_on_error(tmp_path: Path) -
         await anext(stream)
 
     session = await runner.session_store.get_or_create("fail-session", "stream-user")
-    assert session.get_history() == [
-        {"role": "user", "content": "uh oh"},
-        {"role": "assistant", "content": "Hi"},
-    ]
+    history = session.get_history()
+    assert len(history) == 2
+    assert history[0].content == "uh oh"
+    assert history[1].content == "Hi"

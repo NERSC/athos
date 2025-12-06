@@ -24,13 +24,10 @@ from athos.frameworks.langgraph.factories import (
     build_model,
     build_tool,
 )
-from athos.frameworks.langgraph.utils.messages import (
-    BaseMessage,
-    HumanMessage,
-)
-from athos.frameworks.langgraph.utils.translation import to_langgraph_messages
+from athos.frameworks.langgraph.utils.messages import BaseMessage, HumanMessage
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.message import Message
 from athos.registry.flow_registry import register_flow
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -161,7 +158,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
     async def execute(self, input: FlowInput) -> FlowOutput:
         """Execute the agent graph and return structured output."""
 
-        logger.info("LangChainAgentFlow.execute message: %s", input.message)
+        logger.info("LangChainAgentFlow.execute message: %s", input.message.content)
 
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -259,7 +256,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             FlowOutput: Streaming chunks with content and rich metadata
         """
 
-        logger.info("LangChainAgentFlow.stream started for message: %s", input.message)
+        logger.info("LangChainAgentFlow.stream started for message: %s", input.message.content)
 
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -527,7 +524,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         Returns:
             List containing only the new HumanMessage
         """
-        return [HumanMessage(input.message)]
+        return Message.to_langchain_list([input.message])
 
     async def _ensure_mcp_tools_loaded(self) -> None:
         """Ensure tools from connected MCP servers are loaded into the flow."""

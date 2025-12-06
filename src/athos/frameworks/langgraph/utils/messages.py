@@ -19,6 +19,7 @@ from langchain_core.messages import (
     SystemMessage,
     ToolMessage,
 )
+from athos.models.message import Message
 
 
 def coerce_to_messages(messages: Any) -> List["BaseMessage"]:
@@ -108,6 +109,9 @@ def coerce_single_message(message: Any) -> "BaseMessage":
     """
     if isinstance(message, BaseMessage):
         return message
+
+    if isinstance(message, Message):
+        return message.to_langchain()
 
     if isinstance(message, str):
         return HumanMessage(message)

@@ -6,13 +6,14 @@ import logging
 import time
 import uuid
 from pathlib import Path
-from typing import AsyncGenerator, Dict, Optional
+from typing import AsyncGenerator, Dict, Optional, Union
 
 from athos.config.models import AthosConfig
 from athos.interfaces.base_flow import BaseFlow
 from athos.models.enums import ExecutionMode
 from athos.models.execution import FlowRequest, FlowResult
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.message import Message, MessageRole
 from athos.models.session import FlowSession
 from athos.runtime.builder import build_flow
 from athos.runtime.session_store import InMemorySessionStore, SessionStore
@@ -35,7 +36,7 @@ class FlowRunner:
     async def execute(
         self,
         flow_name: str,
-        message: str,
+        message: Union[str, Message],
         session_id: str,
         user_id: str,
         *,
@@ -45,10 +46,11 @@ class FlowRunner:
     ) -> FlowResult:
         """Execute a flow synchronously and capture structured results."""
 
+        normalized_message = self._coerce_message(message)
         request = FlowRequest(
             request_id=self._generate_request_id(),
             flow_name=flow_name,
-            message=message,
+            message=normalized_message,
             session_id=session_id,
             user_id=user_id,
             mode=mode,
@@ -74,7 +76,7 @@ class FlowRunner:
             flow = await self._get_flow(flow_name)
             logger.debug(f"FlowRunner.execute history: {session.get_history()}")
             flow_input = FlowInput(
-                message=message,
+                message=normalized_message,
                 session=session,
                 mode=mode,
                 metadata=metadata or {},
@@ -83,7 +85,7 @@ class FlowRunner:
             logger.debug("[%s] Calling flow.execute()", request.request_id)
             output = await flow.execute(flow_input)
 
-            self._record_interaction(session, message, output.content)
+            self._record_interaction(session, normalized_message, output.content)
             await self.session_store.save(session)
 
             execution_time = time.time() - start_time
@@ -132,7 +134,7 @@ class FlowRunner:
     async def stream(
         self,
         flow_name: str,
-        message: str,
+        message: Union[str, Message],
         session_id: str,
         user_id: str,
         *,
@@ -141,10 +143,11 @@ class FlowRunner:
     ) -> AsyncGenerator[FlowOutput, None]:
         """Execute a flow with streaming semantics."""
 
+        normalized_message = self._coerce_message(message)
         request = FlowRequest(
             request_id=self._generate_request_id(),
             flow_name=flow_name,
-            message=message,
+            message=normalized_message,
             session_id=session_id,
             user_id=user_id,
             mode=ExecutionMode.STREAMING,
@@ -176,7 +179,7 @@ class FlowRunner:
             )
             output = await flow.execute(
                 FlowInput(
-                    message=message,
+                    message=normalized_message,
                     session=session,
                     mode=ExecutionMode.SYNC,
                     metadata=metadata or {},
@@ -190,13 +193,13 @@ class FlowRunner:
                 artifacts=list(output.artifacts),
                 metadata=output_metadata,
             )
-            self._record_interaction(session, message, output.content)
+            self._record_interaction(session, normalized_message, output.content)
             await self.session_store.save(session)
             yield final_output
             return
 
         flow_input = FlowInput(
-            message=message,
+            message=normalized_message,
             session=session,
             mode=ExecutionMode.STREAMING,
             metadata=metadata or {},
@@ -219,7 +222,7 @@ class FlowRunner:
             logger.info("[%s] Streaming flow '%s' completed", request.request_id, flow_name)
         finally:
             if emitted_any_chunk:
-                self._record_interaction(session, message, "".join(buffered_chunks))
+                self._record_interaction(session, normalized_message, "".join(buffered_chunks))
                 await self.session_store.save(session)
 
     async def cleanup(self) -> None:
@@ -270,11 +273,11 @@ class FlowRunner:
         logger.info("Flow '%s' loaded and cached", flow_name)
         return flow
 
-    def _record_interaction(self, session: FlowSession, message: str, response: str) -> None:
+    def _record_interaction(self, session: FlowSession, message: Message, response: str) -> None:
         """Persist user ↔ assistant messages into the session."""
 
-        session.add_message("user", message)
-        session.add_message("assistant", response)
+        session.add_message(message)
+        session.add_assistant_message(response)
 
     def _generate_request_id(self) -> str:
         """Generate a human-readable request identifier."""
@@ -290,3 +293,9 @@ class FlowRunner:
         else:
             base_path = Path(base_path)
         return base_path / user_id / session_id
+
+    def _coerce_message(self, message: Union[str, Message]) -> Message:
+        """Normalize user input into a Message."""
+        if isinstance(message, Message):
+            return message
+        return Message(role=MessageRole.USER, content=message)
