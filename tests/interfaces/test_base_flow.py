@@ -29,7 +29,7 @@ class EchoFlow(BaseFlow):
         return cls()
 
     async def execute(self, input: FlowInput) -> FlowOutput:
-        return FlowOutput(content=input.message)
+        return FlowOutput(content=input.message.content)
 
 
 class StreamingFlow(EchoFlow):
