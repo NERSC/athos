@@ -241,6 +241,14 @@ flows:
     system_prompt_path: "prompts/lc_sfapi_agent_instructions.md"
     max_iterations: 12
 
+  lang_servicenow_agent:
+    description: "LangChain agent for interacting with ServiceNow incidents"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["servicenow_mcp"]
+    system_prompt_path: "prompts/lang_servicenow_agent_instructions.md"
+    max_iterations: 32
+
   # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
   lang_docs_agent:
     description: "Agent that uses documentation RAG MCP servers for retrieval"
