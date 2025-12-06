@@ -13,6 +13,7 @@ from athos.interfaces.base_flow import BaseFlow
 from athos.models.enums import ExecutionMode
 from athos.models.execution import FlowRequest, FlowResult
 from athos.models.flow import FlowInput, FlowOutput
+from athos.models.metrics import ExecutionMetrics
 from athos.models.session import FlowSession
 from athos.runtime.builder import build_flow
 from athos.runtime.session_store import InMemorySessionStore, SessionStore
@@ -87,6 +88,21 @@ class FlowRunner:
             await self.session_store.save(session)
 
             execution_time = time.time() - start_time
+
+            # Extract metrics from flow output and add runner-level metrics
+            flow_metrics = ExecutionMetrics.from_metadata(output.metadata)
+            if flow_metrics:
+                # Add latency in milliseconds
+                flow_metrics.latency_ms = execution_time * 1000
+                result_metadata = {"flow_name": flow_name}
+                result_metadata.update(flow_metrics.to_dict())
+            else:
+                # No metrics from flow, just add latency
+                result_metadata = {
+                    "flow_name": flow_name,
+                    "latency_ms": execution_time * 1000,
+                }
+
             result = FlowResult(
                 request_id=request.request_id,
                 session_id=session.session_id,
@@ -94,7 +110,7 @@ class FlowRunner:
                 output=output,
                 error=None,
                 execution_time=execution_time,
-                metadata={"flow_name": flow_name},
+                metadata=result_metadata,
             )
 
             logger.info(

@@ -17,6 +17,7 @@ from smolagents import (
 from athos.interfaces.base_flow import BaseFlow
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.enums import ExecutionMode
+from athos.models.metrics import ExecutionMetrics, TokenUsage, ToolCallInfo
 from athos.registry.flow_registry import register_flow
 from athos.config.models import (
     AthosConfig,
@@ -163,18 +164,80 @@ class AgentFlow(BaseFlow):
             input: FlowInput containing message and session
 
         Returns:
-            FlowOutput with agent response
+            FlowOutput with agent response and execution metrics
         """
         message = input.message
 
         try:
-            result = await asyncio.to_thread(self.agent.run, message, reset=False)
+            # Run agent with return_full_result to get detailed metrics
+            result = await asyncio.to_thread(
+                self.agent.run,
+                message,
+                reset=False,
+                return_full_result=True
+            )
+
+            # Build execution metrics
+            metrics = ExecutionMetrics(
+                model_name=self.agent.model.model_id if hasattr(self.agent.model, 'model_id') else None,
+            )
+
+            # Extract token usage if available
+            if hasattr(result, 'token_usage') and result.token_usage:
+                metrics.token_usage = TokenUsage(
+                    input_tokens=result.token_usage.input_tokens,
+                    output_tokens=result.token_usage.output_tokens,
+                )
+
+            # Extract tool calls from steps
+            if hasattr(result, 'steps') and result.steps:
+                tool_calls_map = {}
+                for step in result.steps:
+                    # Check if step has tool_calls attribute or is a dict with tool_calls
+                    step_tool_calls = None
+                    if isinstance(step, dict):
+                        step_tool_calls = step.get('tool_calls', [])
+                    elif hasattr(step, 'tool_calls'):
+                        step_tool_calls = step.tool_calls
+
+                    if step_tool_calls:
+                        for tc in step_tool_calls:
+                            # Extract tool name from different formats
+                            tool_name = None
+                            if isinstance(tc, dict):
+                                # OpenAI-style format: {'id': '...', 'function': {'name': '...', 'arguments': '...'}}
+                                if 'function' in tc and isinstance(tc['function'], dict):
+                                    tool_name = tc['function'].get('name')
+                                # Direct format: {'name': '...'}
+                                elif 'name' in tc:
+                                    tool_name = tc['name']
+                            elif hasattr(tc, 'name'):
+                                tool_name = tc.name
+                            elif hasattr(tc, 'function') and hasattr(tc.function, 'name'):
+                                tool_name = tc.function.name
+
+                            if tool_name:
+                                if tool_name in tool_calls_map:
+                                    tool_calls_map[tool_name].call_count += 1
+                                else:
+                                    tool_calls_map[tool_name] = ToolCallInfo(name=tool_name, call_count=1)
+
+                metrics.tool_calls = list(tool_calls_map.values())
+                metrics.step_count = len(result.steps)
+
+            # Build metadata from metrics
+            metadata = {
+                "agent_type": self.agent_type,
+                "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
+            }
+            metadata.update(metrics.to_dict())
+
+            # Extract output content from RunResult
+            content = str(result.output) if hasattr(result, 'output') else str(result)
+
             return FlowOutput(
-                content=str(result),
-                metadata={
-                    "agent_type": self.agent_type,
-                    "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
-                }
+                content=content,
+                metadata=metadata
             )
         except Exception as e:
             logger.error("%s execution failed: %s", self.agent.__class__.__name__, e)

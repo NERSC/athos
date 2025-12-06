@@ -174,3 +174,104 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
     results = data["f1"][dataset_key]
     assert len(results) == len(entries)
     assert all("score" in r for r in results)
+
+
+async def test_metrics_recorded_and_aggregated(tmp_path, monkeypatch, capsys):
+    """Ensure metrics are persisted per test and aggregated in the report."""
+
+    qa_file = tmp_path / "qa.jsonl"
+    entries = [
+        {"name": "q1", "question": "First?", "answer": "A1"},
+        {"name": "q2", "question": "Second?", "answer": "A2"},
+    ]
+    with qa_file.open("w") as f:
+        for e in entries:
+            f.write(json.dumps(e) + "\n")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
+    monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (95, "fb"))
+
+    responses = [
+        FlowOutput(
+            content="resp1",
+            metadata={
+                "token_usage": {"input_tokens": 10, "output_tokens": 5},
+                "latency_ms": 120,
+                "tool_calls": [{"name": "search", "call_count": 2}],
+            },
+        ),
+        FlowOutput(
+            content="resp2",
+            metadata={
+                "token_usage": {"input_tokens": 20, "output_tokens": 10},
+                "latency_ms": 200,
+                "tool_calls": [
+                    {"name": "search", "call_count": 1},
+                    {"name": "calc", "call_count": 3},
+                ],
+            },
+        ),
+    ]
+
+    async def _make_flow(*args, **kwargs):
+        f = AsyncMock()
+        f.execute = AsyncMock(side_effect=responses)
+        f.cleanup = AsyncMock()
+        return f
+
+    monkeypatch.setattr(revals, "build_flow", Mock(side_effect=_make_flow))
+
+    output = tmp_path / "out.json"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--qa-file",
+            str(qa_file),
+            "--output",
+            str(output),
+        ],
+    )
+
+    await revals.main()
+
+    captured = capsys.readouterr().out
+
+    data = json.loads(output.read_text())
+    results = data["f1"][qa_file.stem]
+
+    assert all("metrics" in r for r in results)
+    assert all("token_usage" in r["metrics"] for r in results)
+    assert all("latency_ms" in r["metrics"] for r in results)
+    assert all("tool_calls" in r["metrics"] for r in results)
+
+    # Aggregated report should include token, latency, and tool call summaries
+    assert "Token Usage:" in captured
+    assert "Latency:" in captured
+    assert "Tool Calls:" in captured
+
+    # Totals are summed across test cases
+    assert "Total: 45 tokens" in captured
+    assert "Total: 320 ms" in captured
+    assert "search: 3 calls" in captured
+    assert "calc: 3 calls" in captured
