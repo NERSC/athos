@@ -176,6 +176,9 @@ class NERSCMCPServer:
                     
                     data = response.json()
                     logger.info(f"Successfully retrieved status for {system or 'all systems'}")
+                    # API may return a list when requesting all systems; ensure dict for MCP structured_content
+                    if isinstance(data, list):
+                        return {"systems": data}
                     return data
                     
             except Exception as e:
