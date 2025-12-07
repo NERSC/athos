@@ -48,6 +48,11 @@ rag-mcp = "athos.tools.rag_mcp.rag_mcp_server:cli"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "unit: fast, isolated tests that mock external systems",
+    "integration: cross-component or IO-oriented tests",
+    "slow: opt-in slow-running tests",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
