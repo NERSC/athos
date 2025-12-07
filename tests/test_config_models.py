@@ -19,7 +19,7 @@ def test_smol_flow_rejects_langgraph_tool():
         },
         "flows": {
             "bad_agent": {
-                "type": "agent",
+                "type": "smol_agent",
                 "model": "m",
                 "tools": ["lang_tool"],
             }

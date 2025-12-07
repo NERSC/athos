@@ -7,6 +7,7 @@ from athos.config.models import AthosConfig, ModelConfig
 from athos.frameworks.langgraph.flows.agent import LangChainAgentFlow, LangChainAgentFlowConfig
 from athos.models.flow import FlowInput, FlowSession
 from athos.models.enums import ExecutionMode
+from athos.models.message import Message
 
 # Test constants
 SESSION_ID_BASIC = "test-session-basic"
@@ -124,15 +125,15 @@ async def test_build_messages_only_new_message(flow):
         session_id=SESSION_ID_BASIC,
         user_id=USER_ID,
         messages=[
-            {"role": "user", "content": "First message"},
-            {"role": "assistant", "content": "First response"},
-            {"role": "user", "content": "Second message"},
-            {"role": "assistant", "content": "Second response"},
-        ]
+            Message(role="user", content="First message"),
+            Message(role="assistant", content="First response"),
+            Message(role="user", content="Second message"),
+            Message(role="assistant", content="Second response"),
+        ],
     )
 
     flow_input = FlowInput(
-        message="Third message",
+        message=Message(role="user", content="Third message"),
         session=session,
         mode=ExecutionMode.SYNC,
     )
@@ -141,8 +142,6 @@ async def test_build_messages_only_new_message(flow):
 
     # Should only contain the new message
     assert len(messages) == 1
-    from langchain_core.messages import HumanMessage
-    assert isinstance(messages[0], HumanMessage)
     assert messages[0].content == "Third message"
 
 

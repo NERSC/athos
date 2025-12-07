@@ -20,7 +20,7 @@ models:
     model_id: "openai/gpt4"
 flows:
   agent_flow:
-    type: "agent"
+    type: "smol_agent"
     model: "test_model"
 """
     cfg_file = tmp_path / "cfg.yaml"
@@ -53,7 +53,7 @@ mcp_servers:
     command: "echo"
 flows:
   agent:
-    type: "agent"
+    type: "smol_agent"
     model: "test_model"
     mcp_servers: [s1]
 """

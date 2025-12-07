@@ -58,8 +58,8 @@ async def demonstrate_basic_filesystem_tasks(flow, session: FlowSession):
             metadata={"task": "basic_file_operations"},
         )
         result1 = await flow.execute(flow_input)
-        session.add_message("user", task1.strip())
-        session.add_message("assistant", result1.content)
+        session.add_user_message(task1.strip())
+        session.add_assistant_message(result1.content)
         print("\n✅ Task 1 completed!")
         print("📄 Agent response:")
         print(result1.content)
@@ -107,8 +107,8 @@ async def demonstrate_advanced_filesystem_tasks(flow, session: FlowSession):
             metadata={"task": "advanced_file_operations"},
         )
         result2 = await flow.execute(flow_input)
-        session.add_message("user", task2.strip())
-        session.add_message("assistant", result2.content)
+        session.add_user_message(task2.strip())
+        session.add_assistant_message(result2.content)
         print("\n✅ Task 2 completed!")
         print("📄 Agent response:")
         print(result2.content)
@@ -156,8 +156,8 @@ async def demonstrate_file_exploration_task(flow, session: FlowSession):
             metadata={"task": "file_exploration"},
         )
         result3 = await flow.execute(flow_input)
-        session.add_message("user", task3.strip())
-        session.add_message("assistant", result3.content)
+        session.add_user_message(task3.strip())
+        session.add_assistant_message(result3.content)
         print("\n✅ Task 3 completed!")
         print("📄 Agent response:")
         print(result3.content)

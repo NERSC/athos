@@ -40,7 +40,7 @@ class BaseFlow(ABC):
 
             async def execute(self, input: FlowInput) -> FlowOutput:
                 # Use self.model safely without None checks
-                response = await self.model.generate(input.message)
+                response = await self.model.generate(input.message.content)
                 return FlowOutput(content=response)
     """
 

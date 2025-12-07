@@ -1,6 +1,7 @@
 import pytest
 
 from athos.models import Artifact, ExecutionMode, FlowInput, FlowOutput, FlowSession
+from athos.models.message import MessageRole
 
 
 def test_flow_input_serialization_round_trip():
@@ -13,7 +14,8 @@ def test_flow_input_serialization_round_trip():
     )
 
     dumped = flow_input.model_dump()
-    assert dumped["message"] == "Hello"
+    assert dumped["message"]["content"] == "Hello"
+    assert dumped["message"]["role"] == "user"
     assert dumped["metadata"] == {"intent": "greeting"}
     assert dumped["session"]["session_id"] == "sess-1"
 
