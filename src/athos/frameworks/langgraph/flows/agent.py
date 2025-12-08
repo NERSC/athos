@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING, Self
+from typing import Any, AsyncGenerator, Dict, List, Mapping, Optional, Sequence, TYPE_CHECKING, Self
 
 from pydantic import Field, model_validator, ValidationInfo
 from typing_extensions import Literal
@@ -194,13 +194,21 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 message.pretty_print()
 
         content = self._extract_response(result_state)
-        metadata = {
+        metadata: Dict[str, Any] = {
             "model": self.model.model_name,
             "tools_available": len(self.tools),
             "max_iterations": self.max_iterations,
             "checkpoint_enabled": True,
             "thread_id": input.session.session_id,
         }
+
+        token_usage = self._extract_token_usage(result_state)
+        if token_usage:
+            metadata["token_usage"] = token_usage
+
+        tool_calls = self._extract_tool_calls(result_state)
+        if tool_calls:
+            metadata["tool_calls"] = tool_calls
 
         return FlowOutput(content=content, metadata=metadata)
 
@@ -492,6 +500,77 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         # Handle non-dict input (rare, but possible)
         return f"Calling tool: {tool_name}({tool_input!r})"
+
+    def _extract_token_usage(self, state: Any) -> Optional[Dict[str, int]]:
+        """Extract token usage from the final AIMessage in the state."""
+
+        messages: Sequence["BaseMessage"]
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        for message in reversed(messages):
+            if not (AIMessage and isinstance(message, AIMessage)):
+                continue
+
+            usage_metadata = getattr(message, "usage_metadata", None)
+            if isinstance(usage_metadata, Mapping):
+                input_tokens = usage_metadata.get("input_tokens") or usage_metadata.get("prompt_tokens") or 0
+                output_tokens = usage_metadata.get("output_tokens") or usage_metadata.get("completion_tokens") or 0
+            elif usage_metadata is not None:
+                input_tokens = getattr(usage_metadata, "input_tokens", 0) or getattr(usage_metadata, "prompt_tokens", 0)
+                output_tokens = getattr(usage_metadata, "output_tokens", 0) or getattr(usage_metadata, "completion_tokens", 0)
+            else:
+                resp_meta = getattr(message, "response_metadata", None)
+                if isinstance(resp_meta, Mapping):
+                    token_usage = resp_meta.get("token_usage") or resp_meta.get("usage") or {}
+                    input_tokens = token_usage.get("input_tokens", token_usage.get("prompt_tokens", 0))
+                    output_tokens = token_usage.get("output_tokens", token_usage.get("completion_tokens", 0))
+                else:
+                    input_tokens = 0
+                    output_tokens = 0
+
+            try:
+                input_tokens = int(input_tokens)
+                output_tokens = int(output_tokens)
+            except (TypeError, ValueError):
+                input_tokens = output_tokens = 0
+
+            if input_tokens or output_tokens:
+                return {"input_tokens": input_tokens, "output_tokens": output_tokens}
+
+        return None
+
+    def _extract_tool_calls(self, state: Any) -> List[str]:
+        """Collect tool names from AIMessage.tool_calls entries."""
+
+        messages: Sequence["BaseMessage"]
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        names: List[str] = []
+        for message in messages:
+            tool_calls = getattr(message, "tool_calls", None)
+            if not tool_calls:
+                continue
+
+            for tool_call in tool_calls:
+                if isinstance(tool_call, Mapping) and "name" in tool_call:
+                    names.append(str(tool_call["name"]))
+                elif hasattr(tool_call, "name"):
+                    names.append(str(getattr(tool_call, "name")))
+
+        seen = set()
+        unique_names = []
+        for name in names:
+            if name in seen:
+                continue
+            seen.add(name)
+            unique_names.append(name)
+        return unique_names
 
     def _build_langgraph_config(self, session_id: str) -> "RunnableConfig":
         """Build LangGraph configuration with thread_id.

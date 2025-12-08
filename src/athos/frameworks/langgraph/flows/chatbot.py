@@ -127,9 +127,9 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         }
 
-        usage = getattr(response, "usage", None)
-        if usage is not None:
-            metadata["tokens"] = usage
+        token_usage = self._coerce_token_usage(getattr(response, "usage", None))
+        if token_usage:
+            metadata["token_usage"] = token_usage
 
         return FlowOutput(content=content, metadata=metadata)
 
@@ -223,6 +223,30 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         raise TypeError(
             f"Unexpected response type from chat model: {type(response)!r}"
         )
+
+    @staticmethod
+    def _coerce_token_usage(usage: object) -> Optional[dict]:
+        """Normalize LangChain/OpenAI usage payloads into token_usage."""
+
+        if isinstance(usage, Mapping):
+            input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0))
+            output_tokens = usage.get("output_tokens", usage.get("completion_tokens", 0))
+        elif usage is not None:
+            input_tokens = getattr(usage, "input_tokens", getattr(usage, "prompt_tokens", 0))
+            output_tokens = getattr(usage, "output_tokens", getattr(usage, "completion_tokens", 0))
+        else:
+            return None
+
+        try:
+            input_tokens = int(input_tokens or 0)
+            output_tokens = int(output_tokens or 0)
+        except (TypeError, ValueError):
+            return None
+
+        if input_tokens == 0 and output_tokens == 0:
+            return None
+
+        return {"input_tokens": input_tokens, "output_tokens": output_tokens}
 
     def _coerce_chunk_content(self, chunk: object) -> str:
         """Convert streaming chunks into textual content."""
