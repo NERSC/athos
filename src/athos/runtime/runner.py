@@ -14,6 +14,7 @@ from athos.models.enums import ExecutionMode
 from athos.models.execution import FlowRequest, FlowResult
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message, MessageRole
+from athos.models.metrics import ExecutionMetrics
 from athos.models.session import FlowSession
 from athos.runtime.builder import build_flow
 from athos.runtime.session_store import InMemorySessionStore, SessionStore
@@ -89,6 +90,14 @@ class FlowRunner:
             await self.session_store.save(session)
 
             execution_time = time.time() - start_time
+            metrics = ExecutionMetrics.from_output_metadata(output.metadata)
+            result_metadata = {"flow_name": flow_name}
+            if metrics:
+                metrics.latency_ms = execution_time * 1000
+                result_metadata.update(metrics.to_metadata())
+            else:
+                result_metadata["latency_ms"] = execution_time * 1000
+
             result = FlowResult(
                 request_id=request.request_id,
                 session_id=session.session_id,
@@ -96,7 +105,7 @@ class FlowRunner:
                 output=output,
                 error=None,
                 execution_time=execution_time,
-                metadata={"flow_name": flow_name},
+                metadata=result_metadata,
             )
 
             logger.info(
