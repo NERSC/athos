@@ -114,6 +114,12 @@ class FlowRunner:
                 flow_name,
                 execution_time,
             )
+            logger.debug(
+                "[%s] Flow '%s' result metadata: %s",
+                request.request_id,
+                flow_name,
+                result_metadata,
+            )
 
             return result
 
