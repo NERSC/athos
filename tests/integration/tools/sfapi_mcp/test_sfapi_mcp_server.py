@@ -59,3 +59,33 @@ async def test_get_system_status(monkeypatch):
     mock_client.get.assert_called_once_with(
         "https://api.nersc.gov/api/v1.2/status/perlmutter"
     )
+
+
+@pytest.mark.asyncio
+async def test_get_system_status_wraps_list(monkeypatch):
+    from athos.tools.sfapi_mcp import server as server_module
+
+    mock_response = Mock()
+    mock_response.json.return_value = [{"name": "perlmutter"}]
+    mock_response.raise_for_status.return_value = None
+
+    mock_client = AsyncMock()
+    mock_client.get.return_value = mock_response
+
+    class DummyClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return mock_client
+
+        async def __aexit__(self, exc_type, exc, tb):
+            pass
+
+    monkeypatch.setattr(server_module.httpx, "AsyncClient", DummyClient)
+
+    server = NERSCMCPServer()
+    tool = await server.mcp.get_tool("get_system_status")
+    result = await tool.run({})
+    assert result.structured_content == {"systems": [{"name": "perlmutter"}]}
+    mock_client.get.assert_called_once_with("https://api.nersc.gov/api/v1.2/status")

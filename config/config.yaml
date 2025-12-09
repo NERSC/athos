@@ -236,7 +236,7 @@ flows:
   lang_sfapi_agent:
     description: "LangChain agent preconfigured for Superfacility API workflows"
     type: "langchain_agent"
-    model: "cborg_coder"
+    model: "claude_sonnet"
     mcp_servers: ["sfapi_mcp"]
     system_prompt_path: "prompts/lc_sfapi_agent_instructions.md"
     max_iterations: 12

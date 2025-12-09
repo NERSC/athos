@@ -12,7 +12,7 @@ from athos.models.flow import FlowOutput
 
 spec = importlib.util.spec_from_file_location(
     "revals",
-    Path(__file__).resolve().parents[1] / "evals" / "run_evaluations.py",
+    Path(__file__).resolve().parents[2] / "evals" / "run_evaluations.py",
 )
 revals = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(revals)

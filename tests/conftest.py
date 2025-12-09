@@ -1,33 +1,25 @@
-"""Pytest configuration and shared fixtures for ATHOS tests."""
+"""Pytest configuration shared across all test suites."""
 
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def isolate_flow_registry():
-    """Isolate the flow registry between tests.
+def pytest_configure(config):
+    """Register common markers to avoid unknown-marker warnings."""
+    config.addinivalue_line("markers", "unit: fast, isolated tests")
+    config.addinivalue_line("markers", "integration: cross-component or IO-oriented tests")
+    config.addinivalue_line("markers", "slow: opt-in slow tests")
 
-    This fixture automatically runs before and after each test to ensure
-    that modifications to FLOW_REGISTRY don't leak between tests.
 
-    The fixture:
-    1. Saves the current registry state before the test
-    2. Yields control to the test
-    3. Restores the registry state after the test completes
+def pytest_collection_modifyitems(config, items):
+    """Auto-apply markers based on test location."""
+    from pathlib import Path
 
-    This allows tests to:
-    - Clear the registry without affecting other tests
-    - Register test flows without polluting other tests
-    - Rely on real flows being registered (from module imports)
-    """
-    from athos.registry.flow_registry import FLOW_REGISTRY
+    unit_root = Path(config.rootpath) / "tests" / "unit"
+    integration_root = Path(config.rootpath) / "tests" / "integration"
 
-    # Save current state
-    saved_registry = FLOW_REGISTRY.copy()
-
-    # Run the test
-    yield
-
-    # Restore state after test completes
-    FLOW_REGISTRY.clear()
-    FLOW_REGISTRY.update(saved_registry)
+    for item in items:
+        path = Path(item.fspath)
+        if unit_root in path.parents:
+            item.add_marker(pytest.mark.unit)
+        elif integration_root in path.parents:
+            item.add_marker(pytest.mark.integration)

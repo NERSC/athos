@@ -9,7 +9,9 @@ from pathlib import Path
 
 def _load_pipeline() -> type:
     module_path = (
-        Path(__file__).resolve().parents[1]
+        Path(__file__).resolve().parents[3]
+        / "integrations"
+        / "openwebui"
         / "pipelines"
         / "athos_flowrunner_manifold_pipeline.py"
     )
