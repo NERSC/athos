@@ -43,6 +43,11 @@ async def test_live_openai_token_usage_parsing():
     )
 
     output = await flow.execute(flow_input)
+
+    print("\n=== Live Flow Execution Output ===")
+    print("Flow ouput:", output)
+    print("Flow output content:", output.content)
+    print("Flow output metadata:", output.metadata)
     metrics = ExecutionMetrics.from_output_metadata(output.metadata)
 
     assert metrics is not None, "Expected metrics from live flow output"
