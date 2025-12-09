@@ -180,6 +180,14 @@ class AgentFlow(BaseFlow):
                 or getattr(result, "usage_metadata", None)
                 or getattr(result, "response_metadata", None)
             )
+            # Fallback: some smolagents models expose last_response with usage
+            if not token_usage:
+                last_resp = getattr(self.agent.model, "last_response", None)
+                if isinstance(last_resp, Mapping):
+                    token_usage = self._coerce_token_usage(
+                        last_resp.get("usage") or last_resp.get("usage_metadata") or last_resp
+                    )
+
             if token_usage:
                 metadata["token_usage"] = token_usage
 
