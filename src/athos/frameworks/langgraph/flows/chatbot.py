@@ -19,6 +19,7 @@ from athos.frameworks.langgraph.utils.messages import (
     HumanMessage,
     SystemMessage,
 )
+from athos.frameworks.langgraph.utils.metrics import aggregate_token_usage, _coerce_usage
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message
@@ -127,10 +128,8 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         }
 
-        usage_payload = (
-            getattr(response, "usage", None)
-            or getattr(response, "usage_metadata", None)
-            or getattr(response, "response_metadata", None)
+        usage_payload = getattr(response, "usage", None) or getattr(response, "usage_metadata", None) or getattr(
+            response, "response_metadata", None
         )
         token_usage = self._coerce_token_usage(usage_payload)
         if token_usage:
@@ -144,9 +143,13 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         messages = self._build_messages(input)
         logger.debug("Streaming LangGraph chatbot with %d messages", len(messages))
 
+        token_usage = None
+
         # ChatOpenAI (langchain-openai ~=1.0.0) always supports streaming via astream()
         try:
             async for chunk in self.model.astream(messages):
+                if token_usage is None:
+                    token_usage = self._coerce_token_usage(getattr(chunk, "usage", None))
                 chunk_text = self._coerce_chunk_content(chunk)
                 if not chunk_text:
                     continue
@@ -169,6 +172,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
                 "chunk": False,
                 "final": True,
                 "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
+                **({"token_usage": token_usage} if token_usage else {}),
             },
         )
 
@@ -231,29 +235,9 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
 
     @staticmethod
     def _coerce_token_usage(usage: object) -> Optional[dict]:
-        """Normalize LangChain/OpenAI usage payloads into token_usage."""
+        """Normalize usage payloads into token_usage."""
 
-        if isinstance(usage, Mapping):
-            token_usage = usage.get("token_usage") or usage.get("usage") or usage
-        else:
-            token_usage = getattr(usage, "token_usage", None) or getattr(usage, "usage", usage)
-
-        if not isinstance(token_usage, Mapping):
-            return None
-
-        input_tokens = token_usage.get("input_tokens", token_usage.get("prompt_tokens", 0))
-        output_tokens = token_usage.get("output_tokens", token_usage.get("completion_tokens", 0))
-
-        try:
-            input_tokens = int(input_tokens or 0)
-            output_tokens = int(output_tokens or 0)
-        except (TypeError, ValueError):
-            return None
-
-        if input_tokens == 0 and output_tokens == 0:
-            return None
-
-        return {"input_tokens": input_tokens, "output_tokens": output_tokens}
+        return _coerce_usage(usage)
 
     def _coerce_chunk_content(self, chunk: object) -> str:
         """Convert streaming chunks into textual content."""

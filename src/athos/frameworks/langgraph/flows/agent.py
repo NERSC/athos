@@ -25,6 +25,10 @@ from athos.frameworks.langgraph.factories import (
     build_tool,
 )
 from athos.frameworks.langgraph.utils.messages import BaseMessage, HumanMessage
+from athos.frameworks.langgraph.utils.metrics import (
+    aggregate_token_usage,
+    collect_tool_call_names,
+)
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message
@@ -525,42 +529,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         else:
             messages = getattr(state, "messages", [])
 
-        for message in reversed(messages):
-            if not (AIMessage and isinstance(message, AIMessage)):
-                continue
-
-            usage = getattr(message, "usage_metadata", None) or getattr(message, "response_metadata", None)
-            token_usage = self._coerce_usage(usage)
-            if token_usage:
-                return token_usage
-
-        return None
-
-    @staticmethod
-    def _coerce_usage(usage: Any) -> Optional[Dict[str, int]]:
-        """Normalize common LangChain usage payload shapes."""
-
-        if isinstance(usage, Mapping):
-            token_usage = usage.get("token_usage") or usage.get("usage") or usage
-        else:
-            token_usage = getattr(usage, "token_usage", None) or getattr(usage, "usage", usage)
-
-        if not isinstance(token_usage, Mapping):
-            return None
-
-        input_tokens = token_usage.get("input_tokens") or token_usage.get("prompt_tokens") or 0
-        output_tokens = token_usage.get("output_tokens") or token_usage.get("completion_tokens") or 0
-
-        try:
-            input_tokens = int(input_tokens)
-            output_tokens = int(output_tokens)
-        except (TypeError, ValueError):
-            return None
-
-        if input_tokens == 0 and output_tokens == 0:
-            return None
-
-        return {"input_tokens": input_tokens, "output_tokens": output_tokens}
+        return aggregate_token_usage(messages)
 
     def _extract_tool_calls(self, state: Any) -> List[str]:
         """Collect tool names from AIMessage.tool_calls entries."""
