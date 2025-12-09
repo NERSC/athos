@@ -19,17 +19,12 @@ pytestmark = pytest.mark.asyncio
     os.getenv("RUN_LIVE_LLM_TESTS") != "1" or not os.getenv("OPENAI_API_KEY"),
     reason="Set RUN_LIVE_LLM_TESTS=1 and OPENAI_API_KEY to run live token/latency test.",
 )
-async def test_live_openai_token_usage_and_latency():
-    """Opt-in check that we can parse token usage and latency from live OpenAI calls."""
+async def test_live_openai_langgraph_token_usage_and_latency():
+    """Opt-in check that we can parse token usage and latency from live OpenAI calls (LangGraph)."""
     try:
         from langchain_openai import ChatOpenAI
     except Exception as exc:  # pragma: no cover - import is optional for live test
         pytest.skip(f"langchain_openai not available: {exc}")
-
-    try:
-        from smolagents import OpenAIServerModel
-    except Exception as exc:  # pragma: no cover - import is optional for live test
-        pytest.skip(f"smolagents not available: {exc}")
 
     model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     chat_model = ChatOpenAI(model_name=model_name, temperature=0)
@@ -39,17 +34,6 @@ async def test_live_openai_token_usage_and_latency():
         system_prompt=None,
         initial_history=None,
         full_config=None,
-    )
-
-    smol_model = OpenAIServerModel(model=model_name, api_key=os.getenv("OPENAI_API_KEY"))
-    smol_flow = AgentFlow(
-        model=smol_model,
-        tools=[],
-        agent_type="code",
-        mcp_clients=None,
-        full_config=None,
-        max_steps=4,
-        verbosity_level=0,
     )
 
     class InlineRunner(FlowRunner):
@@ -78,7 +62,40 @@ async def test_live_openai_token_usage_and_latency():
     assert lg_metrics.token_usage.total_tokens > 0, "Token totals should be positive"
     assert lg_metrics.latency_ms is not None and lg_metrics.latency_ms > 0, "Latency should be recorded"
 
-    # SmolAgents via runner
+
+@pytest.mark.skipif(
+    os.getenv("RUN_LIVE_LLM_TESTS") != "1" or not os.getenv("OPENAI_API_KEY"),
+    reason="Set RUN_LIVE_LLM_TESTS=1 and OPENAI_API_KEY to run live token/latency test.",
+)
+async def test_live_openai_smolagents_token_usage_and_latency():
+    """Opt-in check that we can parse token usage and latency from live OpenAI calls (SmolAgents)."""
+    try:
+        from smolagents import OpenAIServerModel
+    except Exception as exc:  # pragma: no cover - import is optional for live test
+        pytest.skip(f"smolagents not available: {exc}")
+
+    model_name = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    smol_model = OpenAIServerModel(model_id=model_name, api_key=os.getenv("OPENAI_API_KEY"))
+    smol_flow = AgentFlow(
+        model=smol_model,
+        tools=[],
+        agent_type="code",
+        mcp_clients=None,
+        full_config=None,
+        max_steps=4,
+        verbosity_level=0,
+    )
+
+    class InlineRunner(FlowRunner):
+        def __init__(self, flow):
+            super().__init__(config=SimpleNamespace(workspace_dir=tempfile.mkdtemp()))
+            self._inline_flow = flow
+
+        async def _get_flow(self, flow_name: str):
+            return self._inline_flow
+
+    message = Message(role=MessageRole.USER, content="Say hello briefly.")
+
     sm_runner = InlineRunner(smol_flow)
     sm_result = await sm_runner.execute(
         flow_name="live_smol_agent",
