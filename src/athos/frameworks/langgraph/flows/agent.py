@@ -514,33 +514,38 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             if not (AIMessage and isinstance(message, AIMessage)):
                 continue
 
-            usage_metadata = getattr(message, "usage_metadata", None)
-            if isinstance(usage_metadata, Mapping):
-                input_tokens = usage_metadata.get("input_tokens") or usage_metadata.get("prompt_tokens") or 0
-                output_tokens = usage_metadata.get("output_tokens") or usage_metadata.get("completion_tokens") or 0
-            elif usage_metadata is not None:
-                input_tokens = getattr(usage_metadata, "input_tokens", 0) or getattr(usage_metadata, "prompt_tokens", 0)
-                output_tokens = getattr(usage_metadata, "output_tokens", 0) or getattr(usage_metadata, "completion_tokens", 0)
-            else:
-                resp_meta = getattr(message, "response_metadata", None)
-                if isinstance(resp_meta, Mapping):
-                    token_usage = resp_meta.get("token_usage") or resp_meta.get("usage") or {}
-                    input_tokens = token_usage.get("input_tokens", token_usage.get("prompt_tokens", 0))
-                    output_tokens = token_usage.get("output_tokens", token_usage.get("completion_tokens", 0))
-                else:
-                    input_tokens = 0
-                    output_tokens = 0
-
-            try:
-                input_tokens = int(input_tokens)
-                output_tokens = int(output_tokens)
-            except (TypeError, ValueError):
-                input_tokens = output_tokens = 0
-
-            if input_tokens or output_tokens:
-                return {"input_tokens": input_tokens, "output_tokens": output_tokens}
+            usage = getattr(message, "usage_metadata", None) or getattr(message, "response_metadata", None)
+            token_usage = self._coerce_usage(usage)
+            if token_usage:
+                return token_usage
 
         return None
+
+    @staticmethod
+    def _coerce_usage(usage: Any) -> Optional[Dict[str, int]]:
+        """Normalize common LangChain usage payload shapes."""
+
+        if isinstance(usage, Mapping):
+            token_usage = usage.get("token_usage") or usage.get("usage") or usage
+        else:
+            token_usage = getattr(usage, "token_usage", None) or getattr(usage, "usage", usage)
+
+        if not isinstance(token_usage, Mapping):
+            return None
+
+        input_tokens = token_usage.get("input_tokens") or token_usage.get("prompt_tokens") or 0
+        output_tokens = token_usage.get("output_tokens") or token_usage.get("completion_tokens") or 0
+
+        try:
+            input_tokens = int(input_tokens)
+            output_tokens = int(output_tokens)
+        except (TypeError, ValueError):
+            return None
+
+        if input_tokens == 0 and output_tokens == 0:
+            return None
+
+        return {"input_tokens": input_tokens, "output_tokens": output_tokens}
 
     def _extract_tool_calls(self, state: Any) -> List[str]:
         """Collect tool names from AIMessage.tool_calls entries."""
