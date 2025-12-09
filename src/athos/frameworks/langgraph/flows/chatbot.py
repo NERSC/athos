@@ -127,7 +127,12 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         }
 
-        token_usage = self._coerce_token_usage(getattr(response, "usage", None))
+        usage_payload = (
+            getattr(response, "usage", None)
+            or getattr(response, "usage_metadata", None)
+            or getattr(response, "response_metadata", None)
+        )
+        token_usage = self._coerce_token_usage(usage_payload)
         if token_usage:
             metadata["token_usage"] = token_usage
 
@@ -229,13 +234,15 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         """Normalize LangChain/OpenAI usage payloads into token_usage."""
 
         if isinstance(usage, Mapping):
-            input_tokens = usage.get("input_tokens", usage.get("prompt_tokens", 0))
-            output_tokens = usage.get("output_tokens", usage.get("completion_tokens", 0))
-        elif usage is not None:
-            input_tokens = getattr(usage, "input_tokens", getattr(usage, "prompt_tokens", 0))
-            output_tokens = getattr(usage, "output_tokens", getattr(usage, "completion_tokens", 0))
+            token_usage = usage.get("token_usage") or usage.get("usage") or usage
         else:
+            token_usage = getattr(usage, "token_usage", None) or getattr(usage, "usage", usage)
+
+        if not isinstance(token_usage, Mapping):
             return None
+
+        input_tokens = token_usage.get("input_tokens", token_usage.get("prompt_tokens", 0))
+        output_tokens = token_usage.get("output_tokens", token_usage.get("completion_tokens", 0))
 
         try:
             input_tokens = int(input_tokens or 0)
