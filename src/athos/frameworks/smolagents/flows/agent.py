@@ -81,10 +81,20 @@ class AgentFlow(BaseFlow):
 
         if agent_type == "tool_calling":
             agent_kwargs.pop("additional_authorized_imports", None)
-            self.agent = ToolCallingAgent(tools=tools, model=model, **agent_kwargs)
+            self.agent = ToolCallingAgent(
+                tools=tools,
+                model=model,
+                return_full_result=True,
+                **agent_kwargs,
+            )
             self.agent_type = agent_type
         else:
-            self.agent = CodeAgent(tools=tools, model=model, **agent_kwargs)
+            self.agent = CodeAgent(
+                tools=tools,
+                model=model,
+                return_full_result=True,
+                **agent_kwargs,
+            )
             self.agent_type = "code"
 
     @classmethod
@@ -168,28 +178,20 @@ class AgentFlow(BaseFlow):
         message = input.message.content
 
         try:
-            result = await asyncio.to_thread(self.agent.run, message, reset=False)
+            result = await asyncio.to_thread(
+                self.agent.run,
+                message,
+                reset=False,
+                return_full_result=True,
+            )
             metadata: dict[str, Any] = {
                 "agent_type": self.agent_type,
                 "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
             }
 
-            token_usage = self._coerce_token_usage(
-                getattr(result, "token_usage", None)
-                or getattr(result, "usage", None)
-                or getattr(result, "usage_metadata", None)
-                or getattr(result, "response_metadata", None)
-            )
-            # Fallback: some smolagents models expose last_response with usage
-            if not token_usage:
-                last_resp = getattr(self.agent.model, "last_response", None)
-                if isinstance(last_resp, Mapping):
-                    token_usage = self._coerce_token_usage(
-                        last_resp.get("usage") or last_resp.get("usage_metadata") or last_resp
-                    )
-
+            token_usage = result.token_usage
             if token_usage:
-                metadata["token_usage"] = token_usage
+                metadata["token_usage"] = token_usage.dict()
 
             tool_calls = self._coerce_tool_calls(
                 getattr(result, "tool_calls", None) or getattr(result, "calls", None)
@@ -197,8 +199,14 @@ class AgentFlow(BaseFlow):
             if tool_calls:
                 metadata["tool_calls"] = tool_calls
 
+            content = getattr(result, "final_answer", None)
+            if content is None:
+                content = getattr(result, "output", None)
+            if content is None:
+                content = str(result)
+
             return FlowOutput(
-                content=str(result),
+                content=str(content),
                 metadata=metadata,
             )
         except Exception as e:
@@ -218,31 +226,6 @@ class AgentFlow(BaseFlow):
                 logger.warning("Error disconnecting MCP client: %s", e)
         self._mcp_clients.clear()
 
-    @staticmethod
-    def _coerce_token_usage(usage: Any) -> Optional[dict[str, int]]:
-        """Normalize common usage payloads into token_usage dict."""
-
-        if isinstance(usage, Mapping):
-            token_usage = usage.get("token_usage") or usage.get("usage") or usage
-        else:
-            token_usage = getattr(usage, "token_usage", None) or getattr(usage, "usage", usage)
-
-        if not isinstance(token_usage, Mapping):
-            return None
-
-        input_tokens = token_usage.get("input_tokens", token_usage.get("prompt_tokens", 0))
-        output_tokens = token_usage.get("output_tokens", token_usage.get("completion_tokens", 0))
-
-        try:
-            input_tokens = int(input_tokens or 0)
-            output_tokens = int(output_tokens or 0)
-        except (TypeError, ValueError):
-            return None
-
-        if input_tokens == 0 and output_tokens == 0:
-            return None
-
-        return {"input_tokens": input_tokens, "output_tokens": output_tokens}
 
     @staticmethod
     def _coerce_tool_calls(raw: Any) -> List[str]:
