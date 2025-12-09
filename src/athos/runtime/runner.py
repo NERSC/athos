@@ -180,6 +180,8 @@ class FlowRunner:
 
         logger.debug(f"FlowRunner.stream history: {session.get_history()}")
 
+        start_time = time.time()
+
         if not flow.can_stream():
             logger.warning(
                 "[%s] Flow '%s' does not support streaming; falling back to execute()",
@@ -197,6 +199,7 @@ class FlowRunner:
             output_metadata = dict(output.metadata)
             output_metadata.setdefault("streaming", False)
             output_metadata["final"] = True
+            output_metadata.setdefault("latency_ms", (time.time() - start_time) * 1000)
             final_output = FlowOutput(
                 content=output.content,
                 artifacts=list(output.artifacts),
@@ -219,6 +222,8 @@ class FlowRunner:
         try:
             async for output in flow.stream(flow_input):
                 emitted_any_chunk = True
+                if output.metadata.get("final"):
+                    output.metadata.setdefault("latency_ms", (time.time() - start_time) * 1000)
                 if output.content:
                     buffered_chunks.append(output.content)
                 # Refer to docs/athos_openwebui_integration_plan_v3.0.md#streaming-contract

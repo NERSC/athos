@@ -286,6 +286,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         # Track whether we've emitted thinking status
         thinking_emitted = False
+        token_usage: Optional[Dict[str, int]] = None
+        tool_names: List[str] = []
 
         try:
             async for stream_mode, chunk in self._graph.astream(  # type: ignore[attr-defined]
@@ -310,6 +312,12 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
                     # === Handle AIMessageChunk (model output) ===
                     if AIMessageChunk and isinstance(message, AIMessageChunk):
+                        if token_usage is None:
+                            token_usage = self._coerce_usage(
+                                getattr(message, "usage_metadata", None)
+                                or getattr(message, "response_metadata", None)
+                            )
+
                         if not thinking_emitted:
                             thinking_emitted = True
                             status_output = FlowOutput(
@@ -406,6 +414,11 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                                 continue
 
                             for tool_call in tool_calls:
+                                if isinstance(tool_call, Mapping) and "name" in tool_call:
+                                    tool_names.append(str(tool_call["name"]))
+                                elif hasattr(tool_call, "name"):
+                                    tool_names.append(str(getattr(tool_call, "name")))
+
                                 if isinstance(tool_call, dict):
                                     tool_name = tool_call.get("name", "unknown")
                                     tool_args = tool_call.get("args", {})
@@ -455,6 +468,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 "final": True,
                 "model": self.model.model_name,
                 "tools_available": len(self.tools),
+                **({"token_usage": token_usage} if token_usage else {}),
+                **({"tool_calls": list(dict.fromkeys(tool_names))} if tool_names else {}),
             },
         )
 

@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, List, Optional
+from typing import Any, ClassVar, List, Optional, Mapping
 from typing_extensions import Literal
 from enum import Enum
 import asyncio
@@ -169,12 +169,29 @@ class AgentFlow(BaseFlow):
 
         try:
             result = await asyncio.to_thread(self.agent.run, message, reset=False)
+            metadata: dict[str, Any] = {
+                "agent_type": self.agent_type,
+                "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
+            }
+
+            token_usage = self._coerce_token_usage(
+                getattr(result, "token_usage", None)
+                or getattr(result, "usage", None)
+                or getattr(result, "usage_metadata", None)
+                or getattr(result, "response_metadata", None)
+            )
+            if token_usage:
+                metadata["token_usage"] = token_usage
+
+            tool_calls = self._coerce_tool_calls(
+                getattr(result, "tool_calls", None) or getattr(result, "calls", None)
+            )
+            if tool_calls:
+                metadata["tool_calls"] = tool_calls
+
             return FlowOutput(
                 content=str(result),
-                metadata={
-                    "agent_type": self.agent_type,
-                    "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
-                }
+                metadata=metadata,
             )
         except Exception as e:
             logger.error("%s execution failed: %s", self.agent.__class__.__name__, e)
@@ -192,6 +209,57 @@ class AgentFlow(BaseFlow):
             except Exception as e:  # pragma: no cover - disconnect failures should not crash
                 logger.warning("Error disconnecting MCP client: %s", e)
         self._mcp_clients.clear()
+
+    @staticmethod
+    def _coerce_token_usage(usage: Any) -> Optional[dict[str, int]]:
+        """Normalize common usage payloads into token_usage dict."""
+
+        if isinstance(usage, Mapping):
+            token_usage = usage.get("token_usage") or usage.get("usage") or usage
+        else:
+            token_usage = getattr(usage, "token_usage", None) or getattr(usage, "usage", usage)
+
+        if not isinstance(token_usage, Mapping):
+            return None
+
+        input_tokens = token_usage.get("input_tokens", token_usage.get("prompt_tokens", 0))
+        output_tokens = token_usage.get("output_tokens", token_usage.get("completion_tokens", 0))
+
+        try:
+            input_tokens = int(input_tokens or 0)
+            output_tokens = int(output_tokens or 0)
+        except (TypeError, ValueError):
+            return None
+
+        if input_tokens == 0 and output_tokens == 0:
+            return None
+
+        return {"input_tokens": input_tokens, "output_tokens": output_tokens}
+
+    @staticmethod
+    def _coerce_tool_calls(raw: Any) -> List[str]:
+        """Normalize tool call payloads to a list of tool names."""
+
+        if raw is None:
+            return []
+
+        names: List[str] = []
+        items = raw if isinstance(raw, list) else [raw]
+        for item in items:
+            if isinstance(item, Mapping) and "name" in item:
+                names.append(str(item["name"]))
+            elif hasattr(item, "name"):
+                names.append(str(getattr(item, "name")))
+
+        # Preserve order, drop duplicates
+        seen = set()
+        unique: List[str] = []
+        for name in names:
+            if name in seen:
+                continue
+            seen.add(name)
+            unique.append(name)
+        return unique
 
 
 class AgentType(str, Enum):
