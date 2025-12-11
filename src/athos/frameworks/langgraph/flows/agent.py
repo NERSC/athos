@@ -28,6 +28,7 @@ from athos.frameworks.langgraph.utils.messages import BaseMessage, HumanMessage
 from athos.frameworks.langgraph.utils.metrics import (
     aggregate_token_usage,
     collect_tool_call_names,
+    _coerce_usage,
 )
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
@@ -317,7 +318,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                     # === Handle AIMessageChunk (model output) ===
                     if AIMessageChunk and isinstance(message, AIMessageChunk):
                         if token_usage is None:
-                            token_usage = self._coerce_usage(
+                            token_usage = _coerce_usage(
                                 getattr(message, "usage_metadata", None)
                                 or getattr(message, "response_metadata", None)
                             )

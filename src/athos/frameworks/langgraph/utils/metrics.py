@@ -20,8 +20,8 @@ def aggregate_token_usage(messages: Sequence[BaseMessage]) -> Optional[dict]:
         if not isinstance(message, AIMessage):
             continue
 
-        usage = getattr(message, "usage_metadata", None) or getattr(message, "response_metadata", None)
-        token_usage = _coerce_usage(usage)
+        # print(message)
+        token_usage = getattr(message, "usage_metadata", None)
         if token_usage:
             total_input += token_usage["input_tokens"]
             total_output += token_usage["output_tokens"]
@@ -55,6 +55,9 @@ def collect_tool_call_names(messages: Iterable[BaseMessage]) -> List[str]:
     return unique
 
 
+# FIXME: Duplicate of src/athos/models/metrics.py::_coerce_token_usage
+# FIXME: This doesn't do much. Could remove and inline its logic where needed.
+# Also, defensive checks are unnecessary.
 def _coerce_usage(usage: Any) -> Optional[dict]:
     """Normalize usage payloads to a token_usage dict."""
 
