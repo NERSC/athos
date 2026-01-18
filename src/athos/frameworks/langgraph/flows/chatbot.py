@@ -19,12 +19,12 @@ from athos.frameworks.langgraph.utils.messages import (
     HumanMessage,
     SystemMessage,
 )
-from athos.frameworks.langgraph.utils.metrics import aggregate_token_usage, _coerce_usage
+from athos.frameworks.langgraph.utils.metrics import _coerce_usage
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message
 from athos.registry.flow_registry import register_flow
-
+    
 if TYPE_CHECKING:  # pragma: no cover - only for static analysis
     from langchain_core.language_models import BaseLanguageModel
 
@@ -222,6 +222,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
 
         return await self.model.ainvoke(messages)
 
+    # FIXME: simplify and inline
     def _extract_response_content(self, response: object) -> str:
         """Extract textual content from a LangChain response payload."""
 
@@ -233,6 +234,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             f"Unexpected response type from chat model: {type(response)!r}"
         )
 
+    # FIXME: inline
     @staticmethod
     def _coerce_token_usage(usage: object) -> Optional[dict]:
         """Normalize usage payloads into token_usage."""

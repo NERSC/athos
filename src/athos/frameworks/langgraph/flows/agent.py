@@ -320,7 +320,6 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                         if token_usage is None:
                             token_usage = _coerce_usage(
                                 getattr(message, "usage_metadata", None)
-                                or getattr(message, "response_metadata", None)
                             )
 
                         if not thinking_emitted:
@@ -413,6 +412,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                             continue
 
                         for message in messages:
+                            # TODO: clean this up using message type checks and validated data structures
                             message_type = type(message).__name__
                             tool_calls = getattr(message, "tool_calls", None)
                             if not tool_calls:
