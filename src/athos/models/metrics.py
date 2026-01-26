@@ -43,7 +43,7 @@ class ExecutionMetrics(BaseModel):
         if not metadata or not isinstance(metadata, Mapping):
             return None
 
-        token_usage = _coerce_token_usage(metadata.get("token_usage") or metadata.get("usage"))
+        token_usage = _coerce_token_usage(metadata.get("token_usage"))
         tool_calls = _coerce_tool_calls(metadata.get("tool_calls"))
 
         latency_ms = metadata.get("latency_ms")
@@ -64,8 +64,8 @@ def _coerce_token_usage(raw: Any) -> Optional[TokenUsage]:
     if not isinstance(raw, Mapping):
         return None
 
-    input_tokens = raw.get("input_tokens", raw.get("prompt_tokens", 0)) or 0
-    output_tokens = raw.get("output_tokens", raw.get("completion_tokens", 0)) or 0
+    input_tokens = raw.get("input_tokens", 0) or 0
+    output_tokens = raw.get("output_tokens", 0) or 0
 
     try:
         input_tokens = int(input_tokens)
@@ -84,11 +84,6 @@ def _coerce_tool_calls(raw: Any) -> List[str]:
     if raw is None:
         return []
 
-    names: List[str] = []
-    items = raw if isinstance(raw, list) else [raw]
-    for item in items:
-        if isinstance(item, str):
-            names.append(item)
-        elif isinstance(item, Mapping) and "name" in item:
-            names.append(str(item["name"]))
-    return names
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, str)]
+    return [raw] if isinstance(raw, str) else []

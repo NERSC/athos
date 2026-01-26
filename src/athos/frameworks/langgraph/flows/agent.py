@@ -28,7 +28,7 @@ from athos.frameworks.langgraph.utils.messages import BaseMessage, HumanMessage
 from athos.frameworks.langgraph.utils.metrics import (
     aggregate_token_usage,
     collect_tool_call_names,
-    _coerce_usage,
+    extract_token_usage_from_chunk,
 )
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
@@ -318,9 +318,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                     # === Handle AIMessageChunk (model output) ===
                     if AIMessageChunk and isinstance(message, AIMessageChunk):
                         if token_usage is None:
-                            token_usage = _coerce_usage(
-                                getattr(message, "usage_metadata", None)
-                            )
+                            token_usage = extract_token_usage_from_chunk(message)
 
                         if not thinking_emitted:
                             thinking_emitted = True
@@ -412,24 +410,16 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                             continue
 
                         for message in messages:
-                            # TODO: clean this up using message type checks and validated data structures
-                            message_type = type(message).__name__
                             tool_calls = getattr(message, "tool_calls", None)
                             if not tool_calls:
                                 continue
 
                             for tool_call in tool_calls:
-                                if isinstance(tool_call, Mapping) and "name" in tool_call:
-                                    tool_names.append(str(tool_call["name"]))
-                                elif hasattr(tool_call, "name"):
-                                    tool_names.append(str(getattr(tool_call, "name")))
-
-                                if isinstance(tool_call, dict):
-                                    tool_name = tool_call.get("name", "unknown")
-                                    tool_args = tool_call.get("args", {})
-                                else:
-                                    tool_name = getattr(tool_call, "name", "unknown")
-                                    tool_args = getattr(tool_call, "args", {})
+                                if not isinstance(tool_call, Mapping) or "name" not in tool_call:
+                                    continue
+                                tool_names.append(str(tool_call["name"]))
+                                tool_name = tool_call.get("name", "unknown")
+                                tool_args = tool_call.get("args", {})
 
                                 # Format tool call with arguments
                                 formatted_call = self._format_tool_call(tool_name, tool_args)
@@ -541,26 +531,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         else:
             messages = getattr(state, "messages", [])
 
-        names: List[str] = []
-        for message in messages:
-            tool_calls = getattr(message, "tool_calls", None)
-            if not tool_calls:
-                continue
-
-            for tool_call in tool_calls:
-                if isinstance(tool_call, Mapping) and "name" in tool_call:
-                    names.append(str(tool_call["name"]))
-                elif hasattr(tool_call, "name"):
-                    names.append(str(getattr(tool_call, "name")))
-
-        seen = set()
-        unique_names = []
-        for name in names:
-            if name in seen:
-                continue
-            seen.add(name)
-            unique_names.append(name)
-        return unique_names
+        return collect_tool_call_names(messages)
 
     def _build_langgraph_config(self, session_id: str) -> "RunnableConfig":
         """Build LangGraph configuration with thread_id.

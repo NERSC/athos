@@ -19,7 +19,10 @@ from athos.frameworks.langgraph.utils.messages import (
     HumanMessage,
     SystemMessage,
 )
-from athos.frameworks.langgraph.utils.metrics import _coerce_usage
+from athos.frameworks.langgraph.utils.metrics import (
+    extract_token_usage_from_chunk,
+    extract_token_usage_from_message,
+)
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message
@@ -128,10 +131,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         }
 
-        usage_payload = getattr(response, "usage", None) or getattr(response, "usage_metadata", None) or getattr(
-            response, "response_metadata", None
-        )
-        token_usage = self._coerce_token_usage(usage_payload)
+        token_usage = extract_token_usage_from_message(response)
         if token_usage:
             metadata["token_usage"] = token_usage
 
@@ -149,7 +149,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         try:
             async for chunk in self.model.astream(messages):
                 if token_usage is None:
-                    token_usage = self._coerce_token_usage(getattr(chunk, "usage", None))
+                    token_usage = extract_token_usage_from_chunk(chunk)
                 chunk_text = self._coerce_chunk_content(chunk)
                 if not chunk_text:
                     continue
@@ -222,7 +222,6 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
 
         return await self.model.ainvoke(messages)
 
-    # FIXME: simplify and inline
     def _extract_response_content(self, response: object) -> str:
         """Extract textual content from a LangChain response payload."""
 
@@ -233,13 +232,6 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         raise TypeError(
             f"Unexpected response type from chat model: {type(response)!r}"
         )
-
-    # FIXME: inline
-    @staticmethod
-    def _coerce_token_usage(usage: object) -> Optional[dict]:
-        """Normalize usage payloads into token_usage."""
-
-        return _coerce_usage(usage)
 
     def _coerce_chunk_content(self, chunk: object) -> str:
         """Convert streaming chunks into textual content."""

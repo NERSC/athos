@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, List, Optional, Mapping
+from typing import Any, ClassVar, List, Optional
 from typing_extensions import Literal
 from enum import Enum
 import asyncio
@@ -32,6 +32,10 @@ from athos.frameworks.smolagents.factories import (
     build_mcp_client,
     build_model,
     build_tool,
+)
+from athos.frameworks.smolagents.utils.metrics import (
+    extract_token_usage_from_result,
+    extract_tool_calls_from_result,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,13 +193,11 @@ class AgentFlow(BaseFlow):
                 "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
             }
 
-            token_usage = result.token_usage
+            token_usage = extract_token_usage_from_result(result)
             if token_usage:
-                metadata["token_usage"] = token_usage.dict()
+                metadata["token_usage"] = token_usage
 
-            tool_calls = self._coerce_tool_calls(
-                getattr(result, "tool_calls", None) or getattr(result, "calls", None)
-            )
+            tool_calls = extract_tool_calls_from_result(result)
             if tool_calls:
                 metadata["tool_calls"] = tool_calls
 
@@ -225,33 +227,6 @@ class AgentFlow(BaseFlow):
             except Exception as e:  # pragma: no cover - disconnect failures should not crash
                 logger.warning("Error disconnecting MCP client: %s", e)
         self._mcp_clients.clear()
-
-
-    @staticmethod
-    def _coerce_tool_calls(raw: Any) -> List[str]:
-        """Normalize tool call payloads to a list of tool names."""
-
-        if raw is None:
-            return []
-
-        names: List[str] = []
-        items = raw if isinstance(raw, list) else [raw]
-        for item in items:
-            if isinstance(item, Mapping) and "name" in item:
-                names.append(str(item["name"]))
-            elif hasattr(item, "name"):
-                names.append(str(getattr(item, "name")))
-
-        # Preserve order, drop duplicates
-        seen = set()
-        unique: List[str] = []
-        for name in names:
-            if name in seen:
-                continue
-            seen.add(name)
-            unique.append(name)
-        return unique
-
 
 class AgentType(str, Enum):
     """Supported agent implementations"""

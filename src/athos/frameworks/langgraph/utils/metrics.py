@@ -2,29 +2,52 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Mapping, Optional, Sequence
+from typing import Iterable, List, Mapping, Optional, Sequence
 
-from langchain_core.messages import AIMessage, BaseMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, BaseMessage
+
+
+def extract_token_usage_from_message(message: BaseMessage) -> Optional[dict]:
+    """Extract token usage from a completed AI message."""
+    if not isinstance(message, AIMessage):
+        return None
+
+    usage = message.usage_metadata
+    if not usage:
+        return None
+
+    return {
+        "input_tokens": int(usage["input_tokens"]),
+        "output_tokens": int(usage["output_tokens"]),
+    }
+
+
+def extract_token_usage_from_chunk(chunk: BaseMessage) -> Optional[dict]:
+    """Extract token usage from a streaming AI message chunk."""
+    if not isinstance(chunk, AIMessageChunk):
+        return None
+
+    usage = chunk.usage_metadata
+    if not usage:
+        return None
+
+    return {
+        "input_tokens": int(usage["input_tokens"]),
+        "output_tokens": int(usage["output_tokens"]),
+    }
 
 
 def aggregate_token_usage(messages: Sequence[BaseMessage]) -> Optional[dict]:
-    """Sum token usage across AI messages.
-
-    Supports LangChain `usage_metadata` and `response_metadata.token_usage/usage`.
-    Returns a dict with input_tokens/output_tokens when any usage is found.
-    """
+    """Sum token usage across AI messages."""
     total_input = 0
     total_output = 0
 
     for message in messages:
-        if not isinstance(message, AIMessage):
+        token_usage = extract_token_usage_from_message(message)
+        if not token_usage:
             continue
-
-        # print(message)
-        token_usage = getattr(message, "usage_metadata", None)
-        if token_usage:
-            total_input += token_usage["input_tokens"]
-            total_output += token_usage["output_tokens"]
+        total_input += token_usage["input_tokens"]
+        total_output += token_usage["output_tokens"]
 
     if total_input or total_output:
         return {"input_tokens": total_input, "output_tokens": total_output}
@@ -42,8 +65,6 @@ def collect_tool_call_names(messages: Iterable[BaseMessage]) -> List[str]:
         for tool_call in tool_calls:
             if isinstance(tool_call, Mapping) and "name" in tool_call:
                 names.append(str(tool_call["name"]))
-            elif hasattr(tool_call, "name"):
-                names.append(str(getattr(tool_call, "name")))
 
     seen = set()
     unique: List[str] = []
@@ -54,32 +75,3 @@ def collect_tool_call_names(messages: Iterable[BaseMessage]) -> List[str]:
         unique.append(name)
     return unique
 
-
-# FIXME: Duplicate of src/athos/models/metrics.py::_coerce_token_usage
-# FIXME: This doesn't do much. Could remove and inline its logic where needed.
-# Also, defensive checks are unnecessary.
-def _coerce_usage(usage: Any) -> Optional[dict]:
-    """Normalize usage payloads to a token_usage dict."""
-
-    token_usage: Any
-    if isinstance(usage, Mapping):
-        token_usage = usage.get("token_usage") or usage.get("usage") or usage
-    else:
-        token_usage = getattr(usage, "token_usage", None) or getattr(usage, "usage", None)
-
-    if not isinstance(token_usage, Mapping):
-        return None
-
-    input_tokens = token_usage.get("input_tokens", 0)
-    output_tokens = token_usage.get("output_tokens", 0)
-
-    try:
-        input_tokens = int(input_tokens)
-        output_tokens = int(output_tokens)
-    except (TypeError, ValueError):
-        return None
-
-    if input_tokens == 0 and output_tokens == 0:
-        return None
-
-    return {"input_tokens": input_tokens, "output_tokens": output_tokens}
