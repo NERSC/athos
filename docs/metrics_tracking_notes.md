@@ -15,8 +15,11 @@ Decisions (Agreed)
 
 Follow-Up Work
 - Consolidate normalization into a single module (likely `src/athos/models/metrics.py`) and remove duplicate helpers from flow code.
-- Update LangChain agent streaming to aggregate token usage from completed messages in updates.
 - Simplify tool call extraction to strict, known types; remove map/attr fallback logic where not needed.
+
+Completed
+- Consolidated normalization into framework adapters and removed duplicate helpers from flow code.
+- Updated LangChain agent streaming to aggregate token usage from completed messages in updates.
 
 Open Questions
 - Do we need a compatibility shim for older provider payloads, or can we rely on current pinned versions?

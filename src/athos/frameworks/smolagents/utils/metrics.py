@@ -29,20 +29,26 @@ def extract_token_usage_from_result(result: Any) -> Optional[dict]:
 
 def extract_tool_calls_from_result(result: Any) -> List[str]:
     """Extract tool call names from a SmolAgents result."""
-    raw = getattr(result, "tool_calls", None) or getattr(result, "calls", None)
-    if not raw:
+    names: List[str] = []
+    steps = getattr(result, "steps", None)
+    if not isinstance(steps, list):
         return []
 
-    items = raw if isinstance(raw, list) else [raw]
-    names: List[str] = []
-    for item in items:
-        if isinstance(item, Mapping) and "name" in item:
-            names.append(str(item["name"]))
+    for step in steps:
+        if not isinstance(step, Mapping):
             continue
-
-        name = getattr(item, "name", None)
-        if name:
-            names.append(str(name))
+        tool_calls = step.get("tool_calls")
+        if not tool_calls:
+            continue
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, Mapping):
+                continue
+            function = tool_call.get("function")
+            if not isinstance(function, Mapping):
+                continue
+            name = function.get("name")
+            if name:
+                names.append(str(name))
 
     seen = set()
     unique: List[str] = []
