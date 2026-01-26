@@ -28,7 +28,6 @@ from athos.frameworks.langgraph.utils.messages import BaseMessage, HumanMessage
 from athos.frameworks.langgraph.utils.metrics import (
     aggregate_token_usage,
     collect_tool_call_names,
-    extract_token_usage_from_chunk,
 )
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
@@ -317,9 +316,6 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
                     # === Handle AIMessageChunk (model output) ===
                     if AIMessageChunk and isinstance(message, AIMessageChunk):
-                        if token_usage is None:
-                            token_usage = extract_token_usage_from_chunk(message)
-
                         if not thinking_emitted:
                             thinking_emitted = True
                             status_output = FlowOutput(
@@ -408,6 +404,10 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                         messages = data.get("messages") if isinstance(data, dict) else None
                         if not messages:
                             continue
+
+                        aggregated_usage = aggregate_token_usage(messages)
+                        if aggregated_usage:
+                            token_usage = aggregated_usage
 
                         for message in messages:
                             tool_calls = getattr(message, "tool_calls", None)
