@@ -19,11 +19,15 @@ from athos.frameworks.langgraph.utils.messages import (
     HumanMessage,
     SystemMessage,
 )
+from athos.frameworks.langgraph.utils.metrics import (
+    extract_token_usage_from_chunk,
+    extract_token_usage_from_message,
+)
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message
 from athos.registry.flow_registry import register_flow
-
+    
 if TYPE_CHECKING:  # pragma: no cover - only for static analysis
     from langchain_core.language_models import BaseLanguageModel
 
@@ -127,9 +131,9 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
             "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
         }
 
-        usage = getattr(response, "usage", None)
-        if usage is not None:
-            metadata["tokens"] = usage
+        token_usage = extract_token_usage_from_message(response)
+        if token_usage:
+            metadata["token_usage"] = token_usage
 
         return FlowOutput(content=content, metadata=metadata)
 
@@ -139,9 +143,13 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
         messages = self._build_messages(input)
         logger.debug("Streaming LangGraph chatbot with %d messages", len(messages))
 
+        token_usage = None
+
         # ChatOpenAI (langchain-openai ~=1.0.0) always supports streaming via astream()
         try:
             async for chunk in self.model.astream(messages):
+                if token_usage is None:
+                    token_usage = extract_token_usage_from_chunk(chunk)
                 chunk_text = self._coerce_chunk_content(chunk)
                 if not chunk_text:
                     continue
@@ -164,6 +172,7 @@ class LangGraphChatbotFlow(BaseLangGraphFlow):
                 "chunk": False,
                 "final": True,
                 "model": self.model.model_name,  # ChatOpenAI guarantees model_name attribute in 1.0+
+                **({"token_usage": token_usage} if token_usage else {}),
             },
         )
 

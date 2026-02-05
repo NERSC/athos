@@ -5,6 +5,7 @@ from athos.models.flow import Artifact, FlowInput, FlowOutput
 from athos.models.message import Message, MessageRole
 from athos.models.session import FlowSession
 from athos.models.execution import FlowRequest, FlowResult
+from athos.models.metrics import ExecutionMetrics, TokenUsage
 
 __all__ = [
     "ExecutionMode",
@@ -16,4 +17,6 @@ __all__ = [
     "FlowSession",
     "FlowRequest",
     "FlowResult",
+    "ExecutionMetrics",
+    "TokenUsage",
 ]

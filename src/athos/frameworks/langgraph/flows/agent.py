@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, AsyncGenerator, Dict, List, Optional, Sequence, TYPE_CHECKING, Self
+from typing import Any, AsyncGenerator, Dict, List, Mapping, Optional, Sequence, TYPE_CHECKING, Self
 
 from pydantic import Field, model_validator, ValidationInfo
 from typing_extensions import Literal
@@ -25,6 +25,10 @@ from athos.frameworks.langgraph.factories import (
     build_tool,
 )
 from athos.frameworks.langgraph.utils.messages import BaseMessage, HumanMessage
+from athos.frameworks.langgraph.utils.metrics import (
+    aggregate_token_usage,
+    collect_tool_call_names,
+)
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message
@@ -194,13 +198,21 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 message.pretty_print()
 
         content = self._extract_response(result_state)
-        metadata = {
+        metadata: Dict[str, Any] = {
             "model": self.model.model_name,
             "tools_available": len(self.tools),
             "max_iterations": self.max_iterations,
             "checkpoint_enabled": True,
             "thread_id": input.session.session_id,
         }
+
+        token_usage = self._extract_token_usage(result_state)
+        if token_usage:
+            metadata["token_usage"] = token_usage
+
+        tool_calls = self._extract_tool_calls(result_state)
+        if tool_calls:
+            metadata["tool_calls"] = tool_calls
 
         return FlowOutput(content=content, metadata=metadata)
 
@@ -278,6 +290,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         # Track whether we've emitted thinking status
         thinking_emitted = False
+        token_usage: Optional[Dict[str, int]] = None
+        tool_names: List[str] = []
 
         try:
             async for stream_mode, chunk in self._graph.astream(  # type: ignore[attr-defined]
@@ -391,19 +405,21 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                         if not messages:
                             continue
 
+                        aggregated_usage = aggregate_token_usage(messages)
+                        if aggregated_usage:
+                            token_usage = aggregated_usage
+
                         for message in messages:
-                            message_type = type(message).__name__
                             tool_calls = getattr(message, "tool_calls", None)
                             if not tool_calls:
                                 continue
 
                             for tool_call in tool_calls:
-                                if isinstance(tool_call, dict):
-                                    tool_name = tool_call.get("name", "unknown")
-                                    tool_args = tool_call.get("args", {})
-                                else:
-                                    tool_name = getattr(tool_call, "name", "unknown")
-                                    tool_args = getattr(tool_call, "args", {})
+                                if not isinstance(tool_call, Mapping) or "name" not in tool_call:
+                                    continue
+                                tool_names.append(str(tool_call["name"]))
+                                tool_name = tool_call.get("name", "unknown")
+                                tool_args = tool_call.get("args", {})
 
                                 # Format tool call with arguments
                                 formatted_call = self._format_tool_call(tool_name, tool_args)
@@ -447,6 +463,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 "final": True,
                 "model": self.model.model_name,
                 "tools_available": len(self.tools),
+                **({"token_usage": token_usage} if token_usage else {}),
+                **({"tool_calls": list(dict.fromkeys(tool_names))} if tool_names else {}),
             },
         )
 
@@ -492,6 +510,28 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         # Handle non-dict input (rare, but possible)
         return f"Calling tool: {tool_name}({tool_input!r})"
+
+    def _extract_token_usage(self, state: Any) -> Optional[Dict[str, int]]:
+        """Extract token usage from the final AIMessage in the state."""
+
+        messages: Sequence["BaseMessage"]
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        return aggregate_token_usage(messages)
+
+    def _extract_tool_calls(self, state: Any) -> List[str]:
+        """Collect tool names from AIMessage.tool_calls entries."""
+
+        messages: Sequence["BaseMessage"]
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        return collect_tool_call_names(messages)
 
     def _build_langgraph_config(self, session_id: str) -> "RunnableConfig":
         """Build LangGraph configuration with thread_id.

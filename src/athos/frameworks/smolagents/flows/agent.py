@@ -33,6 +33,10 @@ from athos.frameworks.smolagents.factories import (
     build_model,
     build_tool,
 )
+from athos.frameworks.smolagents.utils.metrics import (
+    extract_token_usage_from_result,
+    extract_tool_calls_from_result,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +85,20 @@ class AgentFlow(BaseFlow):
 
         if agent_type == "tool_calling":
             agent_kwargs.pop("additional_authorized_imports", None)
-            self.agent = ToolCallingAgent(tools=tools, model=model, **agent_kwargs)
+            self.agent = ToolCallingAgent(
+                tools=tools,
+                model=model,
+                return_full_result=True,
+                **agent_kwargs,
+            )
             self.agent_type = agent_type
         else:
-            self.agent = CodeAgent(tools=tools, model=model, **agent_kwargs)
+            self.agent = CodeAgent(
+                tools=tools,
+                model=model,
+                return_full_result=True,
+                **agent_kwargs,
+            )
             self.agent_type = "code"
 
     @classmethod
@@ -168,13 +182,34 @@ class AgentFlow(BaseFlow):
         message = input.message.content
 
         try:
-            result = await asyncio.to_thread(self.agent.run, message, reset=False)
+            result = await asyncio.to_thread(
+                self.agent.run,
+                message,
+                reset=False,
+                return_full_result=True,
+            )
+            metadata: dict[str, Any] = {
+                "agent_type": self.agent_type,
+                "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
+            }
+
+            token_usage = extract_token_usage_from_result(result)
+            if token_usage:
+                metadata["token_usage"] = token_usage
+
+            tool_calls = extract_tool_calls_from_result(result)
+            if tool_calls:
+                metadata["tool_calls"] = tool_calls
+
+            content = getattr(result, "final_answer", None)
+            if content is None:
+                content = getattr(result, "output", None)
+            if content is None:
+                content = str(result)
+
             return FlowOutput(
-                content=str(result),
-                metadata={
-                    "agent_type": self.agent_type,
-                    "tools_available": len(self.agent.tools) if hasattr(self.agent, 'tools') else 0,
-                }
+                content=str(content),
+                metadata=metadata,
             )
         except Exception as e:
             logger.error("%s execution failed: %s", self.agent.__class__.__name__, e)
@@ -192,7 +227,6 @@ class AgentFlow(BaseFlow):
             except Exception as e:  # pragma: no cover - disconnect failures should not crash
                 logger.warning("Error disconnecting MCP client: %s", e)
         self._mcp_clients.clear()
-
 
 class AgentType(str, Enum):
     """Supported agent implementations"""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
 from pathlib import Path
@@ -14,6 +15,7 @@ from athos.models.enums import ExecutionMode
 from athos.models.execution import FlowRequest, FlowResult
 from athos.models.flow import FlowInput, FlowOutput
 from athos.models.message import Message, MessageRole
+from athos.models.metrics import ExecutionMetrics
 from athos.models.session import FlowSession
 from athos.runtime.builder import build_flow
 from athos.runtime.session_store import InMemorySessionStore, SessionStore
@@ -89,6 +91,14 @@ class FlowRunner:
             await self.session_store.save(session)
 
             execution_time = time.time() - start_time
+            metrics = ExecutionMetrics.from_output_metadata(output.metadata)
+            result_metadata = {"flow_name": flow_name}
+            if metrics:
+                metrics.latency_ms = execution_time * 1000
+                result_metadata.update(metrics.to_metadata())
+            else:
+                result_metadata["latency_ms"] = execution_time * 1000
+
             result = FlowResult(
                 request_id=request.request_id,
                 session_id=session.session_id,
@@ -96,7 +106,7 @@ class FlowRunner:
                 output=output,
                 error=None,
                 execution_time=execution_time,
-                metadata={"flow_name": flow_name},
+                metadata=result_metadata,
             )
 
             logger.info(
@@ -104,6 +114,13 @@ class FlowRunner:
                 request.request_id,
                 flow_name,
                 execution_time,
+            )
+            self._log_metrics(flow_name, result_metadata)
+            logger.debug(
+                "[%s] Flow '%s' result metadata: %s",
+                request.request_id,
+                flow_name,
+                result_metadata,
             )
 
             return result
@@ -171,6 +188,8 @@ class FlowRunner:
 
         logger.debug(f"FlowRunner.stream history: {session.get_history()}")
 
+        start_time = time.time()
+
         if not flow.can_stream():
             logger.warning(
                 "[%s] Flow '%s' does not support streaming; falling back to execute()",
@@ -188,11 +207,13 @@ class FlowRunner:
             output_metadata = dict(output.metadata)
             output_metadata.setdefault("streaming", False)
             output_metadata["final"] = True
+            output_metadata.setdefault("latency_ms", (time.time() - start_time) * 1000)
             final_output = FlowOutput(
                 content=output.content,
                 artifacts=list(output.artifacts),
                 metadata=output_metadata,
             )
+            self._log_metrics(flow_name, output_metadata)
             self._record_interaction(session, normalized_message, output.content)
             await self.session_store.save(session)
             yield final_output
@@ -210,6 +231,9 @@ class FlowRunner:
         try:
             async for output in flow.stream(flow_input):
                 emitted_any_chunk = True
+                if output.metadata.get("final"):
+                    output.metadata.setdefault("latency_ms", (time.time() - start_time) * 1000)
+                    self._log_metrics(flow_name, output.metadata)
                 if output.content:
                     buffered_chunks.append(output.content)
                 # Refer to docs/athos_openwebui_integration_plan_v3.0.md#streaming-contract
@@ -278,6 +302,64 @@ class FlowRunner:
 
         session.add_message(message)
         session.add_assistant_message(response)
+
+    @staticmethod
+    def _metrics_log_level() -> int:
+        level_name = os.getenv("ATHOS_METRICS_LOG_LEVEL", "INFO").upper()
+        return logging._nameToLevel.get(level_name, logging.INFO)
+
+    def _log_metrics(self, flow_name: str, metadata: dict) -> None:
+        level = self._metrics_log_level()
+        if not logger.isEnabledFor(level):
+            return
+
+        token_usage = metadata.get("token_usage")
+        latency_ms = metadata.get("latency_ms")
+        tool_calls = metadata.get("tool_calls") or []
+
+        input_tokens = None
+        output_tokens = None
+        total_tokens = None
+        if isinstance(token_usage, dict):
+            input_tokens = token_usage.get("input_tokens")
+            output_tokens = token_usage.get("output_tokens")
+            if isinstance(input_tokens, int) and isinstance(output_tokens, int):
+                total_tokens = input_tokens + output_tokens
+
+        tool_names = [str(name) for name in tool_calls] if isinstance(tool_calls, list) else []
+        tool_count = len(tool_names)
+
+        if (
+            input_tokens is None
+            and output_tokens is None
+            and latency_ms is None
+            and tool_count == 0
+        ):
+            return
+
+        tool_limit_raw = os.getenv("ATHOS_METRICS_TOOL_NAMES_LIMIT", "5")
+        try:
+            tool_limit = int(tool_limit_raw)
+        except ValueError:
+            tool_limit = 5
+
+        truncated = False
+        if tool_limit >= 0 and tool_count > tool_limit:
+            tool_names = tool_names[:tool_limit]
+            truncated = True
+
+        logger.log(
+            level,
+            "metrics flow=%s latency_ms=%s input_tokens=%s output_tokens=%s total_tokens=%s tool_calls=%s tool_names=%s tool_names_truncated=%s",
+            flow_name,
+            f"{latency_ms:.2f}" if isinstance(latency_ms, (int, float)) else latency_ms,
+            input_tokens,
+            output_tokens,
+            total_tokens,
+            tool_count,
+            tool_names,
+            truncated,
+        )
 
     def _generate_request_id(self) -> str:
         """Generate a human-readable request identifier."""

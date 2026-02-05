@@ -153,6 +153,14 @@ tools:
 
 # Agent flows define the agent system
 flows:
+
+  # A bare agent with no tools
+  smol_basic_agent:
+    description: "Basic Smol agent without any tools"
+    type: "smol_agent"
+    agent_type: "tool_calling"
+    model: "cborg_coder"
+
   # Web agent example
   smol_web_agent:
     description: "Web-enabled agent leveraging DuckDuckGo and webpage tools"
