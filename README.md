@@ -4,6 +4,10 @@ ATHOS: Agentic Toolkit for HPC Operations Support
 
 ## Dev setup
 
+Requirements:
+
+- Python 3.10+
+
 Local development:
 
 ```bash
@@ -164,13 +168,18 @@ Contains helpers such as `build_config`, `build_flow`, and `create_flows` that
 assemble flows from configuration files.
 
 ### `src/athos/frameworks/smolagents/`
-**Default SmolAgents-backed implementation**
+**SmolAgents-backed implementation**
 
-SmolAgents is currently the reference framework shipped with Athos. This package
-contains the concrete flow implementations and supporting factories:
+SmolAgents is the default framework shipped with Athos. This package contains
+the concrete flow implementations and supporting factories:
 
 - **`factories.py`**: Utility functions for building models, tools, and MCP clients
 - **`flows/agent.py`** and **`flows/chatbot.py`**: Built-in SmolAgents flows registered with the core registry
+
+### `src/athos/frameworks/langgraph/`
+**LangGraph-backed implementation**
+
+LangGraph-based flows and helpers for authoring graph-style agent workflows.
 
 
 
@@ -182,6 +191,9 @@ Custom tools designed for HPC operations:
 - **`slurm_query.py`**: Utility for querying SLURM jobs
 - **`slurm_mcp/`**: MCP server providing secure SLURM command execution
 - **`servicenow_mcp/`**: Tools for interacting with ServiceNow from HPC workflows
+- **`sfapi_mcp/`**: MCP server for NERSC SFAPI integrations
+- **`rag_mcp/`**: MCP server for RAG workflows
+- **`chroma/`**: ChromaDB helpers for RAG storage
 
 ### `src/athos/examples/`
 **Usage examples and demonstrations**
@@ -191,6 +203,17 @@ directory. For instance, `filesystem_agent.py` showcases the MCP filesystem
 tools, and `servicenow_agent.py` demonstrates interacting with a ServiceNow
 instance through the ServiceNow MCP server. You can choose which ServiceNow
 tasks to run using `--tasks` and specify an incident with `--incident`.
+
+### `examples/`
+**Top-level examples and walkthroughs**
+
+Additional examples live in the top-level `examples/` directory. See
+`examples/README.md` for runnable walkthroughs and setup notes.
+
+### `src/athos/integrations/`
+**Integration adapters**
+
+Integration-specific modules (e.g., ServiceNow, Slackbot) live here.
 
 ### `src/athos/main.py`
 **CLI interface and entry point**
@@ -203,12 +226,25 @@ Main command-line interface for running ATHOS agents with configuration-driven e
 Synthetic use cases to evaluate performance of agent configurations.
 See [evals/README.md](evals/README.md) for instructions on how to run.
 
+## MCP servers and entry points
+
+The following console entry points are installed with the package:
+
+- `athos`: main CLI
+- `servicenow-mcp`: ServiceNow MCP server
+- `nersc-sfapi-mcp`: SFAPI MCP server
+- `rag-mcp`: RAG MCP server
+
 ## Key Architecture Notes
 
 - The project uses a **configuration-driven approach** where models, tools and flows are defined in YAML configuration files
 - **Registry-based architecture** enables dynamic loading of flow implementations when their modules are imported
 - **Multiple flow types** are supported (chatbot, code agent, prompt chains)
-- The framework is currently built on top of **Hugging Face SmolAgents** and can be extended with other agent frameworks
+- The framework supports **Hugging Face SmolAgents** and **LangGraph** flows, and can be extended with other agent frameworks
+
+## Testing
+
+See `docs/testing.md` for testing guidance and `pytest` usage.
 
 ### Extending Tools and Flows
 
