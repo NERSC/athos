@@ -8,11 +8,19 @@ from smolagents import ChatMessage
 import importlib.util
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+EVALS_DIR = REPO_ROOT / "evals"
+if str(EVALS_DIR) not in sys.path:
+    sys.path.insert(0, str(EVALS_DIR))
+
 from athos.models.flow import FlowOutput
+from evals.eval_io import load_qa_cases
 
 spec = importlib.util.spec_from_file_location(
     "revals",
-    Path(__file__).resolve().parents[2] / "evals" / "run_evaluations.py",
+    REPO_ROOT / "evals" / "run_evaluations.py",
 )
 revals = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(revals)
@@ -27,14 +35,23 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
     (case_dir / "user_description.txt").write_text("desc")
     (case_dir / "solution.md").write_text("sol")
 
-    created_flows = []
+    execute_calls = []
 
-    async def _make_flow(*args, **kwargs):
-        f = AsyncMock()
-        f.execute.return_value = FlowOutput(content="resp")
-        f.cleanup = AsyncMock()
-        created_flows.append(f)
-        return f
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            execute_calls.append((args, kwargs))
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={},
+            )
+
+        async def cleanup(self):
+            return None
 
     class DummyFlowCfg:
         def __init__(self, model):
@@ -60,7 +77,7 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
         "build_model",
         lambda cfg: (lambda messages: SimpleNamespace(content="ok")),
     )
-    monkeypatch.setattr(revals, "build_flow", Mock(side_effect=_make_flow))
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
 
     monkeypatch.setattr(
         sys,
@@ -79,10 +96,7 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
 
     await revals.main()
 
-    # First two created flows correspond to the user flows
-    for f in created_flows[:2]:
-        assert f.execute.call_count == 1
-        assert f.cleanup.call_count == 1
+    assert len(execute_calls) == 2
 
 
 def test_load_qa_cases(tmp_path):
@@ -95,7 +109,7 @@ def test_load_qa_cases(tmp_path):
         for e in entries:
             f.write(json.dumps(e) + "\n")
 
-    cases = revals.load_qa_cases(qa_file)
+    cases = load_qa_cases(qa_file)
     assert cases == [
         {"name": "c1", "description": "q1", "solution": "a1"},
         {"name": "c2", "description": "q2", "solution": "a2"},
@@ -130,16 +144,25 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
     monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
     monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (42, "fb"))
 
-    created_flows = []
+    execute_calls = []
 
-    async def _make_flow(*args, **kwargs):
-        f = AsyncMock()
-        f.execute.return_value = FlowOutput(content="resp")
-        f.cleanup = AsyncMock()
-        created_flows.append(f)
-        return f
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
 
-    monkeypatch.setattr(revals, "build_flow", Mock(side_effect=_make_flow))
+        async def execute(self, *args, **kwargs):
+            execute_calls.append((args, kwargs))
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
 
     output = tmp_path / "out.json"
 
@@ -161,16 +184,14 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
 
     await revals.main()
 
-    # Flow executed once per QA pair
-    assert len(created_flows) == 1
-    flow = created_flows[0]
-    assert flow.execute.call_count == len(entries)
+    assert len(execute_calls) == len(entries)
 
     # Metrics stored under dataset key named after the QA file
     data = json.loads(output.read_text())
-    assert "f1" in data
+    assert "flows" in data
+    assert "f1" in data["flows"]
     dataset_key = qa_file.stem
-    assert dataset_key in data["f1"]
-    results = data["f1"][dataset_key]
+    assert dataset_key in data["flows"]["f1"]
+    results = data["flows"]["f1"][dataset_key]["cases"]
     assert len(results) == len(entries)
     assert all("score" in r for r in results)

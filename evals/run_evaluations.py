@@ -3,13 +3,12 @@
 import argparse
 import asyncio
 import json
-import re
 from pathlib import Path
 import pprint
 import subprocess
 from datetime import datetime, timezone
 
-from smolagents import ChatMessage
+from dotenv import load_dotenv
 
 from athos import build_config
 from athos.frameworks.smolagents import factories as smolagents_factories
@@ -17,121 +16,8 @@ from athos.models.enums import ExecutionMode
 from athos.models.metrics import ExecutionMetrics
 from athos.runtime.runner import FlowRunner
 
-
-def load_test_cases(cases_dir: Path):
-    tests = []
-    for case_dir in sorted(cases_dir.iterdir()):
-        if not case_dir.is_dir():
-            continue
-        desc_file = case_dir / "user_description.txt"
-        sol_file = case_dir / "solution.md"
-        files_dir = case_dir / "files"
-        if not desc_file.exists() or not sol_file.exists():
-            continue
-        description = desc_file.read_text()
-        solution = sol_file.read_text()
-        tests.append(
-            {
-                "name": case_dir.name,
-                "description": description,
-                "solution": solution,
-                "files_dir": files_dir if files_dir.exists() else None,
-            }
-        )
-    return tests
-
-
-def load_qa_cases(path: Path):
-    """Load question/answer cases from a JSON Lines file."""
-    cases = []
-    with path.open() as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            data = json.loads(line)
-            cases.append(
-                {
-                    "name": data.get("name"),
-                    "description": data.get("question"),
-                    "solution": data.get("answer"),
-                }
-            )
-    return cases
-
-
-def build_input(description: str, files_dir: Path):
-    input_data = description.strip()
-    if files_dir:
-        blocks = []
-        for f in sorted(files_dir.rglob("*")):
-            if not f.is_file():
-                continue
-            rel = f.relative_to(files_dir.parent)
-            content = f.read_text()
-            blocks.append(f"### {rel}\n```\n{content}\n```")
-        if blocks:
-            input_data += "\n\nAttached files:\n" + "\n\n".join(blocks)
-    return input_data
-
-
-def evaluate_response(eval_model, solution: str, response: str):
-    prompt = (
-        "You are an evaluator. Compare the agent's response with the reference solution. "
-        "Grade the response on a scale of 0 to 100, where 100 means it perfectly matches the expected solution. "
-        "Provide your output as a JSON object with keys 'score' (integer) and 'feedback' (string). "
-        "Reference solution:\n"
-        f"{solution}\n\n"
-        "Agent response:\n"
-        f"{response}\n"
-    )
-    messages = [
-        ChatMessage(role="system", content="You are an evaluation assistant."),
-        ChatMessage(role="user", content=prompt),
-    ]
-    eval_resp = eval_model(messages)
-    text = eval_resp.content
-
-    def _parse_json(txt: str):
-        """Attempt to parse JSON even if wrapped in markdown."""
-        try:
-            return json.loads(txt)
-        except json.JSONDecodeError:
-            pass
-        # look for ```json ... ``` block
-        md_match = re.search(r"```(?:json)?\n([\s\S]*?)```", txt)
-        if md_match:
-            inner = md_match.group(1)
-            try:
-                return json.loads(inner)
-            except json.JSONDecodeError:
-                pass
-        # fallback: first {...} block
-        obj_match = re.search(r"\{[\s\S]*\}", txt)
-        if obj_match:
-            inner = obj_match.group(0)
-            try:
-                return json.loads(inner)
-            except json.JSONDecodeError:
-                pass
-        return None
-
-    try:
-        result = _parse_json(text)
-    except Exception as e:
-        print("FAILURE in evaluation parsing")
-        print("Evaluator output:")
-        print(text)
-        raise e
-
-    if result and isinstance(result, dict):
-        score = result.get("score")
-        feedback = result.get("feedback")
-    else:
-        score = None
-        feedback = text
-    return score, feedback
-
+from eval_core import evaluate_response
+from eval_io import build_input, load_qa_cases, load_test_cases
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -171,6 +57,7 @@ async def main():
         help="Score threshold for accuracy calculations",
     )
     args = parser.parse_args()
+    load_dotenv()
 
     if not args.cases_dir and not args.qa_file:
         args.cases_dir = ["evals/test_cases"]
