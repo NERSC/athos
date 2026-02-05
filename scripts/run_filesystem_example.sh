@@ -29,11 +29,12 @@ fi
 echo "✅ MCP filesystem server is available"
 echo ""
 
-# Set demo directory to workspace (can be overridden)
-DEMO_DIR=${ATHOS_WORKSPACE:-"/tmp/athos_workspace"}
+# Setup clean, temporary workspace directory for the demo
+export ATHOS_WORKSPACE=$(mktemp -d)/athos_workspace
+DEMO_DIR=$ATHOS_WORKSPACE
 
 # Run the demo
-python -m athos.examples.filesystem_agent --config $PWD/config/config.yaml --demo-dir "$DEMO_DIR"
+python -m athos.examples.filesystem_agent --flow lang_filesystem_agent --demo-dir "$DEMO_DIR"
 
 echo ""
 echo "📝 Demo completed! Check the '$DEMO_DIR' directory for created files."

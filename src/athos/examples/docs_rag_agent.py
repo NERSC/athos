@@ -1,11 +1,16 @@
 """ATHOS Docs RAG Agent example - Demonstrates querying NERSC documentation via the RAG MCP server."""
 
+import os
 import asyncio
 import argparse
 import pprint
+import uuid
 from dotenv import load_dotenv
 
 from athos import build_config, build_flow
+from athos.models.flow import FlowInput
+from athos.models.session import FlowSession
+from athos.models.enums import ExecutionMode
 
 # Load environment variables from .env if present
 load_dotenv()
@@ -25,11 +30,16 @@ async def demonstrate_pytorch_query(flow) -> bool:
     print("Task description:", task.strip())
     print("\n🏃 Executing task...")
 
+    session_id = str(uuid.uuid4())
+    user_id = "docs_rag_demo_user"
+    flow_session = FlowSession(session_id=session_id, user_id=user_id)
+    flow_input = FlowInput(message=task, session=flow_session, mode=ExecutionMode.SYNC)
+
     try:
-        result = await flow.execute(task)
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error executing PyTorch query: {e}")
@@ -52,11 +62,16 @@ async def demonstrate_data_transfer_query(flow) -> bool:
     print("Task description:", task.strip())
     print("\n🏃 Executing task...")
 
+    session_id = str(uuid.uuid4())
+    user_id = "docs_rag_demo_user"
+    flow_session = FlowSession(session_id=session_id, user_id=user_id)
+    flow_input = FlowInput(message=task, session=flow_session, mode=ExecutionMode.SYNC)
+
     try:
-        result = await flow.execute(task)
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error executing Data Transfer query: {e}")
@@ -74,7 +89,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="ATHOS Docs RAG demo")
     parser.add_argument("--config", default="config/config.yaml",
                         help="Path to configuration YAML file")
-    parser.add_argument("--flow", default="docs_rag_agent",
+    parser.add_argument("--flow", default="smol_docs_agent",
                         help="Name of the Docs RAG flow to use")
     parser.add_argument(
         "--tasks",
@@ -99,7 +114,7 @@ async def main() -> None:
     print(f"\n🎯 Using flow: {args.flow}")
     pprint.pprint(cfg.flows[args.flow], indent=6)
 
-    flow = build_flow(args.flow, cfg)
+    flow = await build_flow(args.flow, cfg)
 
     selected_tasks = [t.strip() for t in args.tasks.split(',') if t.strip()]
 

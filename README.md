@@ -33,6 +33,14 @@ certificate details, and optional Iris or CBORG settings. The template enables
 the default shared workspace path (`${SCRATCH}/athos/workspace`) and leaves the
 remaining settings commented out so they can be customized as needed.
 
+## OpenWebUI Pipelines integration (preview)
+
+A hello-world OpenWebUI Pipelines stack is available for experimentation with
+official containers and a mock Athos manifold pipeline. Follow the
+[OpenWebUI Pipelines Quickstart](docs/openwebui_pipelines_quickstart.md) to spin
+up the demo, connect the UI to the pipelines service, and review next steps for
+bridging to real Athos flows.
+
 ## Shared Workspace
 
 ATHOS tools and MCP servers can share a common workspace directory so that
@@ -55,21 +63,21 @@ conda activate athos
 From the top level folder, you can run the CLI using the `athos` command:
 
 ```bash
-athos --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?"
+athos --config config/config.yaml --flow lang_chat --input "what is NERSC?"
 ```
 
 You can override the configured logging verbosity for a single run using
 `--log-level`:
 
 ```bash
-athos --config config/config.yaml --flow hpc_chatbot --input "what is NERSC?" --log-level DEBUG
+athos --config config/config.yaml --flow lang_chat --input "what is NERSC?" --log-level DEBUG
 ```
 
 To tweak configuration values without editing the YAML file, use one or more
 `--set` overrides with dot notation:
 
 ```bash
-athos --config config/config.yaml --flow hpc_chatbot --input "hi" \
+athos --config config/config.yaml --flow lang_chat --input "hi" \
   --set models.gpt_4o.temperature=0.5 --set models.gpt_4o.max_tokens=50
 ```
 
@@ -80,7 +88,7 @@ To launch a simple Gradio interface for a flow instead of running a single
 query, pass the `--gradio` flag (optionally selecting a port with `--port`):
 
 ```bash
-athos --config config/config.yaml --flow hpc_chatbot --gradio --port 7860
+athos --config config/config.yaml --flow lang_chat --gradio --port 7860
 ```
 
 To view a summary of the loaded configuration and exit without running a
@@ -89,6 +97,28 @@ flow, use:
 ```bash
 athos --config config/config.yaml --show-config
 ```
+
+### Storing prompts alongside your configuration
+
+Large system prompts or agent instructions can be stored in external files to
+keep `config/config.yaml` concise. Provide a `system_prompt_path` or
+`instructions_path` field anywhere a `system_prompt` or `instructions` string is
+accepted (for example under `models` or within individual flow definitions).
+
+- Paths are resolved **relative to the YAML file** being loaded, so a prompt in
+  `config/prompts/example.md` can be referenced with
+  `system_prompt_path: "prompts/example.md"`.
+- The loader reads each referenced file as UTF-8 text and automatically
+  populates the corresponding inline field. Explicit string values in the YAML
+  continue to work and take precedence when no path is supplied.
+- Environment variables may be embedded in the path using the existing
+  `${VAR}`/`${VAR:-default}` syntax and are expanded before resolution.
+- The `_path` entries are consumed during loading, so the resulting
+  configuration objects only expose the populated `system_prompt`/`instructions`
+  strings.
+
+This project ships with sample prompts in `config/prompts/` that demonstrate the
+convention.
 
 ### Logging
 

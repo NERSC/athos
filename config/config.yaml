@@ -127,45 +127,60 @@ tools:
     callable_name: "DuckDuckGoSearchTool"
     module_path: "smolagents.default_tools"
     parameters: {}
+    framework: "smolagents"
+  langgraph_websearch:
+    description: "LangChain DuckDuckGo search tool for LangGraph flows"
+    callable_name: "DuckDuckGoSearchRun"
+    module_path: "langchain_community.tools"
+    parameters: {}
+    framework: "langgraph"
   webvisit:
     description: "Fetch and summarize webpages for agents"
     callable_name: "VisitWebpageTool"
     module_path: "smolagents.default_tools"
     parameters: {}
+    framework: "smolagents"
+
+  # You need a free tavily API key for this one:
+  # https://python.langchain.com/docs/integrations/tools/tavily_search/
+  langchain_tavily_search:
+    description: "LangChain Tavily search engine tool for AI"
+    module_path: "langchain_tavily"
+    callable_name: "TavilySearch"
+    parameters: {}
+    framework: "langgraph"
 
 
 # Agent flows define the agent system
 flows:
-  # Simple chatbot for general HPC questions
-  hpc_chatbot:
-    description: "Chatbot that answers general HPC questions using CBORG chat"
-    type: "chatbot"
-    model: "cborg_chat"
-    system_prompt: |
-      You are an HPC support chatbot. Answer questions about cluster usage, 
-      job submission, software modules, and general HPC best practices.
-      Keep responses concise but informative.
+
+  # A bare agent with no tools
+  smol_basic_agent:
+    description: "Basic Smol agent without any tools"
+    type: "smol_agent"
+    agent_type: "tool_calling"
+    model: "cborg_coder"
 
   # Web agent example
-  web_agent:
+  smol_web_agent:
     description: "Web-enabled agent leveraging DuckDuckGo and webpage tools"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "tool_calling"
     model: "o4_mini"
     tools: ["websearch", "webvisit"]
 
   # MCP-enabled agent example
-  filesystem_agent:
+  smol_filesystem_agent:
     description: "Code agent with filesystem MCP access"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     mcp_servers: ["filesystem_mcp"]
 
   # ServiceNow integration agent
-  servicenow_agent:
+  smol_servicenow_agent:
     description: "Code agent for interacting with ServiceNow"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     mcp_servers: ["servicenow_mcp"]
@@ -173,40 +188,100 @@ flows:
     verbosity_level: 1  # 0: ERROR, 1: INFO, 2: DEBUG
 
   # Agent which can call the superfacility API tools
-  sfapi_agent:
+  smol_sfapi_agent:
     description: "Agent preconfigured for Superfacility API workflows"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     additional_authorized_imports: ["json"]
     mcp_servers: ["sfapi_mcp"]
 
   # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
-  docs_rag_agent:
+  smol_docs_agent:
     description: "Agent that uses documentation RAG MCP servers for retrieval"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
     verbosity_level: 2  # 0: ERROR, 1: INFO, 2: DEBUG
 
   # Agent that can interact with servicenow and read from docs
-  hpc_consultant:
+  smol_hpc_consultant:
     description: "Consultant agent that combines ServiceNow and documentation tools"
-    type: "agent"
+    type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
     additional_authorized_imports: ["json"]
     mcp_servers: ["servicenow_mcp", "docs_rag_mcp", "consulting_docs_rag_mcp", "filesystem_mcp"]
-    instructions: |
-      You are an HPC consultant at NERSC who helps users in ServiceNow incidents.
-      When you are asked to help on a specified incident, you should:
-      - Paste your thoughts into the work notes and your replies to the user in the comments.
-      - Use the NERSC documentation to provide accurate answers.
-      - Update the incident state appropriately. Use "Awaiting User Info" when the user should reply.
-      - When the issue is resolved, add some closure notes that summarize the outcomes.
-      - If you need to download attachments, download them to your configured workspace.
+    instructions_path: "prompts/hpc_consultant_instructions.md"
 
+  # LangGraph chatbot flow example
+  lang_chat:
+    description: "Minimal LangGraph chatbot flow using the CBORG chat model"
+    type: "langgraph_chatbot"
+    model: "cborg_coder"
+    system_prompt_path: "prompts/langgraph_chatbot_demo_system_prompt.txt"
+    # initial_history:
+    #   - "Hello!"
+    #   - "Hi there! I'm the LangGraph chatbot example ready to assist you."
+
+  lang_agent:
+    description: "LangChain agent configured as a simple chatbot without tools"
+    type: "langchain_agent"
+    model: "cborg_coder"
+    system_prompt_path: "prompts/langgraph_chatbot_demo_system_prompt.txt"
+    max_iterations: 20
+
+  lang_web_agent:
+    description: "LangChain agent demo with web search tool"
+    type: "langchain_agent"
+    model: "cborg_coder"
+    tools: ["langchain_tavily_search"]
+    system_prompt_path: "prompts/langchain_web_agent_instructions.md"
+    max_iterations: 32
+
+  # Agent which can call the superfacility API tools
+  lang_sfapi_agent:
+    description: "LangChain agent preconfigured for Superfacility API workflows"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["sfapi_mcp"]
+    system_prompt_path: "prompts/lc_sfapi_agent_instructions.md"
+    max_iterations: 12
+
+  lang_servicenow_agent:
+    description: "LangChain agent for interacting with ServiceNow incidents"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["servicenow_mcp"]
+    system_prompt_path: "prompts/lang_servicenow_agent_instructions.md"
+    max_iterations: 32
+
+  # Agent equipped with simple retrieval tools for NERSC docs and consulting docs
+  lang_docs_agent:
+    description: "Agent that uses documentation RAG MCP servers for retrieval"
+    type: "langchain_agent"
+    model: "cborg_coder"
+    mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
+    system_prompt_path: "prompts/lc_docs_agent_instructions.md"
+    max_iterations: 32
+
+  # MCP-enabled agent example
+  lang_filesystem_agent:
+    description: "Agent with filesystem MCP access"
+    type: "langchain_agent"
+    model: "cborg_coder"
+    mcp_servers: ["filesystem_mcp"]
+    system_prompt_path: "prompts/lc_filesystem_agent_instructions.md"
+    max_iterations: 32
+
+  lang_docs_react_agent:
+    description: "Agent that uses documentation RAG MCP servers for retrieval"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
+    max_iterations: 32
+    system_prompt_path: "prompts/docs_react_agent_instructions.md"
 
 # Logging configuration
 logging_config:
@@ -218,4 +293,3 @@ logging_config:
       max_bytes: 10485760  # 10MB
       backup_count: 5
     - type: "console"
-      level: "INFO"

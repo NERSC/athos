@@ -7,9 +7,10 @@ from pydantic import ValidationError
 
 from athos.config.models import AthosConfig
 
+
 class ConfigLoader:
     """Loads and validates YAML configuration files"""
-    
+
     @staticmethod
     def _deep_update(base: Dict[str, Any], overrides: Dict[str, Any]) -> None:
         for key, value in overrides.items():
@@ -34,7 +35,7 @@ class ConfigLoader:
         # permission bits deny reading. Check the file mode explicitly.
         if not os.access(config_path, os.R_OK) or (config_path.stat().st_mode & 0o444) == 0:
             raise PermissionError(f"Configuration file not readable: {config_path}")
-        
+
         with open(config_path, 'r') as f:
             config_data = yaml.safe_load(f) or {}
 
@@ -43,6 +44,9 @@ class ConfigLoader:
 
         try:
             # Let Pydantic handle parsing and validation
-            return AthosConfig.model_validate(config_data)
+            return AthosConfig.model_validate(
+                config_data,
+                context={"config_dir": config_path.parent},
+            )
         except ValidationError as e:
             raise ValueError(f"Configuration validation failed: {e}")

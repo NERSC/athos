@@ -3,10 +3,12 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
 from dotenv import load_dotenv
 
-from athos import build_config, build_flow
+from athos.runtime.builder import build_config, build_flow
+from athos.runtime.runner import FlowRunner
 from athos.utils import parse_overrides
 
 # Only needed when launching a Gradio UI
@@ -85,7 +87,7 @@ def _format_config(cfg):
 
 
 # CLI interface (basic example)
-async def main():
+async def main() -> None:
     """Main CLI interface for ATHOS"""
     import argparse
 
@@ -117,9 +119,9 @@ async def main():
     )
     parser.add_argument(
         "-v",
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-        help="Override logging level for this run",
+        "--verbose",
+        action="store_true",
+        help="Enable DEBUG logging",
     )
     parser.add_argument(
         "--set",
@@ -130,50 +132,85 @@ async def main():
 
     args = parser.parse_args()
 
+    # Override log level
+    if args.verbose:
+        args.set.append("logging_config.level=DEBUG")
+
     try:
         overrides = parse_overrides(args.set) if args.set else None
     except ValueError as exc:
         parser.error(str(exc))
 
-    flow = None
+    cfg = build_config(args.config, overrides)
+    if args.show_config:
+        print(_format_config(cfg))
+        return
+
+    # Both Gradio and standard execution use FlowRunner
+    runner = FlowRunner(cfg)
     try:
-        cfg = build_config(args.config, overrides)
-        if args.log_level:
-            logging.getLogger().setLevel(getattr(logging, args.log_level))
-        if args.show_config:
-            print(_format_config(cfg))
-            return 0
         if args.gradio:
             if GradioUI is None:
                 parser.error("smolagents with Gradio support is required to use --gradio")
             if not args.flow:
                 parser.error("--flow is required when --gradio is used")
-            flow = build_flow(args.flow, cfg)
+
+            # Get flow from runner (uses same initialization as standard execution)
+            flow = await runner._get_flow(args.flow)
+
+            # Check if flow supports Gradio (smolagents only for now)
+            from athos.config.models import ToolFramework
+            if flow.framework != ToolFramework.SMOLAGENTS:
+                parser.error(
+                    f"Gradio is only supported for smolagents flows, "
+                    f"but '{args.flow}' uses {flow.framework.value}"
+                )
+
+            if not hasattr(flow, 'agent'):
+                parser.error(f"Flow '{args.flow}' does not expose an agent for Gradio")
+
             try:
                 GradioUI(flow.agent).launch(
-                    server_name="0.0.0.0", server_port=args.port, share=False
+                    server_name="localhost", server_port=args.port, share=False
                 )
             except KeyboardInterrupt:
                 logger.info("Gradio server stopped by user")
-            return 0
+            return
+
         if not args.flow or not args.input:
             parser.error(
                 "--flow and --input are required unless --show-config or --gradio is used"
             )
-        flow = build_flow(args.flow, cfg)
-        result = await flow.execute(args.input)
-        print(f"Result: {result}")
-    except Exception as e:
-        logger.error(f"Execution failed: {e}")
-        raise e
-    finally:
-        if flow is not None:
-            try:
-                flow.close()
-            except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
-                logger.warning("Error during flow cleanup: %s", e)
 
-    return 0
+        result = await runner.execute(
+            flow_name=args.flow,
+            message=args.input,
+            session_id="cli_session",
+            user_id="cli_user",
+            interface="cli",
+            metadata={"cli": True},
+        )
+
+        if not result.success or result.output is None:
+            logger.error(f"Flow execution failed: {result.error}")
+            return
+
+        print(result.output.content)
+
+        for artifact in result.output.artifacts:
+            print(f"\n[Artifact: {artifact.display_name or artifact.type}]")
+            if artifact.path:
+                print(f"  Path: {artifact.path}")
+            elif artifact.data is not None:
+                print(f"  Data: {artifact.data}")
+    except Exception as e:
+        logger.error(f"Execution failed: {e}", exc_info=True)
+        raise
+    finally:
+        try:
+            await runner.cleanup()
+        except Exception as e:  # pragma: no cover - cleanup failures shouldn't crash
+            logger.warning("Error during runner cleanup: %s", e)
 
 
 def cli() -> None:

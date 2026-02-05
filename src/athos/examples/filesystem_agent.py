@@ -21,11 +21,16 @@ import argparse
 import os
 import pprint
 from pathlib import Path
+from dotenv import load_dotenv
 
 from athos import build_config, build_flow
+from athos.models import ExecutionMode, FlowInput, FlowSession
+
+# Load environment variables from .env file
+load_dotenv()
 
 
-async def demonstrate_basic_filesystem_tasks(flow):
+async def demonstrate_basic_filesystem_tasks(flow, session: FlowSession):
     """Demonstrate basic filesystem operations"""
     print("\n🎯 Demonstrating Basic Filesystem Tasks...")
     print("=" * 60)
@@ -46,10 +51,21 @@ async def demonstrate_basic_filesystem_tasks(flow):
     print("\n🏃 Executing task...")
     
     try:
-        result1 = await flow.execute(task1)
+        flow_input = FlowInput(
+            message=task1.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC,
+            metadata={"task": "basic_file_operations"},
+        )
+        result1 = await flow.execute(flow_input)
+        session.add_user_message(task1.strip())
+        session.add_assistant_message(result1.content)
         print("\n✅ Task 1 completed!")
         print("📄 Agent response:")
-        print(result1)
+        print(result1.content)
+        if result1.metadata:
+            print("📎 Metadata:")
+            pprint.pprint(result1.metadata)
         print("\n" + "=" * 60)
         
     except Exception as e:
@@ -59,7 +75,7 @@ async def demonstrate_basic_filesystem_tasks(flow):
     return True
 
 
-async def demonstrate_advanced_filesystem_tasks(flow):
+async def demonstrate_advanced_filesystem_tasks(flow, session: FlowSession):
     """Demonstrate advanced filesystem operations"""
     print("\n🎯 Demonstrating Advanced Filesystem Tasks...")
     print("=" * 60)
@@ -84,10 +100,21 @@ async def demonstrate_advanced_filesystem_tasks(flow):
     print("\n🏃 Executing advanced task...")
     
     try:
-        result2 = await flow.execute(task2)
+        flow_input = FlowInput(
+            message=task2.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC,
+            metadata={"task": "advanced_file_operations"},
+        )
+        result2 = await flow.execute(flow_input)
+        session.add_user_message(task2.strip())
+        session.add_assistant_message(result2.content)
         print("\n✅ Task 2 completed!")
         print("📄 Agent response:")
-        print(result2)
+        print(result2.content)
+        if result2.metadata:
+            print("📎 Metadata:")
+            pprint.pprint(result2.metadata)
         print("\n" + "=" * 60)
         
     except Exception as e:
@@ -97,7 +124,7 @@ async def demonstrate_advanced_filesystem_tasks(flow):
     return True
 
 
-async def demonstrate_file_exploration_task(flow):
+async def demonstrate_file_exploration_task(flow, session: FlowSession):
     """Demonstrate file exploration and analysis"""
     print("\n🎯 Demonstrating File Exploration Task...")
     print("=" * 60)
@@ -122,10 +149,21 @@ async def demonstrate_file_exploration_task(flow):
     print("\n🏃 Executing exploration task...")
     
     try:
-        result3 = await flow.execute(task3)
+        flow_input = FlowInput(
+            message=task3.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC,
+            metadata={"task": "file_exploration"},
+        )
+        result3 = await flow.execute(flow_input)
+        session.add_user_message(task3.strip())
+        session.add_assistant_message(result3.content)
         print("\n✅ Task 3 completed!")
         print("📄 Agent response:")
-        print(result3)
+        print(result3.content)
+        if result3.metadata:
+            print("📎 Metadata:")
+            pprint.pprint(result3.metadata)
         print("\n" + "=" * 60)
         
     except Exception as e:
@@ -135,7 +173,7 @@ async def demonstrate_file_exploration_task(flow):
     return True
 
 
-def setup_demo_workspace(demo_dir: str | None = None):
+def setup_demo_workspace(demo_dir: str | Path | None = None):
     """Set up a clean workspace for the demo"""
     print("🔧 Setting up demo workspace...")
 
@@ -173,7 +211,7 @@ async def main():
     parser = argparse.ArgumentParser(description="ATHOS filesystem demo")
     parser.add_argument("--config", default="config/config.yaml",
                         help="Path to configuration YAML file")
-    parser.add_argument("--flow", default="filesystem_agent",
+    parser.add_argument("--flow", default="smol_filesystem_agent",
                         help="Name of the filesystem flow to use")
     parser.add_argument(
         "--demo-dir",
@@ -181,6 +219,17 @@ async def main():
         help="Directory to use for demo files",
     )
     args = parser.parse_args()
+
+    # Capture initial working directory so relative paths resolve correctly
+    initial_cwd = Path.cwd()
+
+    config_path = Path(args.config).expanduser()
+    if not config_path.is_absolute():
+        config_path = (initial_cwd / config_path).resolve()
+
+    demo_dir = Path(args.demo_dir).expanduser()
+    if not demo_dir.is_absolute():
+        demo_dir = (initial_cwd / demo_dir).resolve()
     
     # Check for required environment variables
     required_env_vars = ["CBORG_API_KEY", "CBORG_API_URL"]
@@ -194,12 +243,12 @@ async def main():
         print("Continuing with demo (may fail if API access is required)...\n")
     
     # Set up workspace
-    original_dir, work_dir = setup_demo_workspace(args.demo_dir)
+    original_dir, work_dir = setup_demo_workspace(demo_dir)
     
     try:
         # Initialize ATHOS manager
         print("🔧 Initializing ATHOS...")
-        cfg = build_config(args.config)
+        cfg = build_config(str(config_path))
         
         # Print available flows for reference
         print("\n📋 Available flows:")
@@ -213,21 +262,28 @@ async def main():
         pprint.pprint(cfg.flows[args.flow], indent=6)
         
         # Build the flow
-        flow = build_flow(args.flow, cfg)
+        flow = await build_flow(args.flow, cfg)
+
+        session = FlowSession(
+            session_id="filesystem_demo",
+            user_id="demo_user",
+            workspace=work_dir,
+            interface="filesystem_demo",
+        )
 
         # Execute demonstration tasks
         success_count = 0
         
         # Task 1: Basic filesystem operations
-        if await demonstrate_basic_filesystem_tasks(flow):
+        if await demonstrate_basic_filesystem_tasks(flow, session):
             success_count += 1
-        
+
         # Task 2: Advanced filesystem operations
-        if await demonstrate_advanced_filesystem_tasks(flow):
+        if await demonstrate_advanced_filesystem_tasks(flow, session):
             success_count += 1
-        
+
         # Task 3: File exploration and analysis
-        if await demonstrate_file_exploration_task(flow):
+        if await demonstrate_file_exploration_task(flow, session):
             success_count += 1
         
         # Summary

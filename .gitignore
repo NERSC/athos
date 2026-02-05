@@ -171,3 +171,6 @@ cython_debug/
 *.swp
 
 .DS_Store
+
+integrations/openwebui/pipelines/athos_flowrunner_manifold_pipeline/
+integrations/openwebui/pipelines/athos_hello_world_manifold_pipeline/

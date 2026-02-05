@@ -26,15 +26,19 @@ import asyncio
 import argparse
 import os
 import pprint
+from pathlib import Path
 from dotenv import load_dotenv
 
 from athos import build_config, build_flow
+from athos.models.flow import FlowInput, FlowOutput
+from athos.models.session import FlowSession
+from athos.models.enums import ExecutionMode
 
 # Load environment variables from .env file
 load_dotenv()
 
 
-async def demonstrate_incident_summary(flow, incident: str) -> bool:
+async def demonstrate_incident_summary(flow, session: FlowSession, incident: str) -> bool:
     """Summarize an existing incident."""
     print("\n🎯 Demonstrating Incident Summary...")
     print("=" * 60)
@@ -49,10 +53,15 @@ async def demonstrate_incident_summary(flow, incident: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        flow_input = FlowInput(
+            message=task.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC
+        )
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error summarizing incident: {e}")
@@ -61,7 +70,7 @@ async def demonstrate_incident_summary(flow, incident: str) -> bool:
     return True
 
 
-async def demonstrate_triage_incident(flow, incident: str) -> bool:
+async def demonstrate_triage_incident(flow, session: FlowSession, incident: str) -> bool:
     """Assign the incident to DAS group and Steven Farrell."""
     print("\n🎯 Demonstrating Incident Triage...")
     print("=" * 60)
@@ -77,10 +86,15 @@ async def demonstrate_triage_incident(flow, incident: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        flow_input = FlowInput(
+            message=task.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC
+        )
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error triaging incident: {e}")
@@ -89,7 +103,7 @@ async def demonstrate_triage_incident(flow, incident: str) -> bool:
     return True
 
 
-async def demonstrate_add_work_note(flow, incident: str) -> bool:
+async def demonstrate_add_work_note(flow, session: FlowSession, incident: str) -> bool:
     """Add a work note to the incident."""
     print("\n🎯 Demonstrating Adding Work Note...")
     print("=" * 60)
@@ -104,10 +118,15 @@ async def demonstrate_add_work_note(flow, incident: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        flow_input = FlowInput(
+            message=task.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC
+        )
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error adding work note: {e}")
@@ -116,7 +135,7 @@ async def demonstrate_add_work_note(flow, incident: str) -> bool:
     return True
 
 
-async def demonstrate_resolve_incident(flow, incident: str) -> bool:
+async def demonstrate_resolve_incident(flow, session: FlowSession, incident: str) -> bool:
     """Resolve the incident with close notes."""
     print("\n🎯 Demonstrating Incident Resolution...")
     print("=" * 60)
@@ -131,10 +150,15 @@ async def demonstrate_resolve_incident(flow, incident: str) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        flow_input = FlowInput(
+            message=task.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC
+        )
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error resolving incident: {e}")
@@ -143,7 +167,7 @@ async def demonstrate_resolve_incident(flow, incident: str) -> bool:
     return True
 
 
-async def demonstrate_incident_creation(flow) -> bool:
+async def demonstrate_incident_creation(flow, session: FlowSession) -> bool:
     """Create a test incident in ServiceNow."""
     print("\n🎯 Demonstrating Incident Creation...")
     print("=" * 60)
@@ -159,10 +183,15 @@ async def demonstrate_incident_creation(flow) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        flow_input = FlowInput(
+            message=task.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC
+        )
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error creating incident: {e}")
@@ -171,7 +200,7 @@ async def demonstrate_incident_creation(flow) -> bool:
     return True
 
 
-async def demonstrate_incident_listing(flow) -> bool:
+async def demonstrate_incident_listing(flow, session: FlowSession) -> bool:
     """List recent incidents."""
     print("\n🎯 Demonstrating Incident Listing...")
     print("=" * 60)
@@ -186,10 +215,15 @@ async def demonstrate_incident_listing(flow) -> bool:
     print("\n🏃 Executing task...")
 
     try:
-        result = await flow.execute(task)
+        flow_input = FlowInput(
+            message=task.strip(),
+            session=session,
+            mode=ExecutionMode.SYNC
+        )
+        result = await flow.execute(flow_input)
         print("\n✅ Task completed!")
         print("📄 Agent response:")
-        print(result)
+        print(result.content)
         print("\n" + "=" * 60)
     except Exception as e:
         print(f"❌ Error listing incidents: {e}")
@@ -209,7 +243,7 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="ATHOS ServiceNow demo")
     parser.add_argument("--config", default="config/config.yaml",
                         help="Path to configuration YAML file")
-    parser.add_argument("--flow", default="servicenow_agent",
+    parser.add_argument("--flow", default="smol_servicenow_agent",
                         help="Name of the ServiceNow flow to use")
     parser.add_argument(
         "--tasks",
@@ -253,8 +287,16 @@ async def main() -> None:
     print(f"\n🎯 Using flow: {args.flow}")
     pprint.pprint(cfg.flows[args.flow], indent=6)
 
-    # Build the flow
-    flow = build_flow(args.flow, cfg)
+    # Build the flow (async)
+    flow = await build_flow(args.flow, cfg)
+
+    # Create a session for this demonstration
+    session = FlowSession(
+        session_id="servicenow-demo",
+        user_id="demo-user",
+        workspace=Path(cfg.workspace_path) / "demo-user" / "servicenow-demo",
+        interface="cli"
+    )
 
     selected_tasks = [t.strip() for t in args.tasks.split(',') if t.strip()]
 
@@ -264,12 +306,12 @@ async def main() -> None:
         return
 
     task_funcs = {
-        "create": lambda: demonstrate_incident_creation(flow),
-        "list": lambda: demonstrate_incident_listing(flow),
-        "summary": lambda: demonstrate_incident_summary(flow, args.incident),
-        "triage": lambda: demonstrate_triage_incident(flow, args.incident),
-        "note": lambda: demonstrate_add_work_note(flow, args.incident),
-        "resolve": lambda: demonstrate_resolve_incident(flow, args.incident),
+        "create": lambda: demonstrate_incident_creation(flow, session),
+        "list": lambda: demonstrate_incident_listing(flow, session),
+        "summary": lambda: demonstrate_incident_summary(flow, session, args.incident),
+        "triage": lambda: demonstrate_triage_incident(flow, session, args.incident),
+        "note": lambda: demonstrate_add_work_note(flow, session, args.incident),
+        "resolve": lambda: demonstrate_resolve_incident(flow, session, args.incident),
     }
 
     success_count = 0

@@ -70,7 +70,7 @@ from the terminal.
 
 ## 4. System Design and Features
 The heart of ATHOS is a set of flow classes—such as `AgentFlow` for general task
-automation and `ChatbotFlow` for conversational assistance—that coordinate model
+automation and `LangGraphChatbotFlow` for conversational assistance—that coordinate model
 reasoning, tool invocation, and state management. These flows leverage the
 `flow_registry`, which acts as the discovery mechanism and extension point for
 new behaviors. Through `athos.runtime.builder.build_config` and `build_flow`, configurations

@@ -6,7 +6,13 @@ import logging
 from smolagents import OpenAIServerModel, Tool, MCPClient
 from mcp import StdioServerParameters
 
-from athos.config.models import ModelConfig, ToolConfig, MCPServerConfig, MCPType
+from athos.config.models import (
+    ModelConfig,
+    ToolConfig,
+    MCPServerConfig,
+    MCPType,
+    ToolFramework,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +28,16 @@ def build_model(cfg: ModelConfig) -> OpenAIServerModel:
 
 def build_tool(cfg: ToolConfig) -> Tool:
     """Dynamically import and instantiate a tool from configuration."""
+    if cfg.framework is not ToolFramework.SMOLAGENTS:
+        raise ValueError(
+            "Tool '%s.%s' is configured for framework '%s' but is being used in a "
+            "SmolAgents flow. Set framework='smolagents' or select a compatible tool."
+            % (
+                cfg.module_path,
+                cfg.callable_name,
+                cfg.framework.value,
+            )
+        )
     module = import_module(cfg.module_path)
     tool_obj = getattr(module, cfg.callable_name)
     if cfg.is_class:

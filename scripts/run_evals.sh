@@ -2,7 +2,7 @@
 
 python evals/run_evaluations.py \
   --config config/config.yaml \
-  --flow docs_rag_agent \
+  --flow lang_docs_react_agent \
   --cases-dir evals/test_cases \
   --qa-file evals/simple_qa.jsonl \
   --output logs/eval_results.json

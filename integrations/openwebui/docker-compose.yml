@@ -1,0 +1,41 @@
+services:
+  pipelines:
+    build:
+      context: ../..
+      dockerfile: integrations/openwebui/Dockerfile.pipelines
+    image: athos-openwebui-pipelines:local
+    container_name: athos-openwebui-pipelines
+    ports:
+      - "9099:9099"
+    environment:
+      - PIPELINES_API_KEY=0p3n-w3bu!
+      - PIPELINES_DIR=/app/pipelines
+      - ATHOS_PIPELINE_CONFIG_PATH=/workspace/config/config.yaml
+      - ATHOS_PIPELINE_ENABLED_FLOWS=lang_web_agent,lang_sfapi_agent,lang_docs_agent,lang_filesystem_agent,lang_docs_react_agent
+      - ATHOS_PIPELINE_DEFAULT_FLOW=lang_web_agent
+      - ATHOS_WORKSPACE=/workspace/athos
+      - CBORG_API_URL=${CBORG_API_URL:?must be set}
+      - CBORG_API_KEY=${CBORG_API_KEY:?must be set}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:?must be set}
+
+    volumes:
+      - ./pipelines:/app/pipelines
+      - ../../config:/workspace/config:ro
+      - ${ATHOS_WORKSPACE}:/workspace/athos
+    restart: unless-stopped
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: athos-openwebui-ui
+    depends_on:
+      - pipelines
+    ports:
+      - "9000:8080"
+    environment:
+      - WEBUI_AUTH=True
+    volumes:
+      - open-webui-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  open-webui-data:
