@@ -31,6 +31,7 @@ dependencies = [
     "langchain-community~=0.4",
     "langgraph~=1.0.0",
     "langchain-tavily",
+    "chromadb",
   ]
 
 [project.optional-dependencies]
@@ -38,6 +39,10 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pydantic[email]>=2.11.7,<3.0.0",
+]
+chroma-embeddings = [
+    "sentence-transformers",
+    "onnx",
 ]
 
 [project.scripts]
