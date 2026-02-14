@@ -101,6 +101,12 @@ class ListIncidentsParams(BaseModel):
     category: Optional[str] = Field(None, description="Filter by category")
     query: Optional[str] = Field(None, description="Filter by short description or title")
     incident_number: Optional[str] = Field(None, description="Filter by incident number")
+    include_comments_and_work_notes: bool = Field(
+        False,
+        description=(
+            "Include raw custom field u_comments_and_work_notes in each incident."
+        ),
+    )
 
 
 class IncidentResponse(BaseModel):
@@ -262,6 +268,8 @@ def resolve_incident_sys_id(
         query_params = {
             "sysparm_query": f"number={incident_id}",
             "sysparm_limit": 1,
+            "sysparm_fields": "sys_id",
+            "sysparm_exclude_reference_link": "true",
         }
 
         response = requests.get(
@@ -688,6 +696,11 @@ def list_incidents(
         "sysparm_offset": params.offset,
         "sysparm_display_value": "true",
         "sysparm_exclude_reference_link": "true",
+        "sysparm_fields": (
+            "sys_id,number,short_description,description,state,priority,"
+            "assigned_to,assignment_group,category,subcategory,"
+            "sys_created_on,sys_updated_on"
+        ),
     }
     
     # Add filters
@@ -705,6 +718,11 @@ def list_incidents(
     
     if filters:
         query_params["sysparm_query"] = "^".join(filters)
+
+    if params.include_comments_and_work_notes:
+        query_params["sysparm_fields"] = (
+            f"{query_params['sysparm_fields']},u_comments_and_work_notes"
+        )
     
     # Make request
     try:
@@ -744,6 +762,10 @@ def list_incidents(
                 "created_on": incident_data.get("sys_created_on"),
                 "updated_on": incident_data.get("sys_updated_on"),
             }
+            if params.include_comments_and_work_notes:
+                incident["comments_and_work_notes"] = incident_data.get(
+                    "u_comments_and_work_notes"
+                )
             incidents.append(incident)
         
         return {
@@ -759,4 +781,3 @@ def list_incidents(
             "message": f"Failed to list incidents: {str(e)}",
             "incidents": []
         }
-

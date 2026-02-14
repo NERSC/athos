@@ -218,6 +218,7 @@ class ServiceNowMCPServer:
             category: Optional[str] = None,
             query: Optional[str] = None,
             incident_number: Optional[str] = None,
+            include_comments_and_work_notes: bool = False,
         ) -> Dict[str, Any]:
             """List incidents from ServiceNow.
 
@@ -229,6 +230,8 @@ class ServiceNowMCPServer:
                 category: Filter by category.
                 query: Filter by short description or title.
                 incident_number: Filter by incident number.
+                include_comments_and_work_notes: Include raw
+                    u_comments_and_work_notes field in each incident.
 
             Returns:
                 Dictionary with list of incidents.
@@ -241,6 +244,7 @@ class ServiceNowMCPServer:
                 category=category,
                 query=query,
                 incident_number=incident_number,
+                include_comments_and_work_notes=include_comments_and_work_notes,
             )
             try:
                 return await asyncio.to_thread(
@@ -402,5 +406,4 @@ class ServiceNowMCPServer:
         """Run the MCP server."""
         logger.info("Starting ServiceNow MCP Server")
         self.mcp.run()
-
 
