@@ -12,7 +12,8 @@ dependencies = [
     "openai>=1.0.0,<2.0.0",
     "openai-agents>=0.2.4,<1.0.0",
     "mcp[cli]>=1.12.2,<2.0.0",
-    "smolagents[mcp,gradio]>=1.20.0",
+    "smolagents[mcp,gradio]>=1.24.0",
+    "mcpadapt>=0.1.20",
     "ddgs",
     "markdownify",
     "pydantic>=2.11.7,<3.0.0",
@@ -31,6 +32,7 @@ dependencies = [
     "langchain-community~=0.4",
     "langgraph~=1.0.0",
     "langchain-tavily",
+    "chromadb~=1.5.0",
   ]
 
 [project.optional-dependencies]
@@ -38,6 +40,10 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.1.0",
     "pydantic[email]>=2.11.7,<3.0.0",
+]
+chroma-embeddings = [
+    "sentence-transformers",
+    "onnx",
 ]
 
 [project.scripts]

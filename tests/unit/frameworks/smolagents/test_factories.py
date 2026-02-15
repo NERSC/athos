@@ -112,8 +112,9 @@ def test_build_tool_decorated_function(tmp_path, monkeypatch):
 
 
 def test_build_mcp_client_stdio(monkeypatch):
-    def dummy_init(self, server_parameters):
+    def dummy_init(self, server_parameters, structured_output=False):
         self.server_parameters = server_parameters
+        self.structured_output = structured_output
     monkeypatch.setattr(
         "athos.frameworks.smolagents.factories.MCPClient.__init__",
         dummy_init,
@@ -134,11 +135,13 @@ def test_build_mcp_client_stdio(monkeypatch):
     assert client.server_parameters.command == "echo"
     assert client.server_parameters.args == ["hello"]
     assert client.server_parameters.env == {"A": "B"}
+    assert client.structured_output is True
 
 
 def test_build_mcp_client_sse(monkeypatch):
-    def dummy_init(self, server_parameters):
+    def dummy_init(self, server_parameters, structured_output=False):
         self.server_parameters = server_parameters
+        self.structured_output = structured_output
     monkeypatch.setattr(
         "athos.frameworks.smolagents.factories.MCPClient.__init__",
         dummy_init,
@@ -154,6 +157,7 @@ def test_build_mcp_client_sse(monkeypatch):
     from smolagents import MCPClient
     assert isinstance(client, MCPClient)
     assert client.server_parameters == {"url": "https://server", "headers": {"X": "y"}}
+    assert client.structured_output is True
 
 
 def test_build_mcp_client_invalid():

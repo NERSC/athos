@@ -119,6 +119,16 @@ mcp_servers:
     instructions: |
       Use the `query_consulting_docs` tool to answer questions about NERSC internal consultant documentation.
 
+  chroma_mcp:
+    description: "ChromaDB MCP server for persistent vector database operations"
+    mcp_type: "mcp_stdio"
+    command: "uvx"
+    args: [
+      "chroma-mcp",
+      "--client-type", "persistent",
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma"
+    ]
+
 
 # Regular and custom tools (non-MCP)
 tools:
@@ -149,6 +159,72 @@ tools:
     callable_name: "TavilySearch"
     parameters: {}
     framework: "langgraph"
+
+  chroma_list_collections:
+    description: "List ChromaDB collections"
+    callable_name: "chroma_list_collections"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_create_collection:
+    description: "Create a ChromaDB collection"
+    callable_name: "chroma_create_collection"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_peek_collection:
+    description: "Peek documents from a ChromaDB collection"
+    callable_name: "chroma_peek_collection"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_collection_info:
+    description: "Get ChromaDB collection info"
+    callable_name: "chroma_get_collection_info"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_collection_count:
+    description: "Get document count for a ChromaDB collection"
+    callable_name: "chroma_get_collection_count"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_modify_collection:
+    description: "Rename or update ChromaDB collection metadata"
+    callable_name: "chroma_modify_collection"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_fork_collection:
+    description: "Fork a ChromaDB collection"
+    callable_name: "chroma_fork_collection"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_delete_collection:
+    description: "Delete a ChromaDB collection"
+    callable_name: "chroma_delete_collection"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_add_documents:
+    description: "Add documents to a ChromaDB collection"
+    callable_name: "chroma_add_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_query_documents:
+    description: "Query documents from a ChromaDB collection"
+    callable_name: "chroma_query_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_documents:
+    description: "Fetch documents from a ChromaDB collection"
+    callable_name: "chroma_get_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_update_documents:
+    description: "Update documents in a ChromaDB collection"
+    callable_name: "chroma_update_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_delete_documents:
+    description: "Delete documents from a ChromaDB collection"
+    callable_name: "chroma_delete_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
 
 
 # Agent flows define the agent system
@@ -282,6 +358,55 @@ flows:
     mcp_servers: ["docs_rag_mcp", "consulting_docs_rag_mcp"]
     max_iterations: 32
     system_prompt_path: "prompts/docs_react_agent_instructions.md"
+
+  lang_chroma_agent:
+    description: "LangChain agent that uses the official Chroma MCP server"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["chroma_mcp"]
+    max_iterations: 24
+    system_prompt: |
+      You are a ChromaDB assistant.
+      Use the available MCP tools to inspect collections, query documents, and manage records.
+      Prefer read operations before making changes, and clearly summarize any writes you perform.
+
+  # Known issue: in the current SmolAgents MCP adapter path, some MCP tool
+  # responses with multiple content items can be truncated to the first item.
+  # Prefer `smol_chroma_agent` for reliable Chroma results until resolved upstream.
+  smol_chroma_mcp_agent:
+    description: "SmolAgents code agent using the official Chroma MCP server (buggy/experimental)"
+    type: "smol_agent"
+    agent_type: "code"
+    model: "claude_sonnet"
+    max_steps: 20
+    additional_authorized_imports: ["json"]
+    mcp_servers: ["chroma_mcp"]
+    instructions: |
+      Use Chroma MCP tools to inspect and query the configured database.
+      Prefer read operations before writes and summarize any changes you make.
+      When listing collections, always call `chroma_list_collections(limit=100, offset=0)`.
+
+  smol_chroma_agent:
+    description: "SmolAgents code agent with local ChromaDB tools"
+    type: "smol_agent"
+    agent_type: "code"
+    model: "claude_sonnet"
+    max_steps: 20
+    additional_authorized_imports: ["json"]
+    tools:
+      - chroma_list_collections
+      - chroma_create_collection
+      - chroma_peek_collection
+      - chroma_get_collection_info
+      - chroma_get_collection_count
+      - chroma_modify_collection
+      - chroma_fork_collection
+      - chroma_delete_collection
+      - chroma_add_documents
+      - chroma_query_documents
+      - chroma_get_documents
+      - chroma_update_documents
+      - chroma_delete_documents
 
 # Logging configuration
 logging_config:
