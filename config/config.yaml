@@ -370,6 +370,19 @@ flows:
       Use the available MCP tools to inspect collections, query documents, and manage records.
       Prefer read operations before making changes, and clearly summarize any writes you perform.
 
+  smol_chroma_mcp_agent:
+    description: "SmolAgents code agent using the official Chroma MCP server"
+    type: "smol_agent"
+    agent_type: "code"
+    model: "claude_sonnet"
+    max_steps: 20
+    additional_authorized_imports: ["json"]
+    mcp_servers: ["chroma_mcp"]
+    instructions: |
+      Use Chroma MCP tools to inspect and query the configured database.
+      Prefer read operations before writes and summarize any changes you make.
+      When listing collections, always call `chroma_list_collections(limit=100, offset=0)`.
+
   smol_chroma_agent:
     description: "SmolAgents code agent with local ChromaDB tools"
     type: "smol_agent"

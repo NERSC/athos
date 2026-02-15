@@ -3,6 +3,7 @@
 import os
 import asyncio
 from dotenv import load_dotenv
+from pathlib import Path
 
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
@@ -14,17 +15,15 @@ async def main() -> None:
     # Load environment variables from .env file
     load_dotenv()
 
-    data_dir = os.path.join(
-        os.getenv("ATHOS_WORKSPACE", "/tmp/athos_workspace"),
-        "chroma",
-    )
+    data_dir = Path(os.environ["ATHOS_WORKSPACE"]) / "chroma"
+    print(data_dir)
 
     # Configure the server
     transport = StdioTransport(
-        command="chroma-mcp",
-        args=["--client-type", "persistent", "--data-dir", data_dir]
-        #command="uvx",
-        #args=["chroma-mcp", "--client-type", "persistent", "--data-dir", data_dir]
+        #command="chroma-mcp",
+        #args=["--client-type", "persistent", "--data-dir", str(data_dir)]
+        command="uvx",
+        args=["chroma-mcp", "--client-type", "persistent", "--data-dir", str(data_dir)]
     )
 
     # Construct the FastMCP client

@@ -21,10 +21,10 @@ def main():
     # Connect to the running MCP server (stdio transport).
     # For STDIO, smolagents will launch the process automatically.
     mcp_params = StdioServerParameters(
-        command="chroma-mcp",
-        args=["--client-type", "persistent", "--data-dir", str(data_dir)]
-        #command="uvx",
-        #args=["chroma-mcp", "--client-type", "persistent", "--data-dir", str(data_dir)]
+        #command="chroma-mcp",
+        #args=["--client-type", "persistent", "--data-dir", str(data_dir)]
+        command="uvx",
+        args=["chroma-mcp", "--client-type", "persistent", "--data-dir", str(data_dir)]
     )
 
     print("Constructing client")

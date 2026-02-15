@@ -54,5 +54,5 @@ def build_mcp_client(name: str, cfg: MCPServerConfig) -> MCPClient:
     else:
         raise ValueError(f"Unsupported MCP type {cfg.mcp_type}")
     logger.info("Created MCP client '%s'", name)
-    return MCPClient(params)
-
+    # Use structured output mode so list/dict tool payloads are preserved.
+    return MCPClient(params, structured_output=True)
