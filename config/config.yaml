@@ -370,8 +370,11 @@ flows:
       Use the available MCP tools to inspect collections, query documents, and manage records.
       Prefer read operations before making changes, and clearly summarize any writes you perform.
 
+  # Known issue: in the current SmolAgents MCP adapter path, some MCP tool
+  # responses with multiple content items can be truncated to the first item.
+  # Prefer `smol_chroma_agent` for reliable Chroma results until resolved upstream.
   smol_chroma_mcp_agent:
-    description: "SmolAgents code agent using the official Chroma MCP server"
+    description: "SmolAgents code agent using the official Chroma MCP server (buggy/experimental)"
     type: "smol_agent"
     agent_type: "code"
     model: "claude_sonnet"
