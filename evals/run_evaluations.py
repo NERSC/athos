@@ -2,11 +2,17 @@
 """Evaluation script for ATHOS flows on test cases"""
 import argparse
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 import pprint
+import re
+import shlex
+import socket
 import subprocess
 from datetime import datetime, timezone
+import sys
+import uuid
 
 from dotenv import load_dotenv
 
@@ -18,6 +24,28 @@ from athos.runtime.runner import FlowRunner
 
 from eval_core import evaluate_response
 from eval_io import build_input, load_qa_cases, load_test_cases
+
+
+def _slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_") or "unknown"
+
+
+def _compute_config_id(flow_name: str, flow_config) -> str:
+    normalized_config = flow_config.model_dump()
+    payload = json.dumps(normalized_config, sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
+    model_name = _slug(str(normalized_config.get("model", "unknown")))
+    return f"{_slug(flow_name)}__{model_name}__{digest}"
+
+
+def _status_from_exception(error: Exception) -> str:
+    if isinstance(error, TimeoutError):
+        return "timeout"
+    error_name = error.__class__.__name__.lower()
+    if "timeout" in error_name:
+        return "timeout"
+    return "execution_error"
+
 
 async def main():
     parser = argparse.ArgumentParser()
@@ -51,6 +79,38 @@ async def main():
         help="Optional output file for results JSON",
     )
     parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Output directory for canonical per-run run.json artifacts",
+    )
+    parser.add_argument(
+        "--experiment-id",
+        default=None,
+        help="Experiment ID used in canonical run artifact paths",
+    )
+    parser.add_argument(
+        "--agent-system",
+        default="athos",
+        help="Agent system name for canonical run artifacts",
+    )
+    parser.add_argument(
+        "--run-count",
+        type=int,
+        default=1,
+        help="Number of repeated runs to execute per case",
+    )
+    parser.add_argument(
+        "--run-start",
+        type=int,
+        default=0,
+        help="Starting run index for canonical per-run artifacts",
+    )
+    parser.add_argument(
+        "--no-score",
+        action="store_true",
+        help="Skip judging and only execute runs",
+    )
+    parser.add_argument(
         "--passing-score",
         type=float,
         default=80.0,
@@ -58,6 +118,13 @@ async def main():
     )
     args = parser.parse_args()
     load_dotenv()
+
+    if args.run_count < 1:
+        raise ValueError("--run-count must be >= 1")
+    if args.run_start < 0:
+        raise ValueError("--run-start must be >= 0")
+    if args.output_dir and not args.experiment_id:
+        raise ValueError("--experiment-id is required when --output-dir is set")
 
     if not args.cases_dir and not args.qa_file:
         args.cases_dir = ["evals/test_cases"]
@@ -100,12 +167,24 @@ async def main():
             "cases_dir": list(args.cases_dir),
             "qa_file": list(args.qa_file),
             "passing_score": args.passing_score,
+            "no_score": args.no_score,
+            "run_count": args.run_count,
+            "run_start": args.run_start,
+            "output_dir": args.output_dir,
+            "experiment_id": args.experiment_id,
+            "agent_system": args.agent_system,
         },
         "flows": {fn: {} for fn in args.flow},
     }
 
+    output_dir = Path(args.output_dir) if args.output_dir else None
+    command = shlex.join(sys.argv)
+    hostname = socket.gethostname()
+    now_iso = lambda: datetime.now(timezone.utc).isoformat()
+
     for flow_name in args.flow:
         flow_config = cfg.flows[flow_name]
+        config_id = _compute_config_id(flow_name, flow_config)
 
         # Print flow config for debugging
         pprint.pprint(flow_config.model_dump())
@@ -132,55 +211,128 @@ async def main():
                 sol = case["solution"]
                 files_dir = case.get("files_dir")
                 input_data = build_input(desc, files_dir)
-
-                try:
-                    result = await runner.execute(
-                        flow_name=flow_name,
-                        message=input_data,
-                        session_id=f"eval_{flow_name}_{dataset_name}_{name}",
-                        user_id="evaluator",
-                        mode=ExecutionMode.SYNC,
-                        interface="evaluation",
-                    )
-                    if result.success and result.output:
-                        response = result.output.content
-                    else:
-                        response = f"Error executing flow: {result.error or 'Unknown error'}"
-                    metrics = ExecutionMetrics.from_output_metadata(result.metadata)
-                    metrics_payload = metrics.to_metadata() if metrics else {}
-                    if not metrics_payload and isinstance(result.metadata, dict):
-                        latency = result.metadata.get("latency_ms")
-                        if isinstance(latency, (int, float)):
-                            metrics_payload = {"latency_ms": latency}
-                except Exception as e:
-                    response = f"Error executing flow: {e}"
+                for run_offset in range(args.run_count):
+                    run_index = args.run_start + run_offset
+                    started_at = now_iso()
+                    execution_status = "success"
+                    error_type = None
+                    error_message = None
+                    response = None
                     metrics_payload = {}
-                score, feedback = evaluate_response(
-                    eval_model_instance, sol, response
-                )
-                if isinstance(metrics_payload, dict):
-                    latency = metrics_payload.get("latency_ms")
-                    if isinstance(latency, (int, float)):
-                        latency_values.append(float(latency))
-                    token_usage = metrics_payload.get("token_usage")
-                    if isinstance(token_usage, dict):
-                        input_tokens = token_usage.get("input_tokens")
-                        output_tokens = token_usage.get("output_tokens")
-                        if isinstance(input_tokens, int):
-                            input_tokens_values.append(input_tokens)
-                        if isinstance(output_tokens, int):
-                            output_tokens_values.append(output_tokens)
-                        if isinstance(input_tokens, int) and isinstance(output_tokens, int):
-                            total_tokens_values.append(input_tokens + output_tokens)
-                results.append(
-                    {
+                    try:
+                        result = await runner.execute(
+                            flow_name=flow_name,
+                            message=input_data,
+                            session_id=f"eval_{flow_name}_{dataset_name}_{name}_{run_index}",
+                            user_id="evaluator",
+                            mode=ExecutionMode.SYNC,
+                            interface="evaluation",
+                        )
+                        if result.success and result.output:
+                            response = result.output.content
+                        elif result.success and not result.output:
+                            execution_status = "invalid_output"
+                            error_type = "missing_output"
+                            error_message = "Flow returned success without output content"
+                        else:
+                            execution_status = "execution_error"
+                            error_type = "flow_execution_error"
+                            error_message = str(result.error or "Unknown error")
+                        metrics = ExecutionMetrics.from_output_metadata(result.metadata)
+                        metrics_payload = metrics.to_metadata() if metrics else {}
+                        if not metrics_payload and isinstance(result.metadata, dict):
+                            latency = result.metadata.get("latency_ms")
+                            if isinstance(latency, (int, float)):
+                                metrics_payload = {"latency_ms": latency}
+                    except Exception as e:
+                        execution_status = _status_from_exception(e)
+                        error_type = e.__class__.__name__
+                        error_message = str(e)
+                    finished_at = now_iso()
+
+                    score = None
+                    feedback = None
+                    if not args.no_score:
+                        eval_response = response if response is not None else f"Error executing flow: {error_message or 'Unknown error'}"
+                        score, feedback = evaluate_response(
+                            eval_model_instance, sol, eval_response
+                        )
+
+                    if isinstance(metrics_payload, dict):
+                        latency = metrics_payload.get("latency_ms")
+                        if isinstance(latency, (int, float)):
+                            latency_values.append(float(latency))
+                        token_usage = metrics_payload.get("token_usage")
+                        if isinstance(token_usage, dict):
+                            input_tokens = token_usage.get("input_tokens")
+                            output_tokens = token_usage.get("output_tokens")
+                            if isinstance(input_tokens, int):
+                                input_tokens_values.append(input_tokens)
+                            if isinstance(output_tokens, int):
+                                output_tokens_values.append(output_tokens)
+                            if isinstance(input_tokens, int) and isinstance(output_tokens, int):
+                                total_tokens_values.append(input_tokens + output_tokens)
+
+                    result_payload = {
                         "test_case": name,
-                        "response": response,
+                        "run_index": run_index,
+                        "response": response if response is not None else f"Error executing flow: {error_message or 'Unknown error'}",
                         "score": score,
                         "feedback": feedback,
                         "metrics": metrics_payload,
+                        "status": execution_status,
+                        "error_type": error_type,
+                        "error_message": error_message,
                     }
-                )
+                    results.append(result_payload)
+
+                    if output_dir:
+                        run_dir = (
+                            output_dir
+                            / args.experiment_id
+                            / args.agent_system
+                            / config_id
+                            / str(name)
+                            / str(run_index)
+                        )
+                        run_dir.mkdir(parents=True, exist_ok=True)
+                        run_record = {
+                            "schema_version": "athos.run.v1",
+                            "run_id": str(uuid.uuid4()),
+                            "experiment_id": args.experiment_id,
+                            "dataset_id": dataset_name,
+                            "dataset_version": None,
+                            "case_id": str(name),
+                            "run_index": run_index,
+                            "agent_system": args.agent_system,
+                            "agent_version": f"git:{git_sha}" if git_sha else None,
+                            "config_id": config_id,
+                            "config_ref": str(args.config),
+                            "execution": {
+                                "started_at_utc": started_at,
+                                "finished_at_utc": finished_at,
+                                "status": execution_status,
+                                "error_type": error_type,
+                                "error_message": error_message,
+                            },
+                            "request": {
+                                "input_text": input_data,
+                                "input_artifacts": [],
+                            },
+                            "response": {
+                                "output_text": response,
+                                "output_artifacts": [],
+                            },
+                            "metrics": metrics_payload if isinstance(metrics_payload, dict) else {},
+                            "provenance": {
+                                "runner": "evals/run_evaluations.py",
+                                "command": command,
+                                "hostname": hostname,
+                                "git_sha": git_sha,
+                                "env_fingerprint": None,
+                            },
+                        }
+                        (run_dir / "run.json").write_text(json.dumps(run_record, indent=2))
 
             total = 0
             count = 0

@@ -24,18 +24,44 @@ python evals/run_evaluations.py \
   [--eval-model <model_name>] \
   [--cases-dir <dir1> --cases-dir <dir2> ...] \
   [--qa-file <qa.jsonl> ...] \
+  [--output-dir <results_root>] \
+  [--experiment-id <experiment_id>] \
+  [--agent-system <agent_system>] \
+  [--run-count <N>] \
+  [--run-start <K>] \
+  [--no-score] \
   [--passing-score 80] \
   [--output results.json]
 ```
 
 Arguments:
 - `--config`: Path to the ATHOS YAML config file (default: `config/config.yaml`).
- - `--flow`: One or more flow names to test (required).
+- `--flow`: One or more flow names to test (required).
 - `--eval-model`: Optional override model name for evaluation (defaults to the model used by each flow).
 - `--cases-dir`: Directory containing structured test case subdirectories. May be provided multiple times. Defaults to `test_cases` if no datasets are specified.
 - `--qa-file`: JSONL file of question/answer pairs. May be provided multiple times.
+- `--output-dir`: Root directory for canonical per-run output (`run.json` files).
+- `--experiment-id`: Required when `--output-dir` is set. Used in canonical output paths.
+- `--agent-system`: Agent system label for canonical output (default: `athos`).
+- `--run-count`: Number of repeated runs per case (default: `1`).
+- `--run-start`: Starting run index (default: `0`).
+- `--no-score`: Execute cases without LLM judging (scores/feedback become `null`).
 - `--passing-score`: Score threshold used when computing accuracy (default: `80`).
 - `--output`: File path to write a JSON report of results.
+
+Notes:
+- `--output` and `--output-dir` can be used together (legacy summary + canonical per-run records).
+- `--experiment-id` is required if `--output-dir` is provided.
+
+## Canonical per-run output
+
+When `--output-dir` is set, each attempt is written to:
+
+`<output-dir>/<experiment_id>/<agent_system>/<config_id>/<case_id>/<run_index>/run.json`
+
+Example:
+
+`results/cug2026_main/athos/lang_chat__cborg_coder__abc12345/sbatch-qos-error/0/run.json`
 
 ### Running specific datasets
 
@@ -50,6 +76,41 @@ Arguments:
 - **Both HPC and Q&A cases**:
   ```bash
   python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --cases-dir evals/test_cases --qa-file evals/simple_qa.jsonl
+  ```
+
+### Run-first examples
+
+- **Generate canonical run records (single run index):**
+  ```bash
+  python evals/run_evaluations.py \
+    --config config/config.yaml \
+    --flow lang_chat \
+    --cases-dir evals/test_cases \
+    --output-dir results \
+    --experiment-id cug2026_main
+  ```
+
+- **Append additional attempts later (run indices 3,4,5):**
+  ```bash
+  python evals/run_evaluations.py \
+    --config config/config.yaml \
+    --flow lang_chat \
+    --cases-dir evals/test_cases \
+    --output-dir results \
+    --experiment-id cug2026_main \
+    --run-start 3 \
+    --run-count 3
+  ```
+
+- **Execution-only runs (no scoring):**
+  ```bash
+  python evals/run_evaluations.py \
+    --config config/config.yaml \
+    --flow lang_chat \
+    --cases-dir evals/test_cases \
+    --output-dir results \
+    --experiment-id cug2026_main \
+    --no-score
   ```
 
 ## Available test cases

@@ -1,5 +1,8 @@
 # Evaluation Metrics Reporting Plan
 
+> Status (2026-02-15): Historical document. This plan is superseded by
+> `docs/eval_pipeline_v2.md` for current evaluation architecture and workflow.
+
 This document describes a staged plan to extend the evaluation pipeline to report
 token usage and latency for ATHOS flows. Pricing/costs are explicitly out of scope.
 

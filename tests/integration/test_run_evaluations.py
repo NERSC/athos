@@ -195,3 +195,191 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
     results = data["flows"]["f1"][dataset_key]["cases"]
     assert len(results) == len(entries)
     assert all("score" in r for r in results)
+
+
+async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
+    """Ensure --output and --output-dir can be used together."""
+
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
+    monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (90, "ok"))
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    monkeypatch.setattr(
+        revals.subprocess,
+        "check_output",
+        lambda *args, **kwargs: b"abcdef123456\n",
+    )
+
+    summary_output = tmp_path / "summary.json"
+    canonical_root = tmp_path / "results"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output",
+            str(summary_output),
+            "--output-dir",
+            str(canonical_root),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+
+    await revals.main()
+
+    assert summary_output.exists()
+    summary_payload = json.loads(summary_output.read_text())
+    assert "f1" in summary_payload["flows"]
+
+    run_path = canonical_root / "exp1" / "athos"
+    run_records = list(run_path.glob("*/*/*/run.json"))
+    assert len(run_records) == 1
+    run_payload = json.loads(run_records[0].read_text())
+    assert run_payload["schema_version"] == "athos.run.v1"
+    assert run_payload["experiment_id"] == "exp1"
+    assert run_payload["agent_system"] == "athos"
+    assert run_payload["case_id"] == "case_one"
+    assert run_payload["run_index"] == 0
+    assert run_payload["response"]["output_text"] == "resp"
+    assert run_payload["execution"]["status"] == "success"
+
+
+async def test_run_start_writes_new_run_dirs_without_overwrite(tmp_path, monkeypatch):
+    """Ensure later runs can append run indices without mutating existing runs."""
+
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
+    monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (90, "ok"))
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    monkeypatch.setattr(
+        revals.subprocess,
+        "check_output",
+        lambda *args, **kwargs: b"abcdef123456\n",
+    )
+
+    canonical_root = tmp_path / "results"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(canonical_root),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+    await revals.main()
+
+    first_run = next((canonical_root / "exp1" / "athos").glob("*/*/0/run.json"))
+    first_contents = first_run.read_text()
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(canonical_root),
+            "--experiment-id",
+            "exp1",
+            "--run-start",
+            "1",
+            "--run-count",
+            "2",
+        ],
+    )
+    await revals.main()
+
+    root = canonical_root / "exp1" / "athos"
+    run_records = sorted(root.glob("*/*/*/run.json"))
+    assert len(run_records) == 3
+    run_indices = sorted(json.loads(path.read_text())["run_index"] for path in run_records)
+    assert run_indices == [0, 1, 2]
+    assert first_run.read_text() == first_contents
