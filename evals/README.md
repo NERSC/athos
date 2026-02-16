@@ -113,6 +113,31 @@ Example:
     --no-score
   ```
 
+## Scoring canonical runs
+
+Use `evals/score_runs.py` to score canonical `run.json` files and write
+append-only judgments JSONL (`athos.judgment.v1`).
+
+```bash
+python evals/score_runs.py \
+  --config config/config.yaml \
+  --runs-dir results/cug2026_main \
+  --cases-dir evals/test_cases \
+  --judge-model cborg_chat \
+  --judge-id cborg_chat_rubric_v2 \
+  --judge-prompt-version rubric_v2 \
+  --output results/cug2026_main/judgments/cborg_chat_rubric_v2.jsonl
+```
+
+Arguments:
+- `--runs-dir`: Directory tree to scan for `run.json` files.
+- `--runs-manifest`: Optional manifest file listing run paths (one per line, or JSONL with `{"path": ...}`).
+- `--judge-model`: Model name from config used for judging (required).
+- `--judge-id`: Logical judge identifier (defaults to `<judge-model>:<judge-prompt-version>`).
+- `--judge-prompt-version`: Prompt version label for traceability (default: `v1`).
+- `--cases-dir` / `--qa-file`: Reference datasets used to resolve expected answers by `case_id`.
+- `--output`: Judgments JSONL output path (append mode).
+
 ## Available test cases
 
 Current examples included in this repo:
