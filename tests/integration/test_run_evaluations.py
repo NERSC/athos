@@ -383,3 +383,75 @@ async def test_run_start_writes_new_run_dirs_without_overwrite(tmp_path, monkeyp
     run_indices = sorted(json.loads(path.read_text())["run_index"] for path in run_records)
     assert run_indices == [0, 1, 2]
     assert first_run.read_text() == first_contents
+
+
+async def test_empty_response_marked_invalid_and_not_judged(tmp_path, monkeypatch):
+    """Blank output should be marked invalid_output with deterministic scoring."""
+
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
+
+    def _unexpected_judge_call(*_args, **_kwargs):
+        raise AssertionError("evaluate_response should not be called for invalid output")
+
+    monkeypatch.setattr(revals, "evaluate_response", _unexpected_judge_call)
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="   "),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    output = tmp_path / "summary.json"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output",
+            str(output),
+        ],
+    )
+
+    await revals.main()
+
+    payload = json.loads(output.read_text())
+    case = payload["flows"]["f1"]["cases"]["cases"][0]
+    assert case["status"] == "invalid_output"
+    assert case["error_type"] == "empty_response"
+    assert case["score"] == 0
+    assert "No scorable agent response" in case["feedback"]

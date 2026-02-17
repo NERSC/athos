@@ -230,6 +230,19 @@ async def main():
                         )
                         if result.success and result.output:
                             response = result.output.content
+                            if not isinstance(response, str):
+                                execution_status = "invalid_output"
+                                error_type = "invalid_output_type"
+                                error_message = (
+                                    "Flow returned non-string output content"
+                                )
+                                response = str(response)
+                            elif not response.strip():
+                                execution_status = "invalid_output"
+                                error_type = "empty_response"
+                                error_message = (
+                                    "Flow returned empty response content"
+                                )
                         elif result.success and not result.output:
                             execution_status = "invalid_output"
                             error_type = "missing_output"
@@ -253,10 +266,21 @@ async def main():
                     score = None
                     feedback = None
                     if not args.no_score:
-                        eval_response = response if response is not None else f"Error executing flow: {error_message or 'Unknown error'}"
-                        score, feedback = evaluate_response(
-                            eval_model_instance, sol, eval_response
-                        )
+                        if execution_status == "success":
+                            eval_response = (
+                                response
+                                if response is not None
+                                else f"Error executing flow: {error_message or 'Unknown error'}"
+                            )
+                            score, feedback = evaluate_response(
+                                eval_model_instance, sol, eval_response
+                            )
+                        else:
+                            score = 0
+                            feedback = (
+                                f"No scorable agent response. status={execution_status}; "
+                                f"error={error_message or 'Unknown error'}"
+                            )
 
                     if isinstance(metrics_payload, dict):
                         latency = metrics_payload.get("latency_ms")
