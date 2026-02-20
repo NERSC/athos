@@ -207,6 +207,7 @@ def main() -> None:
             output_text = None
             if isinstance(response_payload, dict):
                 output_text = response_payload.get("output_text")
+            output_text_present = isinstance(output_text, str) and bool(output_text.strip())
 
             reference = _resolve_reference(run_payload, reference_map, fallback_case_map)
 
@@ -224,7 +225,7 @@ def main() -> None:
                     reason=judgment_status,
                     detail=feedback,
                 )
-            elif isinstance(reference, str) and reference and isinstance(output_text, str) and output_text:
+            elif isinstance(reference, str) and reference and output_text_present:
                 score, feedback = evaluate_response(judge_model_instance, reference, output_text)
                 if isinstance(score, (int, float)):
                     passed = score >= args.passing_score
@@ -233,7 +234,7 @@ def main() -> None:
                 if not (isinstance(reference, str) and reference):
                     judgment_status = "skipped_missing_reference"
                     feedback = "Skipped: missing reference."
-                elif not (isinstance(output_text, str) and output_text):
+                elif not output_text_present:
                     judgment_status = "skipped_missing_output"
                     feedback = "Skipped: missing response output."
                 else:

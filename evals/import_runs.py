@@ -35,10 +35,28 @@ def _ensure_string(value: Any, field: str) -> str:
     return value
 
 
+def _ensure_safe_path_segment(value: Any, field: str) -> str:
+    candidate = _ensure_string(value, field)
+    p = Path(candidate)
+    if p.is_absolute():
+        raise ValueError(f"Field '{field}' must be a relative path segment")
+    if candidate in {".", ".."}:
+        raise ValueError(f"Field '{field}' contains an invalid path segment")
+    parts = p.parts
+    if len(parts) != 1 or parts[0] in {".", ".."}:
+        raise ValueError(f"Field '{field}' must not contain path separators or traversal")
+    if "\\" in candidate:
+        raise ValueError(f"Field '{field}' must not contain path separators")
+    return candidate
+
+
 def _validate_record(record: dict[str, Any]) -> None:
-    _ensure_string(record.get("case_id"), "case_id")
-    _ensure_string(record.get("agent_system"), "agent_system")
-    _ensure_string(record.get("config_id"), "config_id")
+    _ensure_safe_path_segment(record.get("case_id"), "case_id")
+    _ensure_safe_path_segment(record.get("agent_system"), "agent_system")
+    _ensure_safe_path_segment(record.get("config_id"), "config_id")
+    dataset_id = record.get("dataset_id")
+    if isinstance(dataset_id, str) and dataset_id:
+        _ensure_safe_path_segment(dataset_id, "dataset_id")
 
     execution = record.get("execution")
     status = "success"
@@ -160,6 +178,9 @@ def main() -> None:
         help="Allow overwriting existing canonical run.json artifacts",
     )
     args = parser.parse_args()
+    _ensure_safe_path_segment(args.experiment_id, "experiment_id")
+    if args.dataset_id:
+        _ensure_safe_path_segment(args.dataset_id, "dataset_id")
 
     input_path = Path(args.input)
     records = _read_records(input_path)
@@ -185,6 +206,10 @@ def main() -> None:
             raise ValueError(
                 f"Record at index {idx} does not define dataset_id and no --dataset-id was provided"
             )
+        _ensure_safe_path_segment(str(run_record["agent_system"]), "agent_system")
+        _ensure_safe_path_segment(str(run_record["config_id"]), "config_id")
+        _ensure_safe_path_segment(str(run_record["dataset_id"]), "dataset_id")
+        _ensure_safe_path_segment(str(run_record["case_id"]), "case_id")
 
         run_dir = (
             Path(args.output_dir)
