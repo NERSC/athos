@@ -572,3 +572,77 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
         raise AssertionError("Expected FileExistsError for duplicate canonical run path")
     except FileExistsError:
         pass
+
+
+async def test_run_evaluations_rejects_unsafe_case_id_for_output_path(tmp_path, monkeypatch):
+    qa_file = tmp_path / "qa.jsonl"
+    qa_file.write_text(
+        json.dumps(
+            {
+                "name": "../../outside",
+                "question": "q1",
+                "answer": "a1",
+            }
+        )
+        + "\n"
+    )
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        revals.subprocess,
+        "check_output",
+        lambda *args, **kwargs: b"abcdef123456\n",
+    )
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--qa-file",
+            str(qa_file),
+            "--output-dir",
+            str(tmp_path / "results"),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+
+    try:
+        await revals.main()
+        raise AssertionError("Expected ValueError for unsafe case_id path segment")
+    except ValueError as exc:
+        assert "case_id" in str(exc)

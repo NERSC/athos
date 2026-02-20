@@ -45,6 +45,20 @@ def _status_from_exception(error: Exception) -> str:
     return "execution_error"
 
 
+def _ensure_safe_path_segment(value: str, field: str) -> str:
+    p = Path(value)
+    if p.is_absolute():
+        raise ValueError(f"Field '{field}' must be a relative path segment")
+    if value in {".", ".."}:
+        raise ValueError(f"Field '{field}' contains an invalid path segment")
+    parts = p.parts
+    if len(parts) != 1 or parts[0] in {".", ".."}:
+        raise ValueError(f"Field '{field}' must not contain path separators or traversal")
+    if "\\" in value:
+        raise ValueError(f"Field '{field}' must not contain path separators")
+    return value
+
+
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config/config.yaml")
@@ -184,6 +198,7 @@ async def main():
                 desc = case["description"]
                 files_dir = case.get("files_dir")
                 input_data = build_input(desc, files_dir)
+                safe_case_id = _ensure_safe_path_segment(str(name), "case_id")
                 for run_offset in range(args.run_count):
                     run_index = args.run_start + run_offset
                     started_at = now_iso()
@@ -269,7 +284,7 @@ async def main():
                             / args.agent_system
                             / config_id
                             / dataset_name
-                            / str(name)
+                            / safe_case_id
                             / str(run_index)
                         )
                         run_path = run_dir / "run.json"
@@ -285,7 +300,7 @@ async def main():
                             "experiment_id": args.experiment_id,
                             "dataset_id": dataset_name,
                             "dataset_version": None,
-                            "case_id": str(name),
+                            "case_id": safe_case_id,
                             "run_index": run_index,
                             "agent_system": args.agent_system,
                             "agent_version": f"git:{git_sha}" if git_sha else None,

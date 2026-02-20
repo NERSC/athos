@@ -72,7 +72,7 @@ def _validate_record(record: dict[str, Any]) -> None:
     if output_text is None and isinstance(record.get("output_text"), str):
         output_text = record["output_text"]
 
-    if status == "success" and not (isinstance(output_text, str) and output_text):
+    if status == "success" and not (isinstance(output_text, str) and output_text.strip()):
         raise ValueError(
             "Record with success status must include response.output_text (or top-level output_text)"
         )
