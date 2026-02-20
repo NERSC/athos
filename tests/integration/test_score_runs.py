@@ -22,12 +22,14 @@ score_runs_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(score_runs_mod)
 
 
-def _write_run(path: Path, run_id: str, case_id: str, output_text: str) -> None:
+def _write_run(
+    path: Path, run_id: str, case_id: str, output_text: str, dataset_id: str = "cases"
+) -> None:
     payload = {
         "schema_version": "athos.run.v1",
         "run_id": run_id,
         "experiment_id": "exp1",
-        "dataset_id": "cases",
+        "dataset_id": dataset_id,
         "dataset_version": None,
         "case_id": case_id,
         "run_index": 0,
@@ -60,7 +62,7 @@ def _write_run(path: Path, run_id: str, case_id: str, output_text: str) -> None:
 def test_score_runs_scores_canonical_runs(tmp_path, monkeypatch):
     runs_dir = tmp_path / "runs"
     _write_run(
-        runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json",
+        runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
         run_id="run-1",
         case_id="case_one",
         output_text="response text",
@@ -127,7 +129,7 @@ def test_score_runs_scores_canonical_runs(tmp_path, monkeypatch):
 def test_score_runs_rescoring_to_separate_outputs(tmp_path, monkeypatch):
     runs_dir = tmp_path / "runs"
     _write_run(
-        runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json",
+        runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
         run_id="run-1",
         case_id="case_one",
         output_text="response text",
@@ -220,7 +222,7 @@ def test_score_runs_rescoring_to_separate_outputs(tmp_path, monkeypatch):
 def test_score_runs_records_skips_and_fail_on_skip(tmp_path, monkeypatch):
     runs_dir = tmp_path / "runs"
     _write_run(
-        runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json",
+        runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
         run_id="run-1",
         case_id="case_one",
         output_text="",
@@ -284,3 +286,74 @@ def test_score_runs_records_skips_and_fail_on_skip(tmp_path, monkeypatch):
     assert skip["schema_version"] == "athos.skip.v1"
     assert skip["run_id"] == "run-1"
     assert skip["reason"] == "skipped_missing_output"
+
+
+def test_score_runs_resolves_references_by_dataset_and_case_id(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "ds1" / "shared_case" / "0" / "run.json",
+        run_id="run-1",
+        case_id="shared_case",
+        output_text="response text",
+        dataset_id="ds1",
+    )
+
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "ds2" / "shared_case" / "0" / "run.json",
+        run_id="run-2",
+        case_id="shared_case",
+        output_text="response text",
+        dataset_id="ds2",
+    )
+
+    ds1_root = tmp_path / "ds1" / "shared_case"
+    ds1_root.mkdir(parents=True)
+    (ds1_root / "user_description.txt").write_text("desc")
+    (ds1_root / "solution.md").write_text("solution one")
+
+    ds2_root = tmp_path / "ds2" / "shared_case"
+    ds2_root.mkdir(parents=True)
+    (ds2_root / "user_description.txt").write_text("desc")
+    (ds2_root / "solution.md").write_text("solution two")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+
+    seen_references = []
+
+    def _record_reference(_model, reference, _resp):
+        seen_references.append(reference)
+        return 90, "ok"
+
+    monkeypatch.setattr(score_runs_mod, "evaluate_response", _record_reference)
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "ds1"),
+            "--cases-dir",
+            str(tmp_path / "ds2"),
+            "--judge-model",
+            "judge_model",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    score_runs_mod.main()
+
+    assert sorted(seen_references) == ["solution one", "solution two"]

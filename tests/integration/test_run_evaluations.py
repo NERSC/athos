@@ -262,7 +262,7 @@ async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
     assert "f1" in summary_payload["flows"]
 
     run_path = canonical_root / "exp1" / "athos"
-    run_records = list(run_path.glob("*/*/*/run.json"))
+    run_records = list(run_path.glob("*/*/*/*/run.json"))
     assert len(run_records) == 1
     run_payload = json.loads(run_records[0].read_text())
     assert run_payload["schema_version"] == "athos.run.v1"
@@ -339,7 +339,7 @@ async def test_run_start_writes_new_run_dirs_without_overwrite(tmp_path, monkeyp
     )
     await revals.main()
 
-    first_run = next((canonical_root / "exp1" / "athos").glob("*/*/0/run.json"))
+    first_run = next((canonical_root / "exp1" / "athos").glob("*/*/*/0/run.json"))
     first_contents = first_run.read_text()
 
     monkeypatch.setattr(
@@ -366,7 +366,7 @@ async def test_run_start_writes_new_run_dirs_without_overwrite(tmp_path, monkeyp
     await revals.main()
 
     root = canonical_root / "exp1" / "athos"
-    run_records = sorted(root.glob("*/*/*/run.json"))
+    run_records = sorted(root.glob("*/*/*/*/run.json"))
     assert len(run_records) == 3
     run_indices = sorted(json.loads(path.read_text())["run_index"] for path in run_records)
     assert run_indices == [0, 1, 2]

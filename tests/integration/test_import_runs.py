@@ -56,7 +56,7 @@ def test_import_runs_writes_canonical_layout(tmp_path, monkeypatch):
     )
     import_runs_mod.main()
 
-    run_path = output_dir / "exp1" / "codex" / "cfg123" / "case_one" / "2" / "run.json"
+    run_path = output_dir / "exp1" / "codex" / "cfg123" / "hpc_cases" / "case_one" / "2" / "run.json"
     assert run_path.exists()
     payload = json.loads(run_path.read_text())
     assert payload["schema_version"] == "athos.run.v1"

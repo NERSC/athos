@@ -54,11 +54,11 @@ Notes:
 
 When `--output-dir` is set, each attempt is written to:
 
-`<output-dir>/<experiment_id>/<agent_system>/<config_id>/<case_id>/<run_index>/run.json`
+`<output-dir>/<experiment_id>/<agent_system>/<config_id>/<dataset_id>/<case_id>/<run_index>/run.json`
 
 Example:
 
-`results/cug2026_main/athos/lang_chat__cborg_coder__abc12345/sbatch-qos-error/0/run.json`
+`results/cug2026_main/athos/lang_chat__cborg_coder__abc12345/test_cases/sbatch-qos-error/0/run.json`
 
 ### Running specific datasets
 

@@ -14,12 +14,13 @@ Canonical storage is **one file per run attempt**.
 
 Directory contract:
 
-`results/<experiment_id>/<agent_system>/<config_id>/<case_id>/<run_index>/run.json`
+`results/<experiment_id>/<agent_system>/<config_id>/<dataset_id>/<case_id>/<run_index>/run.json`
 
 Where:
 - `experiment_id`: campaign grouping (e.g., `cug2026_main`).
 - `agent_system`: `athos`, `codex`, `human`, etc.
 - `config_id`: deterministic ID for model/flow/prompt/tooling config.
+- `dataset_id`: source dataset namespace (e.g., `test_cases`, `simple_qa`).
 - `case_id`: stable test case identifier.
 - `run_index`: integer run index (`0`, `1`, ...).
 

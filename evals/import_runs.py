@@ -191,6 +191,7 @@ def main() -> None:
             / args.experiment_id
             / str(run_record["agent_system"])
             / str(run_record["config_id"])
+            / str(run_record["dataset_id"])
             / str(run_record["case_id"])
             / str(run_record["run_index"])
         )

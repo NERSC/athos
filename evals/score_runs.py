@@ -45,25 +45,47 @@ def _discover_run_paths(runs_dir: str | None, runs_manifest: str | None) -> list
     return deduped
 
 
-def _build_reference_map(cases_dir: Iterable[str], qa_file: Iterable[str]) -> Dict[str, str]:
-    refs: Dict[str, str] = {}
+def _build_reference_map(
+    cases_dir: Iterable[str], qa_file: Iterable[str]
+) -> tuple[Dict[tuple[str, str], str], Dict[str, str | None]]:
+    refs_by_dataset_case: Dict[tuple[str, str], str] = {}
+    refs_by_case: Dict[str, str | None] = {}
+
+    def _update_fallback(case_id: str, solution: str) -> None:
+        if case_id not in refs_by_case:
+            refs_by_case[case_id] = solution
+            return
+        existing = refs_by_case[case_id]
+        if existing is None:
+            return
+        if existing != solution:
+            refs_by_case[case_id] = None
+
     for directory in cases_dir:
+        dataset_id = Path(directory).name
         for case in load_test_cases(Path(directory)):
             case_id = case.get("name")
             solution = case.get("solution")
             if isinstance(case_id, str) and isinstance(solution, str):
-                refs[case_id] = solution
+                refs_by_dataset_case[(dataset_id, case_id)] = solution
+                _update_fallback(case_id, solution)
 
     for qa_path in qa_file:
+        dataset_id = Path(qa_path).stem
         for case in load_qa_cases(Path(qa_path)):
             case_id = case.get("name")
             solution = case.get("solution")
             if isinstance(case_id, str) and isinstance(solution, str):
-                refs[case_id] = solution
-    return refs
+                refs_by_dataset_case[(dataset_id, case_id)] = solution
+                _update_fallback(case_id, solution)
+    return refs_by_dataset_case, refs_by_case
 
 
-def _resolve_reference(run_payload: dict, reference_map: Dict[str, str]) -> str | None:
+def _resolve_reference(
+    run_payload: dict,
+    reference_map: Dict[tuple[str, str], str],
+    fallback_case_map: Dict[str, str | None],
+) -> str | None:
     direct_reference = run_payload.get("reference")
     if isinstance(direct_reference, str) and direct_reference:
         return direct_reference
@@ -75,8 +97,11 @@ def _resolve_reference(run_payload: dict, reference_map: Dict[str, str]) -> str 
             return reference_text
 
     case_id = run_payload.get("case_id")
+    dataset_id = run_payload.get("dataset_id")
+    if isinstance(dataset_id, str) and isinstance(case_id, str):
+        return reference_map.get((dataset_id, case_id))
     if isinstance(case_id, str):
-        return reference_map.get(case_id)
+        return fallback_case_map.get(case_id)
     return None
 
 
@@ -130,7 +155,7 @@ def main() -> None:
     judge_model_instance = smolagents_factories.build_model(cfg.models[args.judge_model])
     judge_id = args.judge_id or f"{args.judge_model}:{args.judge_prompt_version}"
 
-    reference_map = _build_reference_map(args.cases_dir, args.qa_file)
+    reference_map, fallback_case_map = _build_reference_map(args.cases_dir, args.qa_file)
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -186,7 +211,7 @@ def main() -> None:
             if isinstance(response_payload, dict):
                 output_text = response_payload.get("output_text")
 
-            reference = _resolve_reference(run_payload, reference_map)
+            reference = _resolve_reference(run_payload, reference_map, fallback_case_map)
 
             score = None
             feedback = None
