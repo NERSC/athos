@@ -210,6 +210,12 @@ def main() -> None:
             output_text_present = isinstance(output_text, str) and bool(output_text.strip())
 
             reference = _resolve_reference(run_payload, reference_map, fallback_case_map)
+            execution_payload = run_payload.get("execution")
+            execution_status = "success"
+            if isinstance(execution_payload, dict):
+                status_value = execution_payload.get("status")
+                if isinstance(status_value, str) and status_value:
+                    execution_status = status_value
 
             score = None
             feedback = None
@@ -218,6 +224,16 @@ def main() -> None:
             if not (isinstance(run_id, str) and run_id):
                 judgment_status = "skipped_invalid_run"
                 feedback = "Skipped: missing required run_id."
+                _record_skip(
+                    run_path=run_path,
+                    run_id=run_id_for_judgment,
+                    case_id=case_id,
+                    reason=judgment_status,
+                    detail=feedback,
+                )
+            elif execution_status != "success":
+                judgment_status = "skipped_execution_status"
+                feedback = f"Skipped: execution status={execution_status}."
                 _record_skip(
                     run_path=run_path,
                     run_id=run_id_for_judgment,

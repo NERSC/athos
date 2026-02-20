@@ -28,11 +28,28 @@ def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_") or "unknown"
 
 
-def _compute_config_id(flow_name: str, flow_config) -> str:
-    normalized_config = flow_config.model_dump()
-    payload = json.dumps(normalized_config, sort_keys=True, separators=(",", ":"))
+def _compute_config_id(flow_name: str, flow_config, model_config) -> str:
+    normalized_flow_config = flow_config.model_dump()
+    if model_config is None:
+        normalized_model_config = None
+    elif hasattr(model_config, "model_dump"):
+        normalized_model_config = model_config.model_dump()
+    elif isinstance(model_config, dict):
+        normalized_model_config = model_config
+    else:
+        normalized_model_config = {
+            key: value for key, value in vars(model_config).items() if not key.startswith("_")
+        }
+    payload = json.dumps(
+        {
+            "flow_config": normalized_flow_config,
+            "model_config": normalized_model_config,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
-    model_name = _slug(str(normalized_config.get("model", "unknown")))
+    model_name = _slug(str(normalized_flow_config.get("model", "unknown")))
     return f"{_slug(flow_name)}__{model_name}__{digest}"
 
 
@@ -126,6 +143,9 @@ async def main():
         raise ValueError("--run-start must be >= 0")
     if args.output_dir and not args.experiment_id:
         raise ValueError("--experiment-id is required when --output-dir is set")
+    _ensure_safe_path_segment(args.agent_system, "agent_system")
+    if args.experiment_id:
+        _ensure_safe_path_segment(args.experiment_id, "experiment_id")
 
     if not args.cases_dir and not args.qa_file:
         args.cases_dir = ["evals/test_cases"]
@@ -182,12 +202,15 @@ async def main():
 
     for flow_name in args.flow:
         flow_config = cfg.flows[flow_name]
-        config_id = _compute_config_id(flow_name, flow_config)
+        model_alias = getattr(flow_config, "model", None)
+        model_config = cfg.models.get(model_alias) if model_alias else None
+        config_id = _compute_config_id(flow_name, flow_config, model_config)
 
         # Print flow config for debugging
         pprint.pprint(flow_config.model_dump())
 
         for dataset_name, cases in datasets:
+            safe_dataset_id = _ensure_safe_path_segment(str(dataset_name), "dataset_id")
             results = []
             latency_values: list[float] = []
             input_tokens_values: list[int] = []
@@ -283,7 +306,7 @@ async def main():
                             / args.experiment_id
                             / args.agent_system
                             / config_id
-                            / dataset_name
+                            / safe_dataset_id
                             / safe_case_id
                             / str(run_index)
                         )
@@ -298,7 +321,7 @@ async def main():
                             "schema_version": "athos.run.v1",
                             "run_id": str(uuid.uuid4()),
                             "experiment_id": args.experiment_id,
-                            "dataset_id": dataset_name,
+                            "dataset_id": safe_dataset_id,
                             "dataset_version": None,
                             "case_id": safe_case_id,
                             "run_index": run_index,

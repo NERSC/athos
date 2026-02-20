@@ -474,3 +474,66 @@ def test_score_runs_emits_skipped_judgment_when_run_id_missing(tmp_path, monkeyp
     assert judgment["judgment_status"] == "skipped_invalid_run"
     assert judgment["run_id"].startswith("missing_run_id:")
     assert judgment["run_path"] == str(run_path.resolve())
+
+
+def test_score_runs_skips_non_success_execution_status(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    run_path = runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json"
+    payload = {
+        "schema_version": "athos.run.v1",
+        "run_id": "run-1",
+        "experiment_id": "exp1",
+        "dataset_id": "cases",
+        "case_id": "case_one",
+        "run_index": 0,
+        "agent_system": "athos",
+        "config_id": "cfg",
+        "execution": {"status": "execution_error"},
+        "response": {"output_text": "diagnostic text"},
+    }
+    run_path.parent.mkdir(parents=True, exist_ok=True)
+    run_path.write_text(json.dumps(payload))
+
+    case_root = tmp_path / "cases" / "case_one"
+    case_root.mkdir(parents=True)
+    (case_root / "user_description.txt").write_text("desc")
+    (case_root / "solution.md").write_text("expected answer")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+    monkeypatch.setattr(
+        score_runs_mod,
+        "evaluate_response",
+        lambda _model, _sol, _resp: (88, "good"),
+    )
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--judge-model",
+            "judge_model",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    score_runs_mod.main()
+
+    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
+    assert judgment["judgment_status"] == "skipped_execution_status"
+    assert judgment["score"] is None

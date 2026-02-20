@@ -646,3 +646,147 @@ async def test_run_evaluations_rejects_unsafe_case_id_for_output_path(tmp_path, 
         raise AssertionError("Expected ValueError for unsafe case_id path segment")
     except ValueError as exc:
         assert "case_id" in str(exc)
+
+
+async def test_run_evaluations_rejects_unsafe_experiment_or_agent_segments(tmp_path, monkeypatch):
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1", model_dump=lambda: {"model_id": "m1"})},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(tmp_path / "results"),
+            "--experiment-id",
+            "../bad",
+        ],
+    )
+    try:
+        await revals.main()
+        raise AssertionError("Expected ValueError for unsafe experiment_id")
+    except ValueError as exc:
+        assert "experiment_id" in str(exc)
+
+
+async def test_config_id_changes_when_model_config_changes(tmp_path, monkeypatch):
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    class DummyModelCfg:
+        def __init__(self, model_id):
+            self.model_id = model_id
+
+        def model_dump(self):
+            return {"model_id": self.model_id}
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    monkeypatch.setattr(
+        revals.subprocess,
+        "check_output",
+        lambda *args, **kwargs: b"abcdef123456\n",
+    )
+
+    root = tmp_path / "results"
+
+    cfg_a = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": DummyModelCfg("provider/model-a")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=cfg_a))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(root),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+    await revals.main()
+
+    cfg_b = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": DummyModelCfg("provider/model-b")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=cfg_b))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(root),
+            "--experiment-id",
+            "exp1",
+            "--run-start",
+            "1",
+        ],
+    )
+    await revals.main()
+
+    config_dirs = [p.name for p in (root / "exp1" / "athos").iterdir() if p.is_dir()]
+    assert len(config_dirs) == 2
