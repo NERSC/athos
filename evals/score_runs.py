@@ -245,7 +245,18 @@ def main() -> None:
                 score, feedback = evaluate_response(judge_model_instance, reference, output_text)
                 if isinstance(score, (int, float)):
                     passed = score >= args.passing_score
-                scored_count += 1
+                    scored_count += 1
+                else:
+                    judgment_status = "skipped_invalid_judge_score"
+                    if not isinstance(feedback, str) or not feedback:
+                        feedback = "Skipped: judge returned non-numeric score."
+                    _record_skip(
+                        run_path=run_path,
+                        run_id=run_id_for_judgment,
+                        case_id=case_id,
+                        reason=judgment_status,
+                        detail=feedback,
+                    )
             else:
                 if not (isinstance(reference, str) and reference):
                     judgment_status = "skipped_missing_reference"

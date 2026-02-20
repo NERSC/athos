@@ -46,7 +46,9 @@ def try_chat_completion(
         "max_tokens": max_tokens,
     }
     try:
-        _request_json(f"{base}/chat/completions", api_key, method="POST", payload=payload)
+        _request_json(
+            f"{base}/v1/chat/completions", api_key, method="POST", payload=payload
+        )
         return True, "ok"
     except urllib.error.HTTPError as exc:
         try:
