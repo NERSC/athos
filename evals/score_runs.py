@@ -90,6 +90,16 @@ def main() -> None:
     parser.add_argument("--judge-id", default=None)
     parser.add_argument("--passing-score", type=float, default=80.0)
     parser.add_argument(
+        "--fail-on-skip",
+        action="store_true",
+        help="Exit non-zero if any run cannot be scored",
+    )
+    parser.add_argument(
+        "--skips-output",
+        default=None,
+        help="Optional JSONL file to write detailed skip records",
+    )
+    parser.add_argument(
         "--cases-dir",
         action="append",
         default=[],
@@ -124,15 +134,51 @@ def main() -> None:
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    skips_output_path = Path(args.skips_output) if args.skips_output else None
+    if skips_output_path:
+        skips_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     scored_count = 0
     skipped_count = 0
+    skipped_reasons: dict[str, int] = {}
+    skips: list[dict] = []
+
+    def _record_skip(
+        *,
+        run_path: Path,
+        run_id: str | None,
+        reason: str,
+        detail: str,
+        case_id: str | None = None,
+    ) -> None:
+        nonlocal skipped_count
+        skipped_count += 1
+        skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
+        skips.append(
+            {
+                "schema_version": "athos.skip.v1",
+                "run_id": run_id,
+                "case_id": case_id,
+                "run_path": str(run_path),
+                "reason": reason,
+                "detail": detail,
+                "skipped_at_utc": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
     with output_path.open("a", encoding="utf-8") as handle:
         for run_path in run_paths:
             run_payload = json.loads(run_path.read_text())
             run_id = run_payload.get("run_id")
+            case_id = run_payload.get("case_id") if isinstance(run_payload.get("case_id"), str) else None
             if not isinstance(run_id, str) or not run_id:
-                skipped_count += 1
+                _record_skip(
+                    run_path=run_path,
+                    run_id=None,
+                    case_id=case_id,
+                    reason="skipped_invalid_run",
+                    detail="Missing required run_id",
+                )
                 continue
 
             response_payload = run_payload.get("response")
@@ -143,15 +189,31 @@ def main() -> None:
             reference = _resolve_reference(run_payload, reference_map)
 
             score = None
-            feedback = "Skipped: missing reference or response output."
+            feedback = None
             passed = None
+            judgment_status = "scored"
             if isinstance(reference, str) and reference and isinstance(output_text, str) and output_text:
                 score, feedback = evaluate_response(judge_model_instance, reference, output_text)
                 if isinstance(score, (int, float)):
                     passed = score >= args.passing_score
                 scored_count += 1
             else:
-                skipped_count += 1
+                if not (isinstance(reference, str) and reference):
+                    judgment_status = "skipped_missing_reference"
+                    feedback = "Skipped: missing reference."
+                elif not (isinstance(output_text, str) and output_text):
+                    judgment_status = "skipped_missing_output"
+                    feedback = "Skipped: missing response output."
+                else:
+                    judgment_status = "skipped_invalid_run"
+                    feedback = "Skipped: invalid run payload."
+                _record_skip(
+                    run_path=run_path,
+                    run_id=run_id,
+                    case_id=case_id,
+                    reason=judgment_status,
+                    detail=feedback,
+                )
 
             judgment = {
                 "schema_version": "athos.judgment.v1",
@@ -161,6 +223,7 @@ def main() -> None:
                 "judge_model": args.judge_model,
                 "judge_prompt_version": args.judge_prompt_version,
                 "scored_at_utc": datetime.now(timezone.utc).isoformat(),
+                "judgment_status": judgment_status,
                 "score": float(score) if isinstance(score, (int, float)) else None,
                 "pass": passed,
                 "rationale": feedback,
@@ -168,10 +231,21 @@ def main() -> None:
             }
             handle.write(json.dumps(judgment) + "\n")
 
+    if skips_output_path:
+        with skips_output_path.open("a", encoding="utf-8") as skip_handle:
+            for skip in skips:
+                skip_handle.write(json.dumps(skip) + "\n")
+
     print(
         f"Wrote judgments to {output_path} "
-        f"(scored={scored_count}, skipped={skipped_count}, total={len(run_paths)})"
+        f"(scored={scored_count}, skipped={skipped_count}, total={len(run_paths)}, "
+        f"skip_reasons={skipped_reasons})"
     )
+
+    if args.fail_on_skip and skipped_count > 0:
+        raise SystemExit(
+            f"Scoring encountered {skipped_count} skipped runs (fail-on-skip enabled)."
+        )
 
 
 if __name__ == "__main__":

@@ -5,6 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -116,6 +118,7 @@ def test_score_runs_scores_canonical_runs(tmp_path, monkeypatch):
     assert judgment["judge_id"] == "judge_v1"
     assert judgment["judge_model"] == "judge_model"
     assert judgment["judge_prompt_version"] == "rubric_v1"
+    assert judgment["judgment_status"] == "scored"
     assert judgment["score"] == 88.0
     assert judgment["pass"] is True
     assert judgment["rationale"] == "good"
@@ -210,3 +213,74 @@ def test_score_runs_rescoring_to_separate_outputs(tmp_path, monkeypatch):
     assert payload_b["judge_id"] == "judge_b_v2"
     assert payload_b["judge_model"] == "judge_b"
     assert payload_b["judge_prompt_version"] == "rubric_v2"
+    assert payload_a["judgment_status"] == "scored"
+    assert payload_b["judgment_status"] == "scored"
+
+
+def test_score_runs_records_skips_and_fail_on_skip(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json",
+        run_id="run-1",
+        case_id="case_one",
+        output_text="",
+    )
+
+    case_root = tmp_path / "cases" / "case_one"
+    case_root.mkdir(parents=True)
+    (case_root / "user_description.txt").write_text("desc")
+    (case_root / "solution.md").write_text("expected answer")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+    monkeypatch.setattr(
+        score_runs_mod,
+        "evaluate_response",
+        lambda _model, _sol, _resp: (88, "good"),
+    )
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    skips_jsonl = tmp_path / "skips.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--judge-model",
+            "judge_model",
+            "--judge-id",
+            "judge_v1",
+            "--judge-prompt-version",
+            "rubric_v1",
+            "--skips-output",
+            str(skips_jsonl),
+            "--fail-on-skip",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    with pytest.raises(SystemExit, match="fail-on-skip enabled"):
+        score_runs_mod.main()
+
+    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
+    assert judgment["judgment_status"] == "skipped_missing_output"
+    assert judgment["score"] is None
+    assert judgment["pass"] is None
+
+    skip = json.loads(skips_jsonl.read_text().splitlines()[0])
+    assert skip["schema_version"] == "athos.skip.v1"
+    assert skip["run_id"] == "run-1"
+    assert skip["reason"] == "skipped_missing_output"
