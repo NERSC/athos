@@ -185,3 +185,114 @@ def test_summarize_results_ignores_skips_sidecar_file(tmp_path, monkeypatch):
     # Only one real judgment source should be listed; .skips.jsonl sidecar is ignored.
     assert len(payload["judgment_sources"]) == 1
     assert payload["judgment_sources"][0].endswith("judge.jsonl")
+
+
+def test_summarize_results_dedupes_multiple_judgments_for_same_run(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    run_path = runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json"
+    _write_run(run_path, "run-1", "case_one", 0)
+
+    judgments_dir = tmp_path / "judgments"
+    judgments_dir.mkdir(parents=True)
+    (judgments_dir / "judge_a.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": "run-1",
+                "judgment_status": "scored",
+                "score": 10,
+                "pass": False,
+                "scored_at_utc": "2026-02-20T01:00:00+00:00",
+            }
+        )
+        + "\n"
+    )
+    (judgments_dir / "judge_b.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": "run-1",
+                "judgment_status": "scored",
+                "score": 90,
+                "pass": True,
+                "scored_at_utc": "2026-02-20T02:00:00+00:00",
+            }
+        )
+        + "\n"
+    )
+
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "summarize_results",
+            "--runs-dir",
+            str(runs_dir),
+            "--judgments-dir",
+            str(judgments_dir),
+            "--output",
+            str(output_path),
+        ],
+    )
+    summarize_results_mod.main()
+
+    payload = json.loads(output_path.read_text())
+    agg = payload["aggregates"][0]
+    assert agg["run_count"] == 1
+    assert agg["scored_count"] == 1
+    assert agg["score_mean"] == 90.0
+
+
+def test_summarize_results_uses_run_path_for_missing_run_id(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    run_path = runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json"
+    payload = {
+        "schema_version": "athos.run.v1",
+        "experiment_id": "exp1",
+        "dataset_id": "cases",
+        "case_id": "case_one",
+        "run_index": 0,
+        "agent_system": "athos",
+        "config_id": "cfg",
+        "execution": {"status": "success"},
+        "response": {"output_text": "response text"},
+    }
+    run_path.parent.mkdir(parents=True, exist_ok=True)
+    run_path.write_text(json.dumps(payload))
+
+    judgments_dir = tmp_path / "judgments"
+    judgments_dir.mkdir(parents=True)
+    (judgments_dir / "judge.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": "missing_run_id:abc123",
+                "run_path": str(run_path.resolve()),
+                "judgment_status": "skipped_invalid_run",
+                "score": None,
+                "pass": None,
+            }
+        )
+        + "\n"
+    )
+
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "summarize_results",
+            "--runs-dir",
+            str(runs_dir),
+            "--judgments-dir",
+            str(judgments_dir),
+            "--output",
+            str(output_path),
+        ],
+    )
+    summarize_results_mod.main()
+
+    summary = json.loads(output_path.read_text())
+    agg = summary["aggregates"][0]
+    assert agg["run_count"] == 1
+    assert agg["scored_count"] == 0
+    assert agg["skipped_count"] == 1
+    assert agg["skipped_by_reason"] == {"skipped_invalid_run": 1}

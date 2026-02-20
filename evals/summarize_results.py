@@ -61,8 +61,34 @@ def _ci95(values: list[float]) -> float | None:
     return 1.96 * sigma / math.sqrt(len(values))
 
 
-def _parse_judgments(paths: list[Path]) -> dict[str, list[dict[str, Any]]]:
-    by_run_id: dict[str, list[dict[str, Any]]] = defaultdict(list)
+def _parse_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _prefer_judgment(existing: dict[str, Any] | None, candidate: dict[str, Any]) -> dict[str, Any]:
+    if existing is None:
+        return candidate
+    existing_dt = _parse_datetime(existing.get("scored_at_utc"))
+    candidate_dt = _parse_datetime(candidate.get("scored_at_utc"))
+    if existing_dt is None and candidate_dt is None:
+        return candidate
+    if existing_dt is None:
+        return candidate
+    if candidate_dt is None:
+        return existing
+    return candidate if candidate_dt >= existing_dt else existing
+
+
+def _parse_judgments(
+    paths: list[Path],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    by_run_id: dict[str, dict[str, Any]] = {}
+    by_run_path: dict[str, dict[str, Any]] = {}
     for path in paths:
         for line in path.read_text().splitlines():
             line = line.strip()
@@ -71,8 +97,12 @@ def _parse_judgments(paths: list[Path]) -> dict[str, list[dict[str, Any]]]:
             payload = json.loads(line)
             run_id = payload.get("run_id")
             if isinstance(run_id, str) and run_id:
-                by_run_id[run_id].append(payload)
-    return by_run_id
+                by_run_id[run_id] = _prefer_judgment(by_run_id.get(run_id), payload)
+            run_path = payload.get("run_path")
+            if isinstance(run_path, str) and run_path:
+                resolved = str(Path(run_path).resolve())
+                by_run_path[resolved] = _prefer_judgment(by_run_path.get(resolved), payload)
+    return by_run_id, by_run_path
 
 
 def main() -> None:
@@ -93,7 +123,7 @@ def main() -> None:
         raise ValueError(f"No run.json files found under {args.runs_dir}")
 
     judgment_paths = _discover_judgment_paths(args.judgments_dir, args.judgment_file)
-    judgments_by_run_id = _parse_judgments(judgment_paths)
+    judgments_by_run_id, judgments_by_run_path = _parse_judgments(judgment_paths)
 
     groups: dict[tuple[str, str, str, str], dict[str, Any]] = defaultdict(
         lambda: {
@@ -118,19 +148,24 @@ def main() -> None:
         group = groups[key]
         group["run_count"] += 1
 
+        judgment = None
         if isinstance(run_id, str) and run_id:
-            for judgment in judgments_by_run_id.get(run_id, []):
-                judgment_status = judgment.get("judgment_status")
-                if isinstance(judgment_status, str) and judgment_status.startswith("skipped_"):
-                    group["skipped_count"] += 1
-                    group["skipped_by_reason"][judgment_status] += 1
-                score = judgment.get("score")
-                passed = judgment.get("pass")
-                if isinstance(score, (int, float)):
-                    group["scored_count"] += 1
-                    group["scores"].append(float(score))
-                if isinstance(passed, bool) and passed:
-                    group["pass_count"] += 1
+            judgment = judgments_by_run_id.get(run_id)
+        else:
+            judgment = judgments_by_run_path.get(str(run_path.resolve()))
+
+        if isinstance(judgment, dict):
+            judgment_status = judgment.get("judgment_status")
+            if isinstance(judgment_status, str) and judgment_status.startswith("skipped_"):
+                group["skipped_count"] += 1
+                group["skipped_by_reason"][judgment_status] += 1
+            score = judgment.get("score")
+            passed = judgment.get("pass")
+            if isinstance(score, (int, float)):
+                group["scored_count"] += 1
+                group["scores"].append(float(score))
+            if isinstance(passed, bool) and passed:
+                group["pass_count"] += 1
 
     aggregates: list[dict[str, Any]] = []
     for (experiment_id, agent_system, config_id, dataset_id), group in sorted(groups.items()):

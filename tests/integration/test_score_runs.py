@@ -357,3 +357,66 @@ def test_score_runs_resolves_references_by_dataset_and_case_id(tmp_path, monkeyp
     score_runs_mod.main()
 
     assert sorted(seen_references) == ["solution one", "solution two"]
+
+
+def test_score_runs_emits_skipped_judgment_when_run_id_missing(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    run_path = runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json"
+    payload = {
+        "schema_version": "athos.run.v1",
+        "experiment_id": "exp1",
+        "dataset_id": "cases",
+        "case_id": "case_one",
+        "run_index": 0,
+        "agent_system": "athos",
+        "config_id": "cfg",
+        "execution": {"status": "success"},
+        "response": {"output_text": "response"},
+    }
+    run_path.parent.mkdir(parents=True, exist_ok=True)
+    run_path.write_text(json.dumps(payload))
+
+    case_root = tmp_path / "cases" / "case_one"
+    case_root.mkdir(parents=True)
+    (case_root / "user_description.txt").write_text("desc")
+    (case_root / "solution.md").write_text("expected answer")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+    monkeypatch.setattr(
+        score_runs_mod,
+        "evaluate_response",
+        lambda _model, _sol, _resp: (88, "good"),
+    )
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--judge-model",
+            "judge_model",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    score_runs_mod.main()
+
+    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
+    assert judgment["judgment_status"] == "skipped_invalid_run"
+    assert judgment["run_id"].startswith("missing_run_id:")
+    assert judgment["run_path"] == str(run_path.resolve())

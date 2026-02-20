@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
@@ -195,16 +196,12 @@ def main() -> None:
         for run_path in run_paths:
             run_payload = json.loads(run_path.read_text())
             run_id = run_payload.get("run_id")
+            run_path_str = str(run_path.resolve())
             case_id = run_payload.get("case_id") if isinstance(run_payload.get("case_id"), str) else None
-            if not isinstance(run_id, str) or not run_id:
-                _record_skip(
-                    run_path=run_path,
-                    run_id=None,
-                    case_id=case_id,
-                    reason="skipped_invalid_run",
-                    detail="Missing required run_id",
-                )
-                continue
+            run_id_for_judgment = run_id if isinstance(run_id, str) and run_id else None
+            if run_id_for_judgment is None:
+                digest = hashlib.sha1(run_path_str.encode("utf-8")).hexdigest()[:12]
+                run_id_for_judgment = f"missing_run_id:{digest}"
 
             response_payload = run_payload.get("response")
             output_text = None
@@ -217,7 +214,17 @@ def main() -> None:
             feedback = None
             passed = None
             judgment_status = "scored"
-            if isinstance(reference, str) and reference and isinstance(output_text, str) and output_text:
+            if not (isinstance(run_id, str) and run_id):
+                judgment_status = "skipped_invalid_run"
+                feedback = "Skipped: missing required run_id."
+                _record_skip(
+                    run_path=run_path,
+                    run_id=run_id_for_judgment,
+                    case_id=case_id,
+                    reason=judgment_status,
+                    detail=feedback,
+                )
+            elif isinstance(reference, str) and reference and isinstance(output_text, str) and output_text:
                 score, feedback = evaluate_response(judge_model_instance, reference, output_text)
                 if isinstance(score, (int, float)):
                     passed = score >= args.passing_score
@@ -243,7 +250,8 @@ def main() -> None:
             judgment = {
                 "schema_version": "athos.judgment.v1",
                 "score_id": str(uuid.uuid4()),
-                "run_id": run_id,
+                "run_id": run_id_for_judgment,
+                "run_path": run_path_str,
                 "judge_id": judge_id,
                 "judge_model": args.judge_model,
                 "judge_prompt_version": args.judge_prompt_version,
