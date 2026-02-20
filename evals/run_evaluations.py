@@ -10,7 +10,6 @@ import re
 import shlex
 import socket
 import subprocess
-from datetime import datetime, timezone
 import sys
 import uuid
 
@@ -22,6 +21,7 @@ from athos.models.metrics import ExecutionMetrics
 from athos.runtime.runner import FlowRunner
 
 from eval_io import build_input, load_qa_cases, load_test_cases
+from run_records import build_run_record, canonical_run_dir, ensure_safe_path_segment, now_utc_iso
 
 
 def _slug(value: str) -> str:
@@ -78,20 +78,6 @@ def _status_from_exception(error: Exception) -> str:
     return "execution_error"
 
 
-def _ensure_safe_path_segment(value: str, field: str) -> str:
-    p = Path(value)
-    if p.is_absolute():
-        raise ValueError(f"Field '{field}' must be a relative path segment")
-    if value in {".", ".."}:
-        raise ValueError(f"Field '{field}' contains an invalid path segment")
-    parts = p.parts
-    if len(parts) != 1 or parts[0] in {".", ".."}:
-        raise ValueError(f"Field '{field}' must not contain path separators or traversal")
-    if "\\" in value:
-        raise ValueError(f"Field '{field}' must not contain path separators")
-    return value
-
-
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config/config.yaml")
@@ -114,18 +100,13 @@ async def main():
         help="JSON Lines file with question/answer pairs (can be used multiple times)",
     )
     parser.add_argument(
-        "--output",
-        default=None,
-        help="Optional output file for results JSON",
-    )
-    parser.add_argument(
         "--output-dir",
-        default=None,
+        required=True,
         help="Output directory for canonical per-run run.json artifacts",
     )
     parser.add_argument(
         "--experiment-id",
-        default=None,
+        required=True,
         help="Experiment ID used in canonical run artifact paths",
     )
     parser.add_argument(
@@ -157,11 +138,8 @@ async def main():
         raise ValueError("--run-count must be >= 1")
     if args.run_start < 0:
         raise ValueError("--run-start must be >= 0")
-    if args.output_dir and not args.experiment_id:
-        raise ValueError("--experiment-id is required when --output-dir is set")
-    _ensure_safe_path_segment(args.agent_system, "agent_system")
-    if args.experiment_id:
-        _ensure_safe_path_segment(args.experiment_id, "experiment_id")
+    ensure_safe_path_segment(args.agent_system, "agent_system")
+    ensure_safe_path_segment(args.experiment_id, "experiment_id")
 
     if not args.cases_dir and not args.qa_file:
         args.cases_dir = ["evals/test_cases"]
@@ -194,28 +172,11 @@ async def main():
         path = Path(fpath)
         datasets.append((path.stem, load_qa_cases(path)))
 
-    all_results = {
-        "meta": {
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "git_sha": git_sha,
-            "config": str(args.config),
-            "flows": list(args.flow),
-            "cases_dir": list(args.cases_dir),
-            "qa_file": list(args.qa_file),
-            "run_count": args.run_count,
-            "run_start": args.run_start,
-            "output_dir": args.output_dir,
-            "experiment_id": args.experiment_id,
-            "agent_system": args.agent_system,
-        },
-        "flows": {fn: {} for fn in args.flow},
-    }
-
-    output_dir = Path(args.output_dir) if args.output_dir else None
+    output_dir = Path(args.output_dir)
     command = shlex.join(sys.argv)
     hostname = socket.gethostname()
-    now_iso = lambda: datetime.now(timezone.utc).isoformat()
 
+    total_runs = 0
     for flow_name in args.flow:
         flow_config = cfg.flows[flow_name]
         model_alias = getattr(flow_config, "model", None)
@@ -226,21 +187,16 @@ async def main():
         pprint.pprint(flow_config.model_dump())
 
         for dataset_name, cases in datasets:
-            safe_dataset_id = _ensure_safe_path_segment(str(dataset_name), "dataset_id")
-            results = []
-            latency_values: list[float] = []
-            input_tokens_values: list[int] = []
-            output_tokens_values: list[int] = []
-            total_tokens_values: list[int] = []
+            safe_dataset_id = ensure_safe_path_segment(str(dataset_name), "dataset_id")
             for case in cases:
                 name = case["name"]
                 desc = case["description"]
                 files_dir = case.get("files_dir")
                 input_data = build_input(desc, files_dir)
-                safe_case_id = _ensure_safe_path_segment(str(name), "case_id")
+                safe_case_id = ensure_safe_path_segment(str(name), "case_id")
                 for run_offset in range(args.run_count):
                     run_index = args.run_start + run_offset
-                    started_at = now_iso()
+                    started_at = now_utc_iso()
                     execution_status = "success"
                     error_type = None
                     error_message = None
@@ -288,122 +244,60 @@ async def main():
                         execution_status = _status_from_exception(e)
                         error_type = e.__class__.__name__
                         error_message = str(e)
-                    finished_at = now_iso()
-
-                    if isinstance(metrics_payload, dict):
-                        latency = metrics_payload.get("latency_ms")
-                        if isinstance(latency, (int, float)):
-                            latency_values.append(float(latency))
-                        token_usage = metrics_payload.get("token_usage")
-                        if isinstance(token_usage, dict):
-                            input_tokens = token_usage.get("input_tokens")
-                            output_tokens = token_usage.get("output_tokens")
-                            if isinstance(input_tokens, int):
-                                input_tokens_values.append(input_tokens)
-                            if isinstance(output_tokens, int):
-                                output_tokens_values.append(output_tokens)
-                            if isinstance(input_tokens, int) and isinstance(output_tokens, int):
-                                total_tokens_values.append(input_tokens + output_tokens)
-
-                    result_payload = {
-                        "test_case": name,
-                        "run_index": run_index,
-                        "response": response if response is not None else f"Error executing flow: {error_message or 'Unknown error'}",
-                        "metrics": metrics_payload,
-                        "status": execution_status,
-                        "error_type": error_type,
-                        "error_message": error_message,
-                    }
-                    results.append(result_payload)
-
-                    if output_dir:
-                        run_dir = (
-                            output_dir
-                            / args.experiment_id
-                            / args.agent_system
-                            / config_id
-                            / safe_dataset_id
-                            / safe_case_id
-                            / str(run_index)
+                    finished_at = now_utc_iso()
+                    run_dir = canonical_run_dir(
+                        output_root=output_dir,
+                        experiment_id=args.experiment_id,
+                        agent_system=args.agent_system,
+                        config_id=config_id,
+                        dataset_id=safe_dataset_id,
+                        case_id=safe_case_id,
+                        run_index=run_index,
+                    )
+                    run_path = run_dir / "run.json"
+                    if run_path.exists() and not args.allow_overwrite_runs:
+                        raise FileExistsError(
+                            f"Canonical run file already exists: {run_path}. "
+                            "Choose a new --run-start or pass --allow-overwrite-runs."
                         )
-                        run_path = run_dir / "run.json"
-                        if run_path.exists() and not args.allow_overwrite_runs:
-                            raise FileExistsError(
-                                f"Canonical run file already exists: {run_path}. "
-                                "Choose a new --run-start or pass --allow-overwrite-runs."
-                            )
-                        run_dir.mkdir(parents=True, exist_ok=True)
-                        run_record = {
-                            "schema_version": "athos.run.v1",
-                            "run_id": str(uuid.uuid4()),
-                            "experiment_id": args.experiment_id,
-                            "dataset_id": safe_dataset_id,
-                            "dataset_version": None,
-                            "case_id": safe_case_id,
-                            "run_index": run_index,
-                            "agent_system": args.agent_system,
-                            "agent_version": f"git:{git_sha}" if git_sha else None,
-                            "config_id": config_id,
-                            "config_ref": str(args.config),
-                            "execution": {
-                                "started_at_utc": started_at,
-                                "finished_at_utc": finished_at,
-                                "status": execution_status,
-                                "error_type": error_type,
-                                "error_message": error_message,
-                            },
-                            "request": {
-                                "input_text": input_data,
-                                "input_artifacts": [],
-                            },
-                            "response": {
-                                "output_text": response,
-                                "output_artifacts": [],
-                            },
-                            "metrics": metrics_payload if isinstance(metrics_payload, dict) else {},
-                            "provenance": {
-                                "runner": "evals/run_evaluations.py",
-                                "command": command,
-                                "hostname": hostname,
-                                "git_sha": git_sha,
-                                "env_fingerprint": None,
-                            },
-                        }
-                        run_path.write_text(json.dumps(run_record, indent=2))
-
-            print(f"\nEvaluation Results for {flow_name} on {dataset_name}:")
-            for r in results:
-                print(f"- {r['test_case']}: status={r['status']}")
-
-            def _percentile(values: list[float], percentile: float) -> float | None:
-                if not values:
-                    return None
-                ordered = sorted(values)
-                index = int(round((percentile / 100) * (len(ordered) - 1)))
-                return ordered[index]
-
-            summary = {
-                "avg_latency_ms": (sum(latency_values) / len(latency_values)) if latency_values else None,
-                "p50_latency_ms": _percentile(latency_values, 50),
-                "p90_latency_ms": _percentile(latency_values, 90),
-                "total_input_tokens": sum(input_tokens_values) if input_tokens_values else 0,
-                "total_output_tokens": sum(output_tokens_values) if output_tokens_values else 0,
-                "total_tokens": sum(total_tokens_values) if total_tokens_values else 0,
-                "avg_total_tokens": (sum(total_tokens_values) / len(total_tokens_values)) if total_tokens_values else None,
-            }
-
-            all_results["flows"][flow_name][dataset_name] = {
-                "summary": summary,
-                "cases": results,
-            }
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    run_record = build_run_record(
+                        run_id=str(uuid.uuid4()),
+                        experiment_id=args.experiment_id,
+                        dataset_id=safe_dataset_id,
+                        dataset_version=None,
+                        case_id=safe_case_id,
+                        run_index=run_index,
+                        agent_system=args.agent_system,
+                        agent_version=f"git:{git_sha}" if git_sha else None,
+                        config_id=config_id,
+                        config_ref=str(args.config),
+                        execution={
+                            "started_at_utc": started_at,
+                            "finished_at_utc": finished_at,
+                            "status": execution_status,
+                            "error_type": error_type,
+                            "error_message": error_message,
+                        },
+                        request={"input_text": input_data, "input_artifacts": []},
+                        response={"output_text": response, "output_artifacts": []},
+                        metrics=metrics_payload if isinstance(metrics_payload, dict) else {},
+                        provenance={
+                            "runner": "evals/run_evaluations.py",
+                            "command": command,
+                            "hostname": hostname,
+                            "git_sha": git_sha,
+                            "env_fingerprint": None,
+                        },
+                    )
+                    run_path.write_text(json.dumps(run_record, indent=2))
+                    total_runs += 1
 
     try:
         await runner.cleanup()
     except Exception as e:  # pragma: no cover - cleanup errors ignored
         print(f"Warning: failed to cleanup flow runner: {e}")
-
-    if args.output:
-        Path(args.output).write_text(json.dumps(all_results, indent=2))
+    print(f"Wrote {total_runs} canonical runs under {output_dir / args.experiment_id}")
 
 
 if __name__ == "__main__":

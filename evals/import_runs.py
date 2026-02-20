@@ -7,9 +7,10 @@ import argparse
 import json
 import socket
 import uuid
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from run_records import build_run_record, canonical_run_dir, ensure_safe_path_segment
 
 
 def _read_records(path: Path) -> list[dict[str, Any]]:
@@ -29,34 +30,13 @@ def _read_records(path: Path) -> list[dict[str, Any]]:
     raise ValueError("Import payload must be JSON object, JSON array, or JSONL")
 
 
-def _ensure_string(value: Any, field: str) -> str:
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"Missing required non-empty string field: {field}")
-    return value
-
-
-def _ensure_safe_path_segment(value: Any, field: str) -> str:
-    candidate = _ensure_string(value, field)
-    p = Path(candidate)
-    if p.is_absolute():
-        raise ValueError(f"Field '{field}' must be a relative path segment")
-    if candidate in {".", ".."}:
-        raise ValueError(f"Field '{field}' contains an invalid path segment")
-    parts = p.parts
-    if len(parts) != 1 or parts[0] in {".", ".."}:
-        raise ValueError(f"Field '{field}' must not contain path separators or traversal")
-    if "\\" in candidate:
-        raise ValueError(f"Field '{field}' must not contain path separators")
-    return candidate
-
-
 def _validate_record(record: dict[str, Any]) -> None:
-    _ensure_safe_path_segment(record.get("case_id"), "case_id")
-    _ensure_safe_path_segment(record.get("agent_system"), "agent_system")
-    _ensure_safe_path_segment(record.get("config_id"), "config_id")
+    ensure_safe_path_segment(record.get("case_id"), "case_id")
+    ensure_safe_path_segment(record.get("agent_system"), "agent_system")
+    ensure_safe_path_segment(record.get("config_id"), "config_id")
     dataset_id = record.get("dataset_id")
     if isinstance(dataset_id, str) and dataset_id:
-        _ensure_safe_path_segment(dataset_id, "dataset_id")
+        ensure_safe_path_segment(dataset_id, "dataset_id")
 
     execution = record.get("execution")
     status = "success"
@@ -97,7 +77,6 @@ def _to_run_record(
     config_ref: str | None,
     command: str,
 ) -> dict[str, Any]:
-    now = datetime.now(timezone.utc).isoformat()
     execution = record.get("execution") if isinstance(record.get("execution"), dict) else {}
     response_payload = record.get("response") if isinstance(record.get("response"), dict) else {}
     request_payload = record.get("request") if isinstance(record.get("request"), dict) else {}
@@ -108,60 +87,61 @@ def _to_run_record(
     if output_text is None and isinstance(record.get("output_text"), str):
         output_text = record["output_text"]
 
-    started = execution.get("started_at_utc")
-    finished = execution.get("finished_at_utc")
     status = execution.get("status")
     if not isinstance(status, str) or not status:
         status = "success"
 
-    return {
-        "schema_version": "athos.run.v1",
-        "run_id": record.get("run_id") if isinstance(record.get("run_id"), str) else str(uuid.uuid4()),
-        "experiment_id": experiment_id,
-        "dataset_id": (
-            record.get("dataset_id")
-            if isinstance(record.get("dataset_id"), str) and record.get("dataset_id")
-            else dataset_id
-        ),
-        "dataset_version": (
+    resolved_dataset_id = (
+        record.get("dataset_id")
+        if isinstance(record.get("dataset_id"), str) and record.get("dataset_id")
+        else dataset_id
+    )
+    if not isinstance(resolved_dataset_id, str) or not resolved_dataset_id:
+        raise ValueError("Imported record is missing dataset_id")
+
+    return build_run_record(
+        run_id=record.get("run_id") if isinstance(record.get("run_id"), str) else str(uuid.uuid4()),
+        experiment_id=experiment_id,
+        dataset_id=resolved_dataset_id,
+        dataset_version=(
             record.get("dataset_version")
             if isinstance(record.get("dataset_version"), str)
             else dataset_version
         ),
-        "case_id": record["case_id"],
-        "run_index": int(record.get("run_index", 0)),
-        "agent_system": record["agent_system"],
-        "agent_version": record.get("agent_version"),
-        "config_id": record["config_id"],
-        "config_ref": (
+        case_id=record["case_id"],
+        run_index=int(record.get("run_index", 0)),
+        agent_system=record["agent_system"],
+        agent_version=record.get("agent_version"),
+        config_id=record["config_id"],
+        config_ref=(
             record.get("config_ref")
             if isinstance(record.get("config_ref"), str) and record.get("config_ref")
             else config_ref
         ),
-        "execution": {
-            "started_at_utc": started if isinstance(started, str) else now,
-            "finished_at_utc": finished if isinstance(finished, str) else now,
+        execution={
+            "started_at_utc": execution.get("started_at_utc"),
+            "finished_at_utc": execution.get("finished_at_utc"),
             "status": status,
             "error_type": execution.get("error_type"),
             "error_message": execution.get("error_message"),
         },
-        "request": {
+        request={
             "input_text": request_payload.get("input_text"),
             "input_artifacts": request_payload.get("input_artifacts", []),
         },
-        "response": {
+        response={
             "output_text": output_text,
             "output_artifacts": response_payload.get("output_artifacts", []),
         },
-        "metrics": metrics_payload,
-        "provenance": {
+        metrics=metrics_payload,
+        provenance={
             "runner": provenance_payload.get("runner", "evals/import_runs.py"),
             "command": provenance_payload.get("command", command),
             "hostname": provenance_payload.get("hostname", socket.gethostname()),
             "git_sha": provenance_payload.get("git_sha"),
             "env_fingerprint": provenance_payload.get("env_fingerprint"),
         },
-    }
+    )
 
 
 def main() -> None:
@@ -178,9 +158,9 @@ def main() -> None:
         help="Allow overwriting existing canonical run.json artifacts",
     )
     args = parser.parse_args()
-    _ensure_safe_path_segment(args.experiment_id, "experiment_id")
+    ensure_safe_path_segment(args.experiment_id, "experiment_id")
     if args.dataset_id:
-        _ensure_safe_path_segment(args.dataset_id, "dataset_id")
+        ensure_safe_path_segment(args.dataset_id, "dataset_id")
 
     input_path = Path(args.input)
     records = _read_records(input_path)
@@ -206,19 +186,14 @@ def main() -> None:
             raise ValueError(
                 f"Record at index {idx} does not define dataset_id and no --dataset-id was provided"
             )
-        _ensure_safe_path_segment(str(run_record["agent_system"]), "agent_system")
-        _ensure_safe_path_segment(str(run_record["config_id"]), "config_id")
-        _ensure_safe_path_segment(str(run_record["dataset_id"]), "dataset_id")
-        _ensure_safe_path_segment(str(run_record["case_id"]), "case_id")
-
-        run_dir = (
-            Path(args.output_dir)
-            / args.experiment_id
-            / str(run_record["agent_system"])
-            / str(run_record["config_id"])
-            / str(run_record["dataset_id"])
-            / str(run_record["case_id"])
-            / str(run_record["run_index"])
+        run_dir = canonical_run_dir(
+            output_root=args.output_dir,
+            experiment_id=args.experiment_id,
+            agent_system=str(run_record["agent_system"]),
+            config_id=str(run_record["config_id"]),
+            dataset_id=str(run_record["dataset_id"]),
+            case_id=str(run_record["case_id"]),
+            run_index=int(run_record["run_index"]),
         )
         run_path = run_dir / "run.json"
         if run_path.exists() and not args.allow_overwrite_runs:

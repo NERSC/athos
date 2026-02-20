@@ -144,9 +144,9 @@ Recommended grouping keys:
 
 ## Migration Plan from Current Script
 
-1. Add `--output-dir` mode in `evals/run_evaluations.py` to emit per-run files.
+1. Make `evals/run_evaluations.py` canonical-output-first (`run.json` only).
 2. Add a scorer command that reads run files and writes judgments.
-3. Keep current summary JSON as a derived report for backwards compatibility.
+3. Keep summaries as a separate derived report (`evals/summarize_results.py`).
 
 ## Current Status (2026-02-19)
 
@@ -157,7 +157,7 @@ Recommended grouping keys:
 
 ## Implementation Plan (Detailed)
 
-### Phase 1: Dual-Write Execution Output
+### Phase 1: Canonical Execution Output
 
 Extend `evals/run_evaluations.py` with:
 - `--experiment-id <str>`: required when `--output-dir` is set.
@@ -167,12 +167,10 @@ Extend `evals/run_evaluations.py` with:
 - `--run-start <int>`: default `0`; starting `run_index`.
 
 Behavior:
-- Legacy `--output` summary remains unchanged.
-- When `--output-dir` is set, write one `run.json` for each `(flow, dataset, case, run_index)`.
+- Write one `run.json` for each `(flow, dataset, case, run_index)`.
 
 Acceptance checks:
 - Existing integration tests for `evals/run_evaluations.py` still pass.
-- A single run with both `--output` and `--output-dir` produces both artifacts.
 - Re-running later with higher `--run-start` writes new run directories without mutating prior `run.json`.
 
 ### Phase 2: Separate Scoring Command

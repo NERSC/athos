@@ -112,6 +112,10 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
             "f2",
             "--cases-dir",
             str(tmp_path),
+            "--output-dir",
+            str(tmp_path / "results"),
+            "--experiment-id",
+            "exp1",
         ],
     )
 
@@ -183,7 +187,7 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
 
     monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
 
-    output = tmp_path / "out.json"
+    output_root = tmp_path / "results"
 
     monkeypatch.setattr(
         sys,
@@ -196,28 +200,26 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
             "f1",
             "--qa-file",
             str(qa_file),
-            "--output",
-            str(output),
+            "--output-dir",
+            str(output_root),
+            "--experiment-id",
+            "exp1",
         ],
     )
 
     await revals.main()
 
     assert len(execute_calls) == len(entries)
-
-    # Metrics stored under dataset key named after the QA file
-    data = json.loads(output.read_text())
-    assert "flows" in data
-    assert "f1" in data["flows"]
-    dataset_key = qa_file.stem
-    assert dataset_key in data["flows"]["f1"]
-    results = data["flows"]["f1"][dataset_key]["cases"]
-    assert len(results) == len(entries)
-    assert all("status" in r for r in results)
+    run_records = sorted((output_root / "exp1" / "athos").glob("*/*/*/*/run.json"))
+    assert len(run_records) == len(entries)
+    for run_path in run_records:
+        payload = json.loads(run_path.read_text())
+        assert payload["dataset_id"] == qa_file.stem
+        assert payload["execution"]["status"] == "success"
 
 
-async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
-    """Ensure --output and --output-dir can be used together."""
+async def test_canonical_run_layout(tmp_path, monkeypatch):
+    """Ensure canonical run layout is written."""
 
     case_dir = tmp_path / "cases" / "case_one"
     case_dir.mkdir(parents=True)
@@ -260,7 +262,6 @@ async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
         lambda *args, **kwargs: b"abcdef123456\n",
     )
 
-    summary_output = tmp_path / "summary.json"
     canonical_root = tmp_path / "results"
     monkeypatch.setattr(
         sys,
@@ -273,8 +274,6 @@ async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
             "f1",
             "--cases-dir",
             str(tmp_path / "cases"),
-            "--output",
-            str(summary_output),
             "--output-dir",
             str(canonical_root),
             "--experiment-id",
@@ -283,10 +282,6 @@ async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
     )
 
     await revals.main()
-
-    assert summary_output.exists()
-    summary_payload = json.loads(summary_output.read_text())
-    assert "f1" in summary_payload["flows"]
 
     run_path = canonical_root / "exp1" / "athos"
     run_records = list(run_path.glob("*/*/*/*/run.json"))
@@ -438,7 +433,7 @@ async def test_empty_response_marked_invalid_and_not_judged(tmp_path, monkeypatc
             return None
 
     monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
-    output = tmp_path / "summary.json"
+    output_root = tmp_path / "results"
 
     monkeypatch.setattr(
         sys,
@@ -451,19 +446,19 @@ async def test_empty_response_marked_invalid_and_not_judged(tmp_path, monkeypatc
             "f1",
             "--cases-dir",
             str(tmp_path / "cases"),
-            "--output",
-            str(output),
+            "--output-dir",
+            str(output_root),
+            "--experiment-id",
+            "exp1",
         ],
     )
 
     await revals.main()
 
-    payload = json.loads(output.read_text())
-    case = payload["flows"]["f1"]["cases"]["cases"][0]
-    assert case["status"] == "invalid_output"
-    assert case["error_type"] == "empty_response"
-    assert "score" not in case
-    assert "feedback" not in case
+    run_path = next((output_root / "exp1" / "athos").glob("*/*/*/*/run.json"))
+    payload = json.loads(run_path.read_text())
+    assert payload["execution"]["status"] == "invalid_output"
+    assert payload["execution"]["error_type"] == "empty_response"
 
 
 async def test_inline_scoring_fields_removed(tmp_path, monkeypatch):
@@ -505,7 +500,7 @@ async def test_inline_scoring_fields_removed(tmp_path, monkeypatch):
 
     monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
 
-    output = tmp_path / "summary.json"
+    output_root = tmp_path / "results"
     monkeypatch.setattr(
         sys,
         "argv",
@@ -517,18 +512,20 @@ async def test_inline_scoring_fields_removed(tmp_path, monkeypatch):
             "f1",
             "--cases-dir",
             str(tmp_path / "cases"),
-            "--output",
-            str(output),
+            "--output-dir",
+            str(output_root),
+            "--experiment-id",
+            "exp1",
         ],
     )
 
     await revals.main()
 
-    payload = json.loads(output.read_text())
-    case = payload["flows"]["f1"]["cases"]["cases"][0]
-    assert "score" not in case
-    assert "feedback" not in case
-    assert case["status"] == "success"
+    run_path = next((output_root / "exp1" / "athos").glob("*/*/*/*/run.json"))
+    payload = json.loads(run_path.read_text())
+    assert "score" not in payload
+    assert "feedback" not in payload
+    assert payload["execution"]["status"] == "success"
 
 
 async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeypatch):

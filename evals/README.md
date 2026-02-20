@@ -23,13 +23,12 @@ python evals/run_evaluations.py \
   --flow <flow_name> [<flow_name2> ...] \
   [--cases-dir <dir1> --cases-dir <dir2> ...] \
   [--qa-file <qa.jsonl> ...] \
-  [--output-dir <results_root>] \
-  [--experiment-id <experiment_id>] \
+  --output-dir <results_root> \
+  --experiment-id <experiment_id> \
   [--agent-system <agent_system>] \
   [--run-count <N>] \
   [--run-start <K>] \
-  [--allow-overwrite-runs] \
-  [--output results.json]
+  [--allow-overwrite-runs]
 ```
 
 Arguments:
@@ -37,17 +36,14 @@ Arguments:
 - `--flow`: One or more flow names to test (required).
 - `--cases-dir`: Directory containing structured test case subdirectories. May be provided multiple times. Defaults to `test_cases` if no datasets are specified.
 - `--qa-file`: JSONL file of question/answer pairs. May be provided multiple times.
-- `--output-dir`: Root directory for canonical per-run output (`run.json` files).
-- `--experiment-id`: Required when `--output-dir` is set. Used in canonical output paths.
+- `--output-dir`: Root directory for canonical per-run output (`run.json` files). Required.
+- `--experiment-id`: Used in canonical output paths. Required.
 - `--agent-system`: Agent system label for canonical output (default: `athos`).
 - `--run-count`: Number of repeated runs per case (default: `1`).
 - `--run-start`: Starting run index (default: `0`).
 - `--allow-overwrite-runs`: Permit overwriting an existing canonical `run.json`.
-- `--output`: File path to write a JSON report of results.
 
 Notes:
-- `--output` and `--output-dir` can be used together (legacy summary + canonical per-run records).
-- `--experiment-id` is required if `--output-dir` is provided.
 - Canonical run paths are immutable by default; duplicate run paths fail unless `--allow-overwrite-runs` is used.
 
 ## Canonical per-run output
@@ -64,15 +60,15 @@ Example:
 
 - **HPC troubleshooting cases only** (default):
   ```bash
-  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat
+  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --output-dir results --experiment-id quick_smoke
   ```
 - **Q&A cases only**:
   ```bash
-  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --qa-file evals/simple_qa.jsonl
+  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --qa-file evals/simple_qa.jsonl --output-dir results --experiment-id quick_smoke
   ```
 - **Both HPC and Q&A cases**:
   ```bash
-  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --cases-dir evals/test_cases --qa-file evals/simple_qa.jsonl
+  python evals/run_evaluations.py --config config/config.yaml --flow lang_chat --cases-dir evals/test_cases --qa-file evals/simple_qa.jsonl --output-dir results --experiment-id quick_smoke
   ```
 
 ### Run-first examples

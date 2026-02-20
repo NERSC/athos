@@ -14,7 +14,6 @@ LOGS_ROOT="${LOGS_ROOT:-logs}"
 
 experiment_id="smoke_$(date +%Y%m%d_%H%M%S)"
 runs_dir="${RESULTS_ROOT}/${experiment_id}"
-summary_out="${LOGS_ROOT}/eval_results_${experiment_id}.json"
 judgments_out="${runs_dir}/judgments/${JUDGE_ID}.jsonl"
 skips_out="${runs_dir}/judgments/${JUDGE_ID}.skips.jsonl"
 aggregates_out="${runs_dir}/aggregates/summary.json"
@@ -29,8 +28,7 @@ python evals/run_evaluations.py \
   --qa-file evals/simple_qa.jsonl \
   --output-dir "${RESULTS_ROOT}" \
   --experiment-id "${experiment_id}" \
-  --run-count "${RUN_COUNT}" \
-  --output "${summary_out}"
+  --run-count "${RUN_COUNT}"
 
 echo "==> [2/3] Scoring canonical runs"
 python evals/score_runs.py \
@@ -55,7 +53,6 @@ echo
 echo "Smoke run complete. Review outputs:"
 echo "  Experiment ID: ${experiment_id}"
 echo "  Canonical runs root: ${runs_dir}"
-echo "  Legacy summary JSON: ${summary_out}"
 echo "  Judgments JSONL: ${judgments_out}"
 echo "  Skips JSONL: ${skips_out}"
 echo "  Aggregates summary: ${aggregates_out}"
