@@ -28,18 +28,32 @@ def _slug(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", value.lower()).strip("_") or "unknown"
 
 
+def _normalize_for_hash(value):
+    if hasattr(value, "model_dump"):
+        try:
+            return _normalize_for_hash(value.model_dump(mode="json"))
+        except TypeError:
+            return _normalize_for_hash(value.model_dump())
+    if isinstance(value, dict):
+        return {str(k): _normalize_for_hash(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_normalize_for_hash(v) for v in value]
+    if isinstance(value, set):
+        normalized = [_normalize_for_hash(v) for v in value]
+        return sorted(
+            normalized,
+            key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":")),
+        )
+    if isinstance(value, Path):
+        return str(value)
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
 def _compute_config_id(flow_name: str, flow_config, model_config) -> str:
-    normalized_flow_config = flow_config.model_dump()
-    if model_config is None:
-        normalized_model_config = None
-    elif hasattr(model_config, "model_dump"):
-        normalized_model_config = model_config.model_dump()
-    elif isinstance(model_config, dict):
-        normalized_model_config = model_config
-    else:
-        normalized_model_config = {
-            key: value for key, value in vars(model_config).items() if not key.startswith("_")
-        }
+    normalized_flow_config = _normalize_for_hash(flow_config)
+    normalized_model_config = _normalize_for_hash(model_config)
     payload = json.dumps(
         {
             "flow_config": normalized_flow_config,
@@ -49,7 +63,9 @@ def _compute_config_id(flow_name: str, flow_config, model_config) -> str:
         separators=(",", ":"),
     )
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:8]
-    model_name = _slug(str(normalized_flow_config.get("model", "unknown")))
+    model_name = "unknown"
+    if isinstance(normalized_flow_config, dict):
+        model_name = _slug(str(normalized_flow_config.get("model", "unknown")))
     return f"{_slug(flow_name)}__{model_name}__{digest}"
 
 

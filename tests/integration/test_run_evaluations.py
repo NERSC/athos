@@ -7,6 +7,8 @@ from unittest.mock import Mock
 import importlib.util
 from pathlib import Path
 
+from pydantic import SecretStr
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -23,6 +25,31 @@ spec = importlib.util.spec_from_file_location(
 )
 revals = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(revals)
+
+
+def test_compute_config_id_handles_secretstr_model_fields():
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self, *args, **kwargs):
+            return {"model": self.model}
+
+    class DummyModelCfg:
+        def __init__(self, model_id):
+            self.model_id = model_id
+            self.api_key = SecretStr("top-secret")
+
+        def model_dump(self, *args, **kwargs):
+            return {"model_id": self.model_id, "api_key": self.api_key}
+
+    config_id_a = revals._compute_config_id("f1", DummyFlowCfg("m1"), DummyModelCfg("provider/model-a"))
+    config_id_a_repeat = revals._compute_config_id("f1", DummyFlowCfg("m1"), DummyModelCfg("provider/model-a"))
+    config_id_b = revals._compute_config_id("f1", DummyFlowCfg("m1"), DummyModelCfg("provider/model-b"))
+
+    assert config_id_a.startswith("f1__m1__")
+    assert config_id_a == config_id_a_repeat
+    assert config_id_a != config_id_b
 
 
 async def test_multiple_flows_execution(tmp_path, monkeypatch):
