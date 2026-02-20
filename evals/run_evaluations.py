@@ -17,12 +17,10 @@ import uuid
 from dotenv import load_dotenv
 
 from athos import build_config
-from athos.frameworks.smolagents import factories as smolagents_factories
 from athos.models.enums import ExecutionMode
 from athos.models.metrics import ExecutionMetrics
 from athos.runtime.runner import FlowRunner
 
-from eval_core import evaluate_response
 from eval_io import build_input, load_qa_cases, load_test_cases
 
 
@@ -69,11 +67,6 @@ async def main():
         help="JSON Lines file with question/answer pairs (can be used multiple times)",
     )
     parser.add_argument(
-        "--eval-model",
-        default=None,
-        help="Model name for evaluation (from config models)",
-    )
-    parser.add_argument(
         "--output",
         default=None,
         help="Optional output file for results JSON",
@@ -106,15 +99,9 @@ async def main():
         help="Starting run index for canonical per-run artifacts",
     )
     parser.add_argument(
-        "--no-score",
+        "--allow-overwrite-runs",
         action="store_true",
-        help="Skip judging and only execute runs",
-    )
-    parser.add_argument(
-        "--passing-score",
-        type=float,
-        default=80.0,
-        help="Score threshold for accuracy calculations",
+        help="Allow overwriting existing canonical run.json artifacts",
     )
     args = parser.parse_args()
     load_dotenv()
@@ -163,11 +150,8 @@ async def main():
             "git_sha": git_sha,
             "config": str(args.config),
             "flows": list(args.flow),
-            "eval_model": args.eval_model,
             "cases_dir": list(args.cases_dir),
             "qa_file": list(args.qa_file),
-            "passing_score": args.passing_score,
-            "no_score": args.no_score,
             "run_count": args.run_count,
             "run_start": args.run_start,
             "output_dir": args.output_dir,
@@ -189,16 +173,6 @@ async def main():
         # Print flow config for debugging
         pprint.pprint(flow_config.model_dump())
 
-        # Evaluator model
-        eval_model_name = args.eval_model or flow_config.model
-        if args.eval_model and args.eval_model not in cfg.models:
-            raise ValueError(
-                f"Evaluation model '{args.eval_model}' not found in config models"
-            )
-        eval_model_instance = smolagents_factories.build_model(
-            cfg.models[eval_model_name]
-        )
-
         for dataset_name, cases in datasets:
             results = []
             latency_values: list[float] = []
@@ -208,7 +182,6 @@ async def main():
             for case in cases:
                 name = case["name"]
                 desc = case["description"]
-                sol = case["solution"]
                 files_dir = case.get("files_dir")
                 input_data = build_input(desc, files_dir)
                 for run_offset in range(args.run_count):
@@ -263,25 +236,6 @@ async def main():
                         error_message = str(e)
                     finished_at = now_iso()
 
-                    score = None
-                    feedback = None
-                    if not args.no_score:
-                        if execution_status == "success":
-                            eval_response = (
-                                response
-                                if response is not None
-                                else f"Error executing flow: {error_message or 'Unknown error'}"
-                            )
-                            score, feedback = evaluate_response(
-                                eval_model_instance, sol, eval_response
-                            )
-                        else:
-                            score = 0
-                            feedback = (
-                                f"No scorable agent response. status={execution_status}; "
-                                f"error={error_message or 'Unknown error'}"
-                            )
-
                     if isinstance(metrics_payload, dict):
                         latency = metrics_payload.get("latency_ms")
                         if isinstance(latency, (int, float)):
@@ -301,8 +255,6 @@ async def main():
                         "test_case": name,
                         "run_index": run_index,
                         "response": response if response is not None else f"Error executing flow: {error_message or 'Unknown error'}",
-                        "score": score,
-                        "feedback": feedback,
                         "metrics": metrics_payload,
                         "status": execution_status,
                         "error_type": error_type,
@@ -319,6 +271,12 @@ async def main():
                             / str(name)
                             / str(run_index)
                         )
+                        run_path = run_dir / "run.json"
+                        if run_path.exists() and not args.allow_overwrite_runs:
+                            raise FileExistsError(
+                                f"Canonical run file already exists: {run_path}. "
+                                "Choose a new --run-start or pass --allow-overwrite-runs."
+                            )
                         run_dir.mkdir(parents=True, exist_ok=True)
                         run_record = {
                             "schema_version": "athos.run.v1",
@@ -356,29 +314,11 @@ async def main():
                                 "env_fingerprint": None,
                             },
                         }
-                        (run_dir / "run.json").write_text(json.dumps(run_record, indent=2))
+                        run_path.write_text(json.dumps(run_record, indent=2))
 
-            total = 0
-            count = 0
-            passes = 0
             print(f"\nEvaluation Results for {flow_name} on {dataset_name}:")
             for r in results:
-                s = r["score"]
-                print(f"- {r['test_case']}: score={s}")
-                if isinstance(s, (int, float)):
-                    total += s
-                    count += 1
-                    if s >= args.passing_score:
-                        passes += 1
-            if count > 0:
-                avg = total / count
-                acc = passes / count
-                print(
-                    f"Average score for {flow_name} on {dataset_name}: {avg:.2f}"
-                )
-                print(
-                    f"Accuracy for {flow_name} on {dataset_name}: {acc:.2%}\n"
-                )
+                print(f"- {r['test_case']}: status={r['status']}")
 
             def _percentile(values: list[float], percentile: float) -> float | None:
                 if not values:

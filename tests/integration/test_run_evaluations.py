@@ -2,9 +2,8 @@ import sys
 import json
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import Mock
 
-from smolagents import ChatMessage
 import importlib.util
 from pathlib import Path
 
@@ -72,11 +71,6 @@ async def test_multiple_flows_execution(tmp_path, monkeypatch):
         workspace_path=str(tmp_path / "workspace"),
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
-    monkeypatch.setattr(
-        revals.smolagents_factories,
-        "build_model",
-        lambda cfg: (lambda messages: SimpleNamespace(content="ok")),
-    )
     monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
 
     monkeypatch.setattr(
@@ -141,8 +135,6 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
         workspace_path=str(tmp_path / "workspace"),
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
-    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
-    monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (42, "fb"))
 
     execute_calls = []
 
@@ -194,7 +186,7 @@ async def test_qa_file_flow_execution(tmp_path, monkeypatch):
     assert dataset_key in data["flows"]["f1"]
     results = data["flows"]["f1"][dataset_key]["cases"]
     assert len(results) == len(entries)
-    assert all("score" in r for r in results)
+    assert all("status" in r for r in results)
 
 
 async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
@@ -218,8 +210,6 @@ async def test_dual_write_output_and_run_layout(tmp_path, monkeypatch):
         workspace_path=str(tmp_path / "workspace"),
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
-    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
-    monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (90, "ok"))
 
     class DummyRunner:
         def __init__(self, *_args, **_kwargs):
@@ -305,8 +295,6 @@ async def test_run_start_writes_new_run_dirs_without_overwrite(tmp_path, monkeyp
         workspace_path=str(tmp_path / "workspace"),
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
-    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
-    monkeypatch.setattr(revals, "evaluate_response", lambda m, s, r: (90, "ok"))
 
     class DummyRunner:
         def __init__(self, *_args, **_kwargs):
@@ -386,7 +374,7 @@ async def test_run_start_writes_new_run_dirs_without_overwrite(tmp_path, monkeyp
 
 
 async def test_empty_response_marked_invalid_and_not_judged(tmp_path, monkeypatch):
-    """Blank output should be marked invalid_output with deterministic scoring."""
+    """Blank output should be marked invalid_output."""
 
     case_dir = tmp_path / "cases" / "case_one"
     case_dir.mkdir(parents=True)
@@ -406,12 +394,6 @@ async def test_empty_response_marked_invalid_and_not_judged(tmp_path, monkeypatc
         workspace_path=str(tmp_path / "workspace"),
     )
     monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
-    monkeypatch.setattr(revals.smolagents_factories, "build_model", lambda cfg: None)
-
-    def _unexpected_judge_call(*_args, **_kwargs):
-        raise AssertionError("evaluate_response should not be called for invalid output")
-
-    monkeypatch.setattr(revals, "evaluate_response", _unexpected_judge_call)
 
     class DummyRunner:
         def __init__(self, *_args, **_kwargs):
@@ -453,5 +435,140 @@ async def test_empty_response_marked_invalid_and_not_judged(tmp_path, monkeypatc
     case = payload["flows"]["f1"]["cases"]["cases"][0]
     assert case["status"] == "invalid_output"
     assert case["error_type"] == "empty_response"
-    assert case["score"] == 0
-    assert "No scorable agent response" in case["feedback"]
+    assert "score" not in case
+    assert "feedback" not in case
+
+
+async def test_inline_scoring_fields_removed(tmp_path, monkeypatch):
+    """Results should not include inline scoring fields."""
+
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+
+    output = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output",
+            str(output),
+        ],
+    )
+
+    await revals.main()
+
+    payload = json.loads(output.read_text())
+    case = payload["flows"]["f1"]["cases"]["cases"][0]
+    assert "score" not in case
+    assert "feedback" not in case
+    assert case["status"] == "success"
+
+
+async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeypatch):
+    """Writing an existing canonical run.json should fail by default."""
+
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        revals.subprocess,
+        "check_output",
+        lambda *args, **kwargs: b"abcdef123456\n",
+    )
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+
+    canonical_root = tmp_path / "results"
+    argv = [
+        "revals",
+        "--config",
+        "cfg.yaml",
+        "--flow",
+        "f1",
+        "--cases-dir",
+        str(tmp_path / "cases"),
+        "--output-dir",
+        str(canonical_root),
+        "--experiment-id",
+        "exp1",
+    ]
+
+    monkeypatch.setattr(sys, "argv", argv)
+    await revals.main()
+
+    monkeypatch.setattr(sys, "argv", argv)
+    try:
+        await revals.main()
+        raise AssertionError("Expected FileExistsError for duplicate canonical run path")
+    except FileExistsError:
+        pass

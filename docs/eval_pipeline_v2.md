@@ -147,6 +147,13 @@ Recommended grouping keys:
 2. Add a scorer command that reads run files and writes judgments.
 3. Keep current summary JSON as a derived report for backwards compatibility.
 
+## Current Status (2026-02-19)
+
+- Phase 1: Implemented with immutable canonical write behavior by default.
+- Phase 2: Implemented (`evals/score_runs.py`).
+- Phase 3: Implemented (`evals/import_runs.py`).
+- Phase 4: Implemented (`evals/summarize_results.py`).
+
 ## Implementation Plan (Detailed)
 
 ### Phase 1: Dual-Write Execution Output
@@ -157,7 +164,6 @@ Extend `evals/run_evaluations.py` with:
 - `--output-dir <path>`: enables canonical per-run writes.
 - `--run-count <int>`: default `1`; emits `run_index = K..K+N-1`.
 - `--run-start <int>`: default `0`; starting `run_index`.
-- `--no-score`: execute only, skip judging.
 
 Behavior:
 - Legacy `--output` summary remains unchanged.
@@ -202,12 +208,7 @@ Acceptance checks:
 - Summary values match direct recomputation from raw records.
 - For legacy-compatible runs, aggregate score/pass outputs match current script within tolerance.
 
-## Legacy Deprecation Criteria
+## Legacy Inline Scoring
 
-Keep legacy monolithic summary mode until all conditions are met:
-- Canonical per-run output is enabled in default evaluation jobs.
-- Separate scoring command is used in paper pipelines.
-- Summary generation is validated as fully derived from run/judgment records.
-- At least one full experiment is completed with multiple run indices and regenerated summaries.
-
-After these are satisfied, mark legacy inline-scoring summary mode as deprecated in docs, but keep it available for one release window.
+Inline scoring in `evals/run_evaluations.py` has been removed.
+Scoring is now performed only via `evals/score_runs.py`.

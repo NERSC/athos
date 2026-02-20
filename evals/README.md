@@ -21,7 +21,6 @@ Pass one or more of these files to `run_evaluations.py` using the `--qa-file` fl
 python evals/run_evaluations.py \
   --config config/config.yaml \
   --flow <flow_name> [<flow_name2> ...] \
-  [--eval-model <model_name>] \
   [--cases-dir <dir1> --cases-dir <dir2> ...] \
   [--qa-file <qa.jsonl> ...] \
   [--output-dir <results_root>] \
@@ -29,15 +28,13 @@ python evals/run_evaluations.py \
   [--agent-system <agent_system>] \
   [--run-count <N>] \
   [--run-start <K>] \
-  [--no-score] \
-  [--passing-score 80] \
+  [--allow-overwrite-runs] \
   [--output results.json]
 ```
 
 Arguments:
 - `--config`: Path to the ATHOS YAML config file (default: `config/config.yaml`).
 - `--flow`: One or more flow names to test (required).
-- `--eval-model`: Optional override model name for evaluation (defaults to the model used by each flow).
 - `--cases-dir`: Directory containing structured test case subdirectories. May be provided multiple times. Defaults to `test_cases` if no datasets are specified.
 - `--qa-file`: JSONL file of question/answer pairs. May be provided multiple times.
 - `--output-dir`: Root directory for canonical per-run output (`run.json` files).
@@ -45,13 +42,13 @@ Arguments:
 - `--agent-system`: Agent system label for canonical output (default: `athos`).
 - `--run-count`: Number of repeated runs per case (default: `1`).
 - `--run-start`: Starting run index (default: `0`).
-- `--no-score`: Execute cases without LLM judging (scores/feedback become `null`).
-- `--passing-score`: Score threshold used when computing accuracy (default: `80`).
+- `--allow-overwrite-runs`: Permit overwriting an existing canonical `run.json`.
 - `--output`: File path to write a JSON report of results.
 
 Notes:
 - `--output` and `--output-dir` can be used together (legacy summary + canonical per-run records).
 - `--experiment-id` is required if `--output-dir` is provided.
+- Canonical run paths are immutable by default; duplicate run paths fail unless `--allow-overwrite-runs` is used.
 
 ## Canonical per-run output
 
@@ -102,15 +99,14 @@ Example:
     --run-count 3
   ```
 
-- **Execution-only runs (no scoring):**
+- **Execution-only runs (default behavior):**
   ```bash
   python evals/run_evaluations.py \
     --config config/config.yaml \
     --flow lang_chat \
     --cases-dir evals/test_cases \
     --output-dir results \
-    --experiment-id cug2026_main \
-    --no-score
+    --experiment-id cug2026_main
   ```
 
 ## Scoring canonical runs
@@ -126,6 +122,8 @@ python evals/score_runs.py \
   --judge-model cborg_chat \
   --judge-id cborg_chat_rubric_v2 \
   --judge-prompt-version rubric_v2 \
+  --fail-on-skip \
+  --skips-output results/cug2026_main/judgments/cborg_chat_rubric_v2.skips.jsonl \
   --output results/cug2026_main/judgments/cborg_chat_rubric_v2.jsonl
 ```
 
@@ -136,7 +134,49 @@ Arguments:
 - `--judge-id`: Logical judge identifier (defaults to `<judge-model>:<judge-prompt-version>`).
 - `--judge-prompt-version`: Prompt version label for traceability (default: `v1`).
 - `--cases-dir` / `--qa-file`: Reference datasets used to resolve expected answers by `case_id`.
+- `--fail-on-skip`: Exit non-zero if any run cannot be scored.
+- `--skips-output`: Optional JSONL path for detailed skip records.
 - `--output`: Judgments JSONL output path (append mode).
+
+Judgment status:
+- Scored judgments use `judgment_status: "scored"` with numeric `score` and boolean `pass`.
+- Unscorable judgments are still written with `judgment_status` like:
+  - `skipped_missing_reference`
+  - `skipped_missing_output`
+  - `skipped_invalid_run`
+  In those cases `score` and `pass` are `null`.
+
+## Import external runs
+
+Use `evals/import_runs.py` to normalize external outputs into canonical run records.
+
+```bash
+python evals/import_runs.py \
+  --input external_runs.jsonl \
+  --output-dir results \
+  --experiment-id cug2026_main \
+  --dataset-id hpc_troubleshooting_v1
+```
+
+Required fields per record:
+- `case_id`
+- `agent_system`
+- `config_id`
+- Either `response.output_text` (or top-level `output_text`) for success, or non-success execution with error details.
+
+## Summarize runs and judgments
+
+Use `evals/summarize_results.py` to produce grouped aggregates.
+
+```bash
+python evals/summarize_results.py \
+  --runs-dir results/cug2026_main \
+  --judgments-dir results/cug2026_main/judgments \
+  --output results/cug2026_main/aggregates/summary.json
+```
+
+Summary aggregates include `run_count`, `scored_count`, `skipped_count`,
+`skipped_by_reason`, and score/pass metrics computed from scored judgments only.
 
 ## Available test cases
 
