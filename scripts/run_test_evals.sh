@@ -62,48 +62,8 @@ echo "  Aggregates summary: ${aggregates_out}"
 
 echo
 echo "Quick counts:"
-python - "$judgments_out" "$skips_out" <<'PY'
-import collections
-import json
-import pathlib
-import sys
-
-judgments_path = pathlib.Path(sys.argv[1])
-skips_path = pathlib.Path(sys.argv[2])
-
-judgments = []
-if judgments_path.exists():
-    for line in judgments_path.read_text().splitlines():
-        if line.strip():
-            judgments.append(json.loads(line))
-
-status_counts = collections.Counter(
-    j.get("judgment_status", "unknown") for j in judgments
-)
-scored_count = status_counts.get("scored", 0)
-skipped_count = sum(
-    count for status, count in status_counts.items() if str(status).startswith("skipped_")
-)
-
-print(f"  Judgments total: {len(judgments)}")
-print(f"  Scored: {scored_count}")
-print(f"  Skipped: {skipped_count}")
-if status_counts:
-    print("  Judgment status breakdown:")
-    for status, count in sorted(status_counts.items()):
-        print(f"    - {status}: {count}")
-
-if skips_path.exists():
-    skips = []
-    for line in skips_path.read_text().splitlines():
-        if line.strip():
-            skips.append(json.loads(line))
-    reason_counts = collections.Counter(s.get("reason", "unknown") for s in skips)
-    print(f"  Skip records: {len(skips)}")
-    if reason_counts:
-        print("  Skip reason breakdown:")
-        for reason, count in sorted(reason_counts.items()):
-            print(f"    - {reason}: {count}")
-else:
-    print("  Skip records: 0 (no skips file found)")
-PY
+if [[ -f "${judgments_out}" ]]; then
+  echo "  Judgments total: $(wc -l < "${judgments_out}")"
+else
+  echo "  Judgments total: 0 (no judgments file found)"
+fi
