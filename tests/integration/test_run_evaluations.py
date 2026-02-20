@@ -245,6 +245,7 @@ async def test_canonical_run_layout(tmp_path, monkeypatch):
             pass
 
         async def execute(self, *args, **kwargs):
+            execute_calls.append(1)
             return SimpleNamespace(
                 success=True,
                 output=FlowOutput(content="resp"),
@@ -256,6 +257,7 @@ async def test_canonical_run_layout(tmp_path, monkeypatch):
             return None
 
     monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    execute_calls = []
     monkeypatch.setattr(
         revals.subprocess,
         "check_output",
@@ -554,12 +556,14 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
         "check_output",
         lambda *args, **kwargs: b"abcdef123456\n",
     )
+    execute_calls = []
 
     class DummyRunner:
         def __init__(self, *_args, **_kwargs):
             pass
 
         async def execute(self, *args, **kwargs):
+            execute_calls.append(1)
             return SimpleNamespace(
                 success=True,
                 output=FlowOutput(content="resp"),
@@ -589,6 +593,7 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
 
     monkeypatch.setattr(sys, "argv", argv)
     await revals.main()
+    assert len(execute_calls) == 1
 
     monkeypatch.setattr(sys, "argv", argv)
     try:
@@ -596,6 +601,8 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
         raise AssertionError("Expected FileExistsError for duplicate canonical run path")
     except FileExistsError:
         pass
+    # Second invocation should fail before running the flow.
+    assert len(execute_calls) == 1
 
 
 async def test_run_evaluations_rejects_unsafe_case_id_for_output_path(tmp_path, monkeypatch):

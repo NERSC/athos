@@ -196,6 +196,21 @@ async def main():
                 safe_case_id = ensure_safe_path_segment(str(name), "case_id")
                 for run_offset in range(args.run_count):
                     run_index = args.run_start + run_offset
+                    run_dir = canonical_run_dir(
+                        output_root=output_dir,
+                        experiment_id=args.experiment_id,
+                        agent_system=args.agent_system,
+                        config_id=config_id,
+                        dataset_id=safe_dataset_id,
+                        case_id=safe_case_id,
+                        run_index=run_index,
+                    )
+                    run_path = run_dir / "run.json"
+                    if run_path.exists() and not args.allow_overwrite_runs:
+                        raise FileExistsError(
+                            f"Canonical run file already exists: {run_path}. "
+                            "Choose a new --run-start or pass --allow-overwrite-runs."
+                        )
                     started_at = now_utc_iso()
                     execution_status = "success"
                     error_type = None
@@ -245,21 +260,6 @@ async def main():
                         error_type = e.__class__.__name__
                         error_message = str(e)
                     finished_at = now_utc_iso()
-                    run_dir = canonical_run_dir(
-                        output_root=output_dir,
-                        experiment_id=args.experiment_id,
-                        agent_system=args.agent_system,
-                        config_id=config_id,
-                        dataset_id=safe_dataset_id,
-                        case_id=safe_case_id,
-                        run_index=run_index,
-                    )
-                    run_path = run_dir / "run.json"
-                    if run_path.exists() and not args.allow_overwrite_runs:
-                        raise FileExistsError(
-                            f"Canonical run file already exists: {run_path}. "
-                            "Choose a new --run-start or pass --allow-overwrite-runs."
-                        )
                     run_dir.mkdir(parents=True, exist_ok=True)
                     run_record = build_run_record(
                         run_id=str(uuid.uuid4()),

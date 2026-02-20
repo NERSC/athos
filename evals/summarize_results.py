@@ -84,17 +84,46 @@ def _prefer_judgment(existing: dict[str, Any] | None, candidate: dict[str, Any])
     return candidate if candidate_dt >= existing_dt else existing
 
 
+def _value_or_none(value: Any) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _judgment_identity(payload: dict[str, Any]) -> tuple[str | None, str | None, str | None]:
+    return (
+        _value_or_none(payload.get("judge_id")),
+        _value_or_none(payload.get("judge_model")),
+        _value_or_none(payload.get("judge_prompt_version")),
+    )
+
+
 def _parse_judgments(
     paths: list[Path],
-) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    *,
+    judge_id_filter: str | None,
+    judge_model_filter: str | None,
+    judge_prompt_version_filter: str | None,
+) -> tuple[
+    dict[str, dict[str, Any]],
+    dict[str, dict[str, Any]],
+    tuple[str | None, str | None, str | None] | None,
+]:
     by_run_id: dict[str, dict[str, Any]] = {}
     by_run_path: dict[str, dict[str, Any]] = {}
+    seen_identities: set[tuple[str | None, str | None, str | None]] = set()
     for path in paths:
         for line in path.read_text().splitlines():
             line = line.strip()
             if not line:
                 continue
             payload = json.loads(line)
+            judge_id, judge_model, judge_prompt_version = _judgment_identity(payload)
+            if judge_id_filter and judge_id != judge_id_filter:
+                continue
+            if judge_model_filter and judge_model != judge_model_filter:
+                continue
+            if judge_prompt_version_filter and judge_prompt_version != judge_prompt_version_filter:
+                continue
+            seen_identities.add((judge_id, judge_model, judge_prompt_version))
             run_id = payload.get("run_id")
             if isinstance(run_id, str) and run_id:
                 by_run_id[run_id] = _prefer_judgment(by_run_id.get(run_id), payload)
@@ -102,7 +131,26 @@ def _parse_judgments(
             if isinstance(run_path, str) and run_path:
                 resolved = str(Path(run_path).resolve())
                 by_run_path[resolved] = _prefer_judgment(by_run_path.get(resolved), payload)
-    return by_run_id, by_run_path
+    if len(seen_identities) > 1 and not any(
+        [judge_id_filter, judge_model_filter, judge_prompt_version_filter]
+    ):
+        rendered = ", ".join(
+            sorted(
+                f"(judge_id={jid!r}, judge_model={jmodel!r}, judge_prompt_version={jprompt!r})"
+                for jid, jmodel, jprompt in seen_identities
+            )
+        )
+        raise ValueError(
+            "Mixed judge identities found across judgments. "
+            "Pass --judge-id (or --judge-model/--judge-prompt-version) to select one. "
+            f"Found: {rendered}"
+        )
+    selected_identity = None
+    if seen_identities:
+        selected_identity = sorted(
+            seen_identities, key=lambda x: (str(x[0]), str(x[1]), str(x[2]))
+        )[-1]
+    return by_run_id, by_run_path, selected_identity
 
 
 def main() -> None:
@@ -115,6 +163,13 @@ def main() -> None:
         default=[],
         help="Path to a judgments JSONL file (repeatable)",
     )
+    parser.add_argument("--judge-id", default=None, help="Filter judgments by judge_id")
+    parser.add_argument("--judge-model", default=None, help="Filter judgments by judge_model")
+    parser.add_argument(
+        "--judge-prompt-version",
+        default=None,
+        help="Filter judgments by judge_prompt_version",
+    )
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
@@ -123,7 +178,12 @@ def main() -> None:
         raise ValueError(f"No run.json files found under {args.runs_dir}")
 
     judgment_paths = _discover_judgment_paths(args.judgments_dir, args.judgment_file)
-    judgments_by_run_id, judgments_by_run_path = _parse_judgments(judgment_paths)
+    judgments_by_run_id, judgments_by_run_path, selected_identity = _parse_judgments(
+        judgment_paths,
+        judge_id_filter=args.judge_id,
+        judge_model_filter=args.judge_model,
+        judge_prompt_version_filter=args.judge_prompt_version,
+    )
 
     groups: dict[tuple[str, str, str, str], dict[str, Any]] = defaultdict(
         lambda: {
@@ -194,6 +254,11 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "runs_dir": args.runs_dir,
         "judgment_sources": [str(path) for path in judgment_paths],
+        "judge_id": selected_identity[0] if selected_identity else args.judge_id,
+        "judge_model": selected_identity[1] if selected_identity else args.judge_model,
+        "judge_prompt_version": (
+            selected_identity[2] if selected_identity else args.judge_prompt_version
+        ),
         "aggregates": aggregates,
     }
     output_path = Path(args.output)
