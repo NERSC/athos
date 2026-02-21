@@ -180,17 +180,18 @@ def main() -> None:
         nonlocal skipped_count
         skipped_count += 1
         skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
-        skips.append(
-            {
-                "schema_version": "athos.skip.v1",
-                "run_id": run_id,
-                "case_id": case_id,
-                "run_path": str(run_path),
-                "reason": reason,
-                "detail": detail,
-                "skipped_at_utc": datetime.now(timezone.utc).isoformat(),
-            }
-        )
+        if skips_output_path:
+            skips.append(
+                {
+                    "schema_version": "athos.skip.v1",
+                    "run_id": run_id,
+                    "case_id": case_id,
+                    "run_path": str(run_path),
+                    "reason": reason,
+                    "detail": detail,
+                    "skipped_at_utc": datetime.now(timezone.utc).isoformat(),
+                }
+            )
 
     with output_path.open("a", encoding="utf-8") as handle:
         for run_path in run_paths:

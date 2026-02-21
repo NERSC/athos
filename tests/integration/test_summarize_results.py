@@ -445,3 +445,119 @@ def test_summarize_results_filters_by_judge_id(tmp_path, monkeypatch):
     assert agg["run_count"] == 2
     assert agg["scored_count"] == 2
     assert agg["score_mean"] == 95.0
+
+
+def test_summarize_results_rejects_mixed_judges_after_partial_filter(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json", "run-1", "case_one", 0)
+    _write_run(runs_dir / "exp1" / "athos" / "cfg" / "case_two" / "0" / "run.json", "run-2", "case_two", 0)
+
+    judgments_dir = tmp_path / "judgments"
+    judgments_dir.mkdir(parents=True)
+    (judgments_dir / "judge_model_a.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "run_id": "run-1",
+                        "judge_id": "judge_a",
+                        "judge_model": "model_x",
+                        "judge_prompt_version": "v1",
+                        "judgment_status": "scored",
+                        "score": 10,
+                        "pass": False,
+                    }
+                ),
+                json.dumps(
+                    {
+                        "run_id": "run-2",
+                        "judge_id": "judge_b",
+                        "judge_model": "model_x",
+                        "judge_prompt_version": "v2",
+                        "judgment_status": "scored",
+                        "score": 90,
+                        "pass": True,
+                    }
+                ),
+            ]
+        )
+    )
+
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "summarize_results",
+            "--runs-dir",
+            str(runs_dir),
+            "--judgments-dir",
+            str(judgments_dir),
+            "--judge-model",
+            "model_x",
+            "--output",
+            str(output_path),
+        ],
+    )
+    with pytest.raises(ValueError, match="Mixed judge identities found"):
+        summarize_results_mod.main()
+
+
+def test_summarize_results_allows_mixed_judges_with_override(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json", "run-1", "case_one", 0)
+
+    judgments_dir = tmp_path / "judgments"
+    judgments_dir.mkdir(parents=True)
+    (judgments_dir / "judge_a.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": "run-1",
+                "judge_id": "judge_a",
+                "judge_model": "model_a",
+                "judge_prompt_version": "v1",
+                "judgment_status": "scored",
+                "score": 10,
+                "pass": False,
+            }
+        )
+        + "\n"
+    )
+    (judgments_dir / "judge_b.jsonl").write_text(
+        json.dumps(
+            {
+                "run_id": "run-1",
+                "judge_id": "judge_b",
+                "judge_model": "model_b",
+                "judge_prompt_version": "v2",
+                "judgment_status": "scored",
+                "score": 90,
+                "pass": True,
+                "scored_at_utc": "2026-02-20T02:00:00+00:00",
+            }
+        )
+        + "\n"
+    )
+
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "summarize_results",
+            "--runs-dir",
+            str(runs_dir),
+            "--judgments-dir",
+            str(judgments_dir),
+            "--allow-mixed-judges",
+            "--output",
+            str(output_path),
+        ],
+    )
+    summarize_results_mod.main()
+
+    payload = json.loads(output_path.read_text())
+    assert payload["judge_id"] == "mixed"
+    assert payload["judge_model"] == "mixed"
+    assert payload["judge_prompt_version"] == "mixed"
+    assert payload["judge_identity_count"] == 2

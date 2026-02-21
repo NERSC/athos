@@ -288,6 +288,60 @@ def test_score_runs_records_skips_and_fail_on_skip(tmp_path, monkeypatch):
     assert skip["reason"] == "skipped_missing_output"
 
 
+def test_score_runs_skip_details_not_written_without_skips_output(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
+        run_id="run-1",
+        case_id="case_one",
+        output_text="",
+    )
+
+    case_root = tmp_path / "cases" / "case_one"
+    case_root.mkdir(parents=True)
+    (case_root / "user_description.txt").write_text("desc")
+    (case_root / "solution.md").write_text("expected answer")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+    monkeypatch.setattr(
+        score_runs_mod,
+        "evaluate_response",
+        lambda _model, _sol, _resp: (88, "good"),
+    )
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--judge-model",
+            "judge_model",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    score_runs_mod.main()
+
+    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
+    assert judgment["judgment_status"] == "skipped_missing_output"
+    assert not any(tmp_path.glob("*.skips.jsonl"))
+
+
 def test_score_runs_treats_whitespace_output_as_missing(tmp_path, monkeypatch):
     runs_dir = tmp_path / "runs"
     _write_run(

@@ -102,10 +102,12 @@ def _parse_judgments(
     judge_id_filter: str | None,
     judge_model_filter: str | None,
     judge_prompt_version_filter: str | None,
+    allow_mixed_judges: bool,
 ) -> tuple[
     dict[str, dict[str, Any]],
     dict[str, dict[str, Any]],
     tuple[str | None, str | None, str | None] | None,
+    int,
 ]:
     by_run_id: dict[str, dict[str, Any]] = {}
     by_run_path: dict[str, dict[str, Any]] = {}
@@ -131,9 +133,7 @@ def _parse_judgments(
             if isinstance(run_path, str) and run_path:
                 resolved = str(Path(run_path).resolve())
                 by_run_path[resolved] = _prefer_judgment(by_run_path.get(resolved), payload)
-    if len(seen_identities) > 1 and not any(
-        [judge_id_filter, judge_model_filter, judge_prompt_version_filter]
-    ):
+    if len(seen_identities) > 1 and not allow_mixed_judges:
         rendered = ", ".join(
             sorted(
                 f"(judge_id={jid!r}, judge_model={jmodel!r}, judge_prompt_version={jprompt!r})"
@@ -142,15 +142,16 @@ def _parse_judgments(
         )
         raise ValueError(
             "Mixed judge identities found across judgments. "
-            "Pass --judge-id (or --judge-model/--judge-prompt-version) to select one. "
+            "Pass --judge-id (or --judge-model/--judge-prompt-version) to select one, "
+            "or pass --allow-mixed-judges. "
             f"Found: {rendered}"
         )
     selected_identity = None
-    if seen_identities:
+    if len(seen_identities) == 1:
         selected_identity = sorted(
             seen_identities, key=lambda x: (str(x[0]), str(x[1]), str(x[2]))
         )[-1]
-    return by_run_id, by_run_path, selected_identity
+    return by_run_id, by_run_path, selected_identity, len(seen_identities)
 
 
 def main() -> None:
@@ -170,6 +171,11 @@ def main() -> None:
         default=None,
         help="Filter judgments by judge_prompt_version",
     )
+    parser.add_argument(
+        "--allow-mixed-judges",
+        action="store_true",
+        help="Allow aggregating judgments from multiple judge identity tuples",
+    )
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
@@ -178,11 +184,17 @@ def main() -> None:
         raise ValueError(f"No run.json files found under {args.runs_dir}")
 
     judgment_paths = _discover_judgment_paths(args.judgments_dir, args.judgment_file)
-    judgments_by_run_id, judgments_by_run_path, selected_identity = _parse_judgments(
+    (
+        judgments_by_run_id,
+        judgments_by_run_path,
+        selected_identity,
+        judge_identity_count,
+    ) = _parse_judgments(
         judgment_paths,
         judge_id_filter=args.judge_id,
         judge_model_filter=args.judge_model,
         judge_prompt_version_filter=args.judge_prompt_version,
+        allow_mixed_judges=args.allow_mixed_judges,
     )
 
     groups: dict[tuple[str, str, str, str], dict[str, Any]] = defaultdict(
@@ -254,11 +266,22 @@ def main() -> None:
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),
         "runs_dir": args.runs_dir,
         "judgment_sources": [str(path) for path in judgment_paths],
-        "judge_id": selected_identity[0] if selected_identity else args.judge_id,
-        "judge_model": selected_identity[1] if selected_identity else args.judge_model,
-        "judge_prompt_version": (
-            selected_identity[2] if selected_identity else args.judge_prompt_version
+        "judge_id": (
+            selected_identity[0]
+            if selected_identity
+            else ("mixed" if judge_identity_count > 1 else args.judge_id)
         ),
+        "judge_model": (
+            selected_identity[1]
+            if selected_identity
+            else ("mixed" if judge_identity_count > 1 else args.judge_model)
+        ),
+        "judge_prompt_version": (
+            selected_identity[2]
+            if selected_identity
+            else ("mixed" if judge_identity_count > 1 else args.judge_prompt_version)
+        ),
+        "judge_identity_count": judge_identity_count,
         "aggregates": aggregates,
     }
     output_path = Path(args.output)
