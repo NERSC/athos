@@ -245,7 +245,6 @@ async def test_canonical_run_layout(tmp_path, monkeypatch):
             pass
 
         async def execute(self, *args, **kwargs):
-            execute_calls.append(1)
             return SimpleNamespace(
                 success=True,
                 output=FlowOutput(content="resp"),
@@ -257,7 +256,6 @@ async def test_canonical_run_layout(tmp_path, monkeypatch):
             return None
 
     monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
-    execute_calls = []
     monkeypatch.setattr(
         revals.subprocess,
         "check_output",
@@ -557,6 +555,7 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
         lambda *args, **kwargs: b"abcdef123456\n",
     )
     execute_calls = []
+    cleanup_calls = []
 
     class DummyRunner:
         def __init__(self, *_args, **_kwargs):
@@ -572,6 +571,7 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
             )
 
         async def cleanup(self):
+            cleanup_calls.append(1)
             return None
 
     monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
@@ -603,6 +603,8 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
         pass
     # Second invocation should fail before running the flow.
     assert len(execute_calls) == 1
+    # Cleanup should run for both invocations, including the failing second run.
+    assert len(cleanup_calls) == 2
 
 
 async def test_run_evaluations_rejects_unsafe_case_id_for_output_path(tmp_path, monkeypatch):

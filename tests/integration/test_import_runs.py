@@ -159,3 +159,43 @@ def test_import_runs_rejects_whitespace_success_output(tmp_path, monkeypatch):
     )
     with pytest.raises(ValueError, match="success status must include response.output_text"):
         import_runs_mod.main()
+
+
+def test_import_runs_replaces_empty_run_id(tmp_path, monkeypatch):
+    input_path = tmp_path / "external.jsonl"
+    input_path.write_text(
+        json.dumps(
+            {
+                "run_id": "",
+                "case_id": "case_one",
+                "agent_system": "codex",
+                "config_id": "cfg123",
+                "dataset_id": "hpc_cases",
+                "run_index": 0,
+                "response": {"output_text": "answer"},
+                "execution": {"status": "success"},
+            }
+        )
+        + "\n"
+    )
+
+    output_dir = tmp_path / "results"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "import_runs",
+            "--input",
+            str(input_path),
+            "--output-dir",
+            str(output_dir),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+    import_runs_mod.main()
+
+    run_path = output_dir / "exp1" / "codex" / "cfg123" / "hpc_cases" / "case_one" / "0" / "run.json"
+    payload = json.loads(run_path.read_text())
+    assert isinstance(payload["run_id"], str)
+    assert payload["run_id"]

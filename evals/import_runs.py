@@ -98,9 +98,11 @@ def _to_run_record(
     )
     if not isinstance(resolved_dataset_id, str) or not resolved_dataset_id:
         raise ValueError("Imported record is missing dataset_id")
+    input_run_id = record.get("run_id")
+    run_id = input_run_id if isinstance(input_run_id, str) and input_run_id else str(uuid.uuid4())
 
     return build_run_record(
-        run_id=record.get("run_id") if isinstance(record.get("run_id"), str) else str(uuid.uuid4()),
+        run_id=run_id,
         experiment_id=experiment_id,
         dataset_id=resolved_dataset_id,
         dataset_version=(
