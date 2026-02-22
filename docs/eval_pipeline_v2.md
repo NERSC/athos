@@ -14,12 +14,13 @@ Canonical storage is **one file per run attempt**.
 
 Directory contract:
 
-`results/<experiment_id>/<agent_system>/<config_id>/<case_id>/<run_index>/run.json`
+`results/<experiment_id>/<agent_system>/<config_id>/<dataset_id>/<case_id>/<run_index>/run.json`
 
 Where:
 - `experiment_id`: campaign grouping (e.g., `cug2026_main`).
 - `agent_system`: `athos`, `codex`, `human`, etc.
 - `config_id`: deterministic ID for model/flow/prompt/tooling config.
+- `dataset_id`: source dataset namespace (e.g., `test_cases`, `simple_qa`).
 - `case_id`: stable test case identifier.
 - `run_index`: integer run index (`0`, `1`, ...).
 
@@ -143,13 +144,20 @@ Recommended grouping keys:
 
 ## Migration Plan from Current Script
 
-1. Add `--output-dir` mode in `evals/run_evaluations.py` to emit per-run files.
+1. Make `evals/run_evaluations.py` canonical-output-first (`run.json` only).
 2. Add a scorer command that reads run files and writes judgments.
-3. Keep current summary JSON as a derived report for backwards compatibility.
+3. Keep summaries as a separate derived report (`evals/summarize_results.py`).
+
+## Current Status (2026-02-19)
+
+- Phase 1: Implemented with immutable canonical write behavior by default.
+- Phase 2: Implemented (`evals/score_runs.py`).
+- Phase 3: Implemented (`evals/import_runs.py`).
+- Phase 4: Implemented (`evals/summarize_results.py`).
 
 ## Implementation Plan (Detailed)
 
-### Phase 1: Dual-Write Execution Output
+### Phase 1: Canonical Execution Output
 
 Extend `evals/run_evaluations.py` with:
 - `--experiment-id <str>`: required when `--output-dir` is set.
@@ -157,15 +165,12 @@ Extend `evals/run_evaluations.py` with:
 - `--output-dir <path>`: enables canonical per-run writes.
 - `--run-count <int>`: default `1`; emits `run_index = K..K+N-1`.
 - `--run-start <int>`: default `0`; starting `run_index`.
-- `--no-score`: execute only, skip judging.
 
 Behavior:
-- Legacy `--output` summary remains unchanged.
-- When `--output-dir` is set, write one `run.json` for each `(flow, dataset, case, run_index)`.
+- Write one `run.json` for each `(flow, dataset, case, run_index)`.
 
 Acceptance checks:
 - Existing integration tests for `evals/run_evaluations.py` still pass.
-- A single run with both `--output` and `--output-dir` produces both artifacts.
 - Re-running later with higher `--run-start` writes new run directories without mutating prior `run.json`.
 
 ### Phase 2: Separate Scoring Command
@@ -202,12 +207,7 @@ Acceptance checks:
 - Summary values match direct recomputation from raw records.
 - For legacy-compatible runs, aggregate score/pass outputs match current script within tolerance.
 
-## Legacy Deprecation Criteria
+## Legacy Inline Scoring
 
-Keep legacy monolithic summary mode until all conditions are met:
-- Canonical per-run output is enabled in default evaluation jobs.
-- Separate scoring command is used in paper pipelines.
-- Summary generation is validated as fully derived from run/judgment records.
-- At least one full experiment is completed with multiple run indices and regenerated summaries.
-
-After these are satisfied, mark legacy inline-scoring summary mode as deprecated in docs, but keep it available for one release window.
+Inline scoring in `evals/run_evaluations.py` has been removed.
+Scoring is now performed only via `evals/score_runs.py`.

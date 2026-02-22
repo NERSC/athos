@@ -10,6 +10,9 @@ from smolagents import ChatMessage
 
 
 def evaluate_response(eval_model, solution: str, response: str) -> Tuple[Optional[int], str]:
+    if not isinstance(response, str) or not response.strip():
+        return 0, "No agent response provided."
+
     prompt = (
         "You are an evaluator. Compare the agent's response with the reference solution. "
         "Grade the response on a scale of 0 to 100, where 100 means it perfectly matches the expected solution. "
