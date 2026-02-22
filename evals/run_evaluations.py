@@ -177,7 +177,8 @@ async def main():
         command = shlex.join(sys.argv)
         hostname = socket.gethostname()
 
-        total_runs = 0
+        planned_runs = []
+        target_path_counts: dict[Path, int] = {}
         for flow_name in args.flow:
             flow_config = cfg.flows[flow_name]
             model_alias = getattr(flow_config, "model", None)
@@ -207,92 +208,129 @@ async def main():
                             run_index=run_index,
                         )
                         run_path = run_dir / "run.json"
-                        if run_path.exists() and not args.allow_overwrite_runs:
-                            raise FileExistsError(
-                                f"Canonical run file already exists: {run_path}. "
-                                "Choose a new --run-start or pass --allow-overwrite-runs."
-                            )
-                        started_at = now_utc_iso()
-                        execution_status = "success"
-                        error_type = None
-                        error_message = None
-                        response = None
-                        metrics_payload = {}
-                        try:
-                            result = await runner.execute(
-                                flow_name=flow_name,
-                                message=input_data,
-                                session_id=f"eval_{flow_name}_{dataset_name}_{name}_{run_index}",
-                                user_id="evaluator",
-                                mode=ExecutionMode.SYNC,
-                                interface="evaluation",
-                            )
-                            if result.success and result.output:
-                                response = result.output.content
-                                if not isinstance(response, str):
-                                    execution_status = "invalid_output"
-                                    error_type = "invalid_output_type"
-                                    error_message = (
-                                        "Flow returned non-string output content"
-                                    )
-                                    response = str(response)
-                                elif not response.strip():
-                                    execution_status = "invalid_output"
-                                    error_type = "empty_response"
-                                    error_message = (
-                                        "Flow returned empty response content"
-                                    )
-                            elif result.success and not result.output:
-                                execution_status = "invalid_output"
-                                error_type = "missing_output"
-                                error_message = "Flow returned success without output content"
-                            else:
-                                execution_status = "execution_error"
-                                error_type = "flow_execution_error"
-                                error_message = str(result.error or "Unknown error")
-                            metrics = ExecutionMetrics.from_output_metadata(result.metadata)
-                            metrics_payload = metrics.to_metadata() if metrics else {}
-                            if not metrics_payload and isinstance(result.metadata, dict):
-                                latency = result.metadata.get("latency_ms")
-                                if isinstance(latency, (int, float)):
-                                    metrics_payload = {"latency_ms": latency}
-                        except Exception as e:
-                            execution_status = _status_from_exception(e)
-                            error_type = e.__class__.__name__
-                            error_message = str(e)
-                        finished_at = now_utc_iso()
-                        run_dir.mkdir(parents=True, exist_ok=True)
-                        run_record = build_run_record(
-                            run_id=str(uuid.uuid4()),
-                            experiment_id=args.experiment_id,
-                            dataset_id=safe_dataset_id,
-                            dataset_version=None,
-                            case_id=safe_case_id,
-                            run_index=run_index,
-                            agent_system=args.agent_system,
-                            agent_version=f"git:{git_sha}" if git_sha else None,
-                            config_id=config_id,
-                            config_ref=str(args.config),
-                            execution={
-                                "started_at_utc": started_at,
-                                "finished_at_utc": finished_at,
-                                "status": execution_status,
-                                "error_type": error_type,
-                                "error_message": error_message,
-                            },
-                            request={"input_text": input_data, "input_artifacts": []},
-                            response={"output_text": response, "output_artifacts": []},
-                            metrics=metrics_payload if isinstance(metrics_payload, dict) else {},
-                            provenance={
-                                "runner": "evals/run_evaluations.py",
-                                "command": command,
-                                "hostname": hostname,
-                                "git_sha": git_sha,
-                                "env_fingerprint": None,
-                            },
+                        planned_runs.append(
+                            {
+                                "flow_name": flow_name,
+                                "dataset_name": dataset_name,
+                                "case_name": name,
+                                "input_data": input_data,
+                                "run_index": run_index,
+                                "run_dir": run_dir,
+                                "run_path": run_path,
+                                "config_id": config_id,
+                                "safe_dataset_id": safe_dataset_id,
+                                "safe_case_id": safe_case_id,
+                            }
                         )
-                        run_path.write_text(json.dumps(run_record, indent=2))
-                        total_runs += 1
+                        target_path_counts[run_path] = target_path_counts.get(run_path, 0) + 1
+
+        if not args.allow_overwrite_runs:
+            duplicate_targets = sorted(
+                str(path) for path, count in target_path_counts.items() if count > 1
+            )
+            if duplicate_targets:
+                raise FileExistsError(
+                    "Duplicate canonical run targets detected before execution: "
+                    f"{', '.join(duplicate_targets[:3])}. "
+                    "Resolve colliding case identifiers or choose a different run index range."
+                )
+
+            existing_targets = sorted(
+                str(path) for path in target_path_counts if path.exists()
+            )
+            if existing_targets:
+                raise FileExistsError(
+                    "Canonical run file already exists: "
+                    f"{existing_targets[0]}. "
+                    "Choose a new --run-start or pass --allow-overwrite-runs."
+                )
+
+        total_runs = 0
+        for planned in planned_runs:
+            started_at = now_utc_iso()
+            execution_status = "success"
+            error_type = None
+            error_message = None
+            response = None
+            metrics_payload = {}
+            try:
+                result = await runner.execute(
+                    flow_name=planned["flow_name"],
+                    message=planned["input_data"],
+                    session_id=(
+                        f"eval_{planned['flow_name']}_{planned['dataset_name']}_"
+                        f"{planned['case_name']}_{planned['run_index']}"
+                    ),
+                    user_id="evaluator",
+                    mode=ExecutionMode.SYNC,
+                    interface="evaluation",
+                )
+                if result.success and result.output:
+                    response = result.output.content
+                    if not isinstance(response, str):
+                        execution_status = "invalid_output"
+                        error_type = "invalid_output_type"
+                        error_message = (
+                            "Flow returned non-string output content"
+                        )
+                        response = str(response)
+                    elif not response.strip():
+                        execution_status = "invalid_output"
+                        error_type = "empty_response"
+                        error_message = (
+                            "Flow returned empty response content"
+                        )
+                elif result.success and not result.output:
+                    execution_status = "invalid_output"
+                    error_type = "missing_output"
+                    error_message = "Flow returned success without output content"
+                else:
+                    execution_status = "execution_error"
+                    error_type = "flow_execution_error"
+                    error_message = str(result.error or "Unknown error")
+                metrics = ExecutionMetrics.from_output_metadata(result.metadata)
+                metrics_payload = metrics.to_metadata() if metrics else {}
+                if not metrics_payload and isinstance(result.metadata, dict):
+                    latency = result.metadata.get("latency_ms")
+                    if isinstance(latency, (int, float)):
+                        metrics_payload = {"latency_ms": latency}
+            except Exception as e:
+                execution_status = _status_from_exception(e)
+                error_type = e.__class__.__name__
+                error_message = str(e)
+            finished_at = now_utc_iso()
+            planned["run_dir"].mkdir(parents=True, exist_ok=True)
+            run_record = build_run_record(
+                run_id=str(uuid.uuid4()),
+                experiment_id=args.experiment_id,
+                dataset_id=planned["safe_dataset_id"],
+                dataset_version=None,
+                case_id=planned["safe_case_id"],
+                run_index=planned["run_index"],
+                agent_system=args.agent_system,
+                agent_version=f"git:{git_sha}" if git_sha else None,
+                config_id=planned["config_id"],
+                config_ref=str(args.config),
+                execution={
+                    "started_at_utc": started_at,
+                    "finished_at_utc": finished_at,
+                    "status": execution_status,
+                    "error_type": error_type,
+                    "error_message": error_message,
+                },
+                request={"input_text": planned["input_data"], "input_artifacts": []},
+                response={"output_text": response, "output_artifacts": []},
+                metrics=metrics_payload if isinstance(metrics_payload, dict) else {},
+                provenance={
+                    "runner": "evals/run_evaluations.py",
+                    "command": command,
+                    "hostname": hostname,
+                    "git_sha": git_sha,
+                    "env_fingerprint": None,
+                },
+            )
+            planned["run_path"].write_text(json.dumps(run_record, indent=2))
+            total_runs += 1
 
         print(f"Wrote {total_runs} canonical runs under {output_dir / args.experiment_id}")
     finally:

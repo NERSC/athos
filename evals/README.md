@@ -142,6 +142,9 @@ Judgment status:
   - `skipped_invalid_run`
   In those cases `score` and `pass` are `null`.
 
+Known limitation:
+- `score_runs.py` first attempts reference lookup by `(dataset_id, case_id)` and currently treats a dataset miss as missing reference. If imported runs use dataset IDs that do not match your local `--cases-dir` / `--qa-file` naming, scoring can be skipped even when `case_id` is otherwise unique.
+
 ## Import external runs
 
 Use `evals/import_runs.py` to normalize external outputs into canonical run records.

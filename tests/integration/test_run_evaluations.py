@@ -607,6 +607,102 @@ async def test_duplicate_run_path_fails_without_overwrite_flag(tmp_path, monkeyp
     assert len(cleanup_calls) == 2
 
 
+async def test_preflight_existing_paths_fails_before_any_execution(tmp_path, monkeypatch):
+    """Detect any pre-existing target path before invoking runner.execute."""
+
+    case_one = tmp_path / "cases" / "case_one"
+    case_one.mkdir(parents=True)
+    (case_one / "user_description.txt").write_text("desc one")
+    (case_one / "solution.md").write_text("sol one")
+
+    case_two = tmp_path / "cases" / "case_two"
+    case_two.mkdir(parents=True)
+    (case_two / "user_description.txt").write_text("desc two")
+    (case_two / "solution.md").write_text("sol two")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1", model_dump=lambda: {"model_id": "m1"})},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        revals.subprocess,
+        "check_output",
+        lambda *args, **kwargs: b"abcdef123456\n",
+    )
+
+    execute_calls = []
+    cleanup_calls = []
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            execute_calls.append((args, kwargs))
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            cleanup_calls.append(1)
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+
+    output_root = tmp_path / "results"
+    config_id = revals._compute_config_id("f1", dummy_cfg.flows["f1"], dummy_cfg.models["m1"])
+    preexisting_path = revals.canonical_run_dir(
+        output_root=output_root,
+        experiment_id="exp1",
+        agent_system="athos",
+        config_id=config_id,
+        dataset_id="cases",
+        case_id="case_two",
+        run_index=0,
+    ) / "run.json"
+    preexisting_path.parent.mkdir(parents=True, exist_ok=True)
+    preexisting_path.write_text("{}")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(output_root),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+
+    try:
+        await revals.main()
+        raise AssertionError("Expected FileExistsError for pre-existing canonical run path")
+    except FileExistsError:
+        pass
+
+    assert len(execute_calls) == 0
+    assert len(cleanup_calls) == 1
+
+
 async def test_run_evaluations_rejects_unsafe_case_id_for_output_path(tmp_path, monkeypatch):
     qa_file = tmp_path / "qa.jsonl"
     qa_file.write_text(
