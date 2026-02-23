@@ -78,6 +78,7 @@ Scope:
 - Extend existing docs ingestion patterns to support ticket corpus ingestion and indexing.
 - Support metadata needed for filtering/traceability (ticket id, timestamps, category/service fields, attachment provenance).
 - Keep this as an enabler for existing tool-type experiments (semantic retrieval vs file-based retrieval).
+- For CUG M1 runs, use `--mode balanced` (exclude `Staff Initiated` and `System Alert Auto Generated`); do not use `full_corpus`.
 
 Deliverables:
 - `Ticket Ingestion Pipeline v0`: reproducible ingest from ticket filesystem into Chroma collection(s).

@@ -177,6 +177,27 @@ Exit criteria:
 3. Promote only versioned collections/manifests to “current”.
 4. Process JSON records in a streaming fashion (no full in-memory load of corpus) and write progress logs/checkpoints for resumability.
 5. Treat attachment paths as potentially irregular and verify existence before attempting reads.
+6. For CUG-paper experiment runs, use `--mode balanced`; avoid `full_corpus`.
+
+## CUG Smoke Runbook (Balanced Mode)
+
+Use this to produce a reproducible real-data smoke baseline for CUG M1.
+
+```bash
+python scripts/build_tickets_chroma.py \
+  /pscratch/sd/s/sfarrell/agentic-ops/get-sn-tickets/servicenow_incidents \
+  --persist-dir /tmp/chroma_ticket_balanced_smoke \
+  --collection-name servicenow_tickets_balanced_smoke \
+  --mode balanced \
+  --limit 500 \
+  --manifest-out /tmp/tickets_balanced_smoke_manifest_500.json
+```
+
+Expected behavior:
+- `filtered > 0` due to balanced-mode date/contact filters.
+- `documents > 0` with real user-facing incidents retained.
+- `errors = 0` for a healthy run.
+- Manifest captures effective config, counts, and corpus fingerprint.
 
 ## Runtime Caveats
 
