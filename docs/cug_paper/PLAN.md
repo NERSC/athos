@@ -64,6 +64,28 @@ Deliverables:
 Exit criteria:
 - First full experimental milestone can run and summarize using the upgraded pipeline.
 
+Status update (2026-02-22):
+- Core pipeline upgrades for canonical per-run artifacts, decoupled scoring, and run-path preflight collision checks are implemented.
+- Remaining known limitation: `score_runs.py` currently treats `(dataset_id, case_id)` lookup misses as missing reference, so imported runs with mismatched dataset naming can be skipped (`skipped_missing_reference`).
+
+## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
+
+Purpose:
+- Build a Chroma ingestion pipeline for historical ServiceNow ticket JSON + attachments available on filesystem.
+- Reuse existing retrieval experiments, datasets, and metrics; no new evaluation dataset track is required.
+
+Scope:
+- Extend existing docs ingestion patterns to support ticket corpus ingestion and indexing.
+- Support metadata needed for filtering/traceability (ticket id, timestamps, category/service fields, attachment provenance).
+- Keep this as an enabler for existing tool-type experiments (semantic retrieval vs file-based retrieval).
+
+Deliverables:
+- `Ticket Ingestion Pipeline v0`: reproducible ingest from ticket filesystem into Chroma collection(s).
+- `Ticket Corpus Manifest v0`: source paths, ingest config, and corpus/version fingerprint used for runs.
+
+Exit criteria:
+- Ticket corpus can be indexed and queried by configured semantic retrieval agents in M1 experiments.
+
 ## 2. Dataset Curation (Parallel Workstream)
 
 Purpose:
@@ -91,6 +113,7 @@ Plan:
 - Use AI-assisted synthesis from cached ServiceNow tickets.
 - Ensure problem descriptions are detailed enough to solve in a benchmark setting.
 - Keep current scope to single-turn ticket scenarios.
+- Current benchmark `test_cases` remain the evaluation set for ticket-style scenarios in M1; historical ticket corpus is used as an additional retrieval source, not a separate evaluation dataset.
 
 Requirements:
 - Case input is sufficiently specified to avoid ambiguous grading.
@@ -180,6 +203,6 @@ Policy:
 ## Immediate Next Steps
 
 1. Write `Scope Memo v0` and `Experiment Matrix v0` from current configs.
-2. Implement `Pipeline v0` upgrades (`--run-count`, `--run-start`, canonical run outputs).
+2. Run M1 baseline experiments using pipeline v1 artifacts (canonical runs + decoupled judgments).
 3. Start `QA Dataset v0` and `Ticket Dataset v0` curation in parallel.
-4. Define M1 checklist and target date.
+4. Define M1 checklist and target date, including explicit tracking for `skipped_missing_reference` rates on imported runs.
