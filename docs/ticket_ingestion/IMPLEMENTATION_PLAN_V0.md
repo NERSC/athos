@@ -154,11 +154,13 @@ Tasks:
 - Integration smoke:
   - small fixture corpus -> Chroma
   - query returns expected incident IDs for known keywords
+  - query returns expected incident IDs for semantic/paraphrase prompts (not exact keyword match)
 
 Exit criteria:
 
 - Tests pass in CI/local for unit scope
 - Manual smoke query sanity check passes
+- Integration smoke validates both keyword and semantic retrieval behavior on fixture corpus
 
 ## Acceptance Criteria (v0)
 

@@ -1,8 +1,14 @@
 from datetime import date
+import json
 from pathlib import Path
 import re
 
-from athos.utils.ticket_ingest import build_full_incident_document, evaluate_ticket_filter_reason
+from athos.utils.ticket_ingest import (
+    build_full_incident_document,
+    compute_corpus_fingerprint,
+    evaluate_ticket_filter_reason,
+    write_manifest,
+)
 
 
 def _sample_record():
@@ -122,3 +128,24 @@ def test_evaluate_ticket_filter_reason_regex_exclusions():
         exclude_created_by_pattern=re.compile(r"^gue"),
     )
     assert reason == "excluded_created_by_regex"
+
+
+def test_compute_corpus_fingerprint_is_stable(tmp_path):
+    a = tmp_path / "a.json"
+    b = tmp_path / "sub" / "b.json"
+    b.parent.mkdir()
+    a.write_text("{}", encoding="utf-8")
+    b.write_text("{}", encoding="utf-8")
+
+    fp1 = compute_corpus_fingerprint(tmp_path, [b, a])
+    fp2 = compute_corpus_fingerprint(tmp_path, [a, b])
+    assert fp1.file_count == 2
+    assert fp1.sha256 == fp2.sha256
+
+
+def test_write_manifest_creates_parent_dirs(tmp_path):
+    manifest_path = tmp_path / "nested" / "run.json"
+    payload = {"counts": {"input_files": 1}}
+    write_manifest(manifest_path, payload)
+    loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert loaded == payload

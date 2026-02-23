@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -35,6 +36,14 @@ class SectionCapResult:
 
     lines: list[str]
     truncated: bool
+
+
+@dataclass(frozen=True)
+class CorpusFingerprint:
+    """Reproducibility fingerprint for a selected corpus slice."""
+
+    file_count: int
+    sha256: str
 
 
 def iter_ticket_json_files(source_root: Path) -> Iterable[Path]:
@@ -216,6 +225,29 @@ def _cap_lines(lines: list[str], max_chars: int | None) -> SectionCapResult:
     if not clipped:
         return SectionCapResult(lines=[], truncated=True)
     return SectionCapResult(lines=clipped.splitlines(), truncated=True)
+
+
+def compute_corpus_fingerprint(source_root: Path, ticket_files: list[Path]) -> CorpusFingerprint:
+    """Compute a stable fingerprint over selected files."""
+    digest = hashlib.sha256()
+    for path in sorted(ticket_files):
+        rel = str(path.relative_to(source_root))
+        stat = path.stat()
+        digest.update(rel.encode("utf-8"))
+        digest.update(b"\n")
+        digest.update(str(stat.st_size).encode("utf-8"))
+        digest.update(b"\n")
+        digest.update(str(stat.st_mtime_ns).encode("utf-8"))
+        digest.update(b"\n")
+    return CorpusFingerprint(file_count=len(ticket_files), sha256=digest.hexdigest())
+
+
+def write_manifest(manifest_out: Path, payload: Mapping[str, Any]) -> None:
+    """Write JSON manifest to disk, creating parent directories."""
+    manifest_out.parent.mkdir(parents=True, exist_ok=True)
+    with manifest_out.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
 
 
 def build_full_incident_document(
