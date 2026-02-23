@@ -87,7 +87,7 @@ Optional flags:
 - `--exclude-created-by-regex ...`
 - `--exclude-assignment-group-regex ...`
 - `--dry-run` (compute counts only; do not write Chroma)
-- `--limit N` (debug mode)
+- `--limit N` (debug mode; limit applied to kept tickets after filters)
 
 ## Phased Plan
 

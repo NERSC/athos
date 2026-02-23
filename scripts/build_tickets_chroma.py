@@ -86,7 +86,11 @@ def parse_args() -> argparse.Namespace:
         default=40000,
         help="Maximum chars per full incident document before chunk fallback",
     )
-    parser.add_argument("--limit", type=int, help="Max number of JSON files to process")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        help="Max number of kept tickets to process (applied after filters)",
+    )
     parser.add_argument(
         "--batch-size",
         type=int,
@@ -224,8 +228,6 @@ def main() -> None:
         raise FileNotFoundError(f"Source path does not exist: {source_root}")
 
     ticket_files = list(iter_ticket_json_files(source_root))
-    if args.limit is not None:
-        ticket_files = ticket_files[: args.limit]
 
     min_created_date_str, include_contact_types, exclude_contact_types = _resolve_mode_filters(args)
     min_created_date = (
@@ -250,6 +252,8 @@ def main() -> None:
     chunked_tickets = 0
     kept_tickets = 0
     for ticket_file in ticket_files:
+        if args.limit is not None and kept_tickets >= args.limit:
+            break
         try:
             payload = load_ticket_json(ticket_file)
             filter_reason = evaluate_ticket_filter_reason(
