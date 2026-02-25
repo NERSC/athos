@@ -78,6 +78,55 @@ def _status_from_exception(error: Exception) -> str:
     return "execution_error"
 
 
+def _load_json(path: Path) -> dict:
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object in {path}")
+    return payload
+
+
+def _build_aggregate_input_artifact(args: argparse.Namespace) -> list[dict]:
+    manifest_payload: dict = {}
+    manifest_path: Path | None = None
+    if args.aggregate_manifest:
+        manifest_path = Path(args.aggregate_manifest)
+        if not manifest_path.exists():
+            raise FileNotFoundError(f"Aggregate manifest not found: {manifest_path}")
+        manifest_payload = _load_json(manifest_path)
+
+    aggregate_name = args.aggregate_name or manifest_payload.get("aggregate_name")
+    aggregate_version = args.aggregate_version or manifest_payload.get("aggregate_version")
+    aggregate_persist_dir = (
+        args.aggregate_persist_dir or manifest_payload.get("output_persist_dir")
+    )
+
+    if not any([aggregate_name, aggregate_version, aggregate_persist_dir, manifest_path]):
+        return []
+
+    metadata = {
+        "aggregate_name": aggregate_name,
+        "aggregate_version": aggregate_version,
+        "output_persist_dir": aggregate_persist_dir,
+        "manifest_path": str(manifest_path) if manifest_path else None,
+        "manifest_created_utc": manifest_payload.get("created_utc"),
+        "manifest_git_sha": manifest_payload.get("git_sha"),
+        "manifest_script_version": manifest_payload.get("script_version"),
+    }
+    return [
+        {
+            "type": "chroma_aggregate_db",
+            "display_name": (
+                f"chroma_aggregate:{aggregate_name}@{aggregate_version}"
+                if aggregate_name and aggregate_version
+                else "chroma_aggregate_db"
+            ),
+            "path": aggregate_persist_dir,
+            "metadata": metadata,
+        }
+    ]
+
+
 async def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config/config.yaml")
@@ -131,6 +180,29 @@ async def main():
         action="store_true",
         help="Allow overwriting existing canonical run.json artifacts",
     )
+    parser.add_argument(
+        "--aggregate-manifest",
+        default=None,
+        help=(
+            "Optional path to aggregate Chroma manifest JSON. "
+            "If provided, aggregate metadata is stored in request.input_artifacts."
+        ),
+    )
+    parser.add_argument(
+        "--aggregate-name",
+        default=None,
+        help="Optional aggregate DB logical name to record in run artifacts",
+    )
+    parser.add_argument(
+        "--aggregate-version",
+        default=None,
+        help="Optional aggregate DB version to record in run artifacts",
+    )
+    parser.add_argument(
+        "--aggregate-persist-dir",
+        default=None,
+        help="Optional aggregate DB persist_dir to record in run artifacts",
+    )
     args = parser.parse_args()
     load_dotenv()
 
@@ -176,6 +248,7 @@ async def main():
         output_dir = Path(args.output_dir)
         command = shlex.join(sys.argv)
         hostname = socket.gethostname()
+        aggregate_input_artifacts = _build_aggregate_input_artifact(args)
 
         planned_runs = []
         target_path_counts: dict[Path, int] = {}
@@ -318,7 +391,10 @@ async def main():
                     "error_type": error_type,
                     "error_message": error_message,
                 },
-                request={"input_text": planned["input_data"], "input_artifacts": []},
+                request={
+                    "input_text": planned["input_data"],
+                    "input_artifacts": aggregate_input_artifacts,
+                },
                 response={"output_text": response, "output_artifacts": []},
                 metrics=metrics_payload if isinstance(metrics_payload, dict) else {},
                 provenance={

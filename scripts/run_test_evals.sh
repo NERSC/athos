@@ -11,6 +11,7 @@ JUDGE_PROMPT_VERSION="${JUDGE_PROMPT_VERSION:-rubric_v1}"
 RUN_COUNT="${RUN_COUNT:-1}"
 RESULTS_ROOT="${RESULTS_ROOT:-results}"
 LOGS_ROOT="${LOGS_ROOT:-logs}"
+AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-}"
 
 experiment_id="smoke_$(date +%Y%m%d_%H%M%S)"
 runs_dir="${RESULTS_ROOT}/${experiment_id}"
@@ -21,14 +22,20 @@ aggregates_out="${runs_dir}/aggregates/summary.json"
 mkdir -p "${LOGS_ROOT}"
 
 echo "==> [1/3] Generating canonical runs (execution only)"
-python evals/run_evaluations.py \
-  --config config/config.yaml \
-  --flow "${FLOW_NAME}" \
-  --cases-dir evals/test_cases \
-  --qa-file evals/simple_qa.jsonl \
-  --output-dir "${RESULTS_ROOT}" \
-  --experiment-id "${experiment_id}" \
+run_cmd=(
+  python evals/run_evaluations.py
+  --config config/config.yaml
+  --flow "${FLOW_NAME}"
+  --cases-dir evals/test_cases
+  --qa-file evals/simple_qa.jsonl
+  --output-dir "${RESULTS_ROOT}"
+  --experiment-id "${experiment_id}"
   --run-count "${RUN_COUNT}"
+)
+if [[ -n "${AGGREGATE_MANIFEST}" ]]; then
+  run_cmd+=(--aggregate-manifest "${AGGREGATE_MANIFEST}")
+fi
+"${run_cmd[@]}"
 
 echo "==> [2/3] Scoring canonical runs"
 python evals/score_runs.py \

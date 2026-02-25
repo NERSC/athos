@@ -296,6 +296,90 @@ async def test_canonical_run_layout(tmp_path, monkeypatch):
     assert run_payload["execution"]["status"] == "success"
 
 
+async def test_aggregate_manifest_recorded_in_run_input_artifacts(tmp_path, monkeypatch):
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    aggregate_manifest = tmp_path / "aggregate_manifest.json"
+    aggregate_manifest.write_text(
+        json.dumps(
+            {
+                "aggregate_name": "athos_eval_bundle",
+                "aggregate_version": "20260225",
+                "output_persist_dir": "/pscratch/example/aggregate_db_current",
+                "created_utc": "2026-02-25T00:00:00+00:00",
+                "git_sha": "deadbeef",
+                "script_version": "1.0.0",
+            }
+        )
+    )
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(content="resp"),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    output_root = tmp_path / "results"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(output_root),
+            "--experiment-id",
+            "exp1",
+            "--aggregate-manifest",
+            str(aggregate_manifest),
+        ],
+    )
+
+    await revals.main()
+
+    run_path = next((output_root / "exp1" / "athos").glob("*/*/*/*/run.json"))
+    payload = json.loads(run_path.read_text())
+    input_artifacts = payload["request"]["input_artifacts"]
+    assert len(input_artifacts) == 1
+    artifact = input_artifacts[0]
+    assert artifact["type"] == "chroma_aggregate_db"
+    assert artifact["metadata"]["aggregate_name"] == "athos_eval_bundle"
+    assert artifact["metadata"]["aggregate_version"] == "20260225"
+    assert artifact["metadata"]["manifest_path"] == str(aggregate_manifest)
+
+
 async def test_run_start_writes_new_run_dirs_without_overwrite(tmp_path, monkeypatch):
     """Ensure later runs can append run indices without mutating existing runs."""
 
