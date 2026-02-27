@@ -1,0 +1,99 @@
+# Frozen CUG M1 configuration for ATHOS-run experiments.
+# Note: external coding-agent baselines are run outside ATHOS and imported via evals/import_runs.py.
+
+workspace_dir: "${ATHOS_WORKSPACE:-/tmp/athos_workspace}"
+
+models:
+  gptoss:
+    description: "Open-weight GPT-OSS-120B via CBORG"
+    model_id: "lbl/cborg-coder"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
+    temperature: 0.3
+    max_tokens: 16384
+
+mcp_servers:
+  chroma_mcp:
+    description: "ChromaDB MCP server for persistent vector database operations"
+    mcp_type: "mcp_stdio"
+    command: "uvx"
+    args: [
+      "chroma-mcp",
+      "--client-type", "persistent",
+      "--data-dir", "${ATHOS_CHROMA_PERSIST_DIR:-/tmp/athos_workspace/chroma_20260225}"
+    ]
+
+tools:
+  chroma_list_collections:
+    description: "List ChromaDB collections"
+    callable_name: "chroma_list_collections"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_peek_collection:
+    description: "Peek documents from a ChromaDB collection"
+    callable_name: "chroma_peek_collection"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_collection_info:
+    description: "Get ChromaDB collection info"
+    callable_name: "chroma_get_collection_info"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_query_documents:
+    description: "Query documents from a ChromaDB collection"
+    callable_name: "chroma_query_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_documents:
+    description: "Fetch documents from a ChromaDB collection"
+    callable_name: "chroma_get_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+
+flows:
+  cug_lang_base_gptoss:
+    description: "LangChain no-tool baseline on GPT-OSS"
+    type: "langchain_agent"
+    model: "gptoss"
+    system_prompt_path: "../prompts/langgraph_chatbot_demo_system_prompt.txt"
+    max_iterations: 20
+
+  cug_smol_base_gptoss:
+    description: "Smol no-tool baseline on GPT-OSS"
+    type: "smol_agent"
+    agent_type: "tool_calling"
+    model: "gptoss"
+
+  cug_lang_chroma_gptoss:
+    description: "LangChain Chroma-retrieval baseline on GPT-OSS"
+    type: "langchain_agent"
+    model: "gptoss"
+    mcp_servers: ["chroma_mcp"]
+    max_iterations: 24
+    system_prompt: |
+      You are an HPC operations assistant.
+      Use available Chroma retrieval tools to gather evidence before answering.
+      Cite the retrieved evidence clearly in your final response.
+
+  cug_smol_chroma_gptoss:
+    description: "Smol Chroma-retrieval baseline on GPT-OSS using local Chroma tools"
+    type: "smol_agent"
+    agent_type: "code"
+    model: "gptoss"
+    max_steps: 20
+    additional_authorized_imports: ["json"]
+    tools:
+      - chroma_list_collections
+      - chroma_peek_collection
+      - chroma_get_collection_info
+      - chroma_query_documents
+      - chroma_get_documents
+    instructions: |
+      Use Chroma tools to inspect collections and retrieve relevant context before answering.
+      Prefer read operations; do not modify collections during evaluation.
+
+logging_config:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    - type: "console"

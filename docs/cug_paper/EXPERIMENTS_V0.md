@@ -1,29 +1,27 @@
 # CUG Experiments v0
 
-Status: Draft v0.1
+Status: Draft v0.4
 
 ## Axes
 
 ### Agent Harness
 - `smolagents`
 - `langchain`
-- `claude-code`
+- external coding-agent baselines (run outside ATHOS; imported for scoring)
 
 ### Tool Type
 - `llm_only` (no tools)
-- `semantic_retrieval`: `docs_rag_mcp`, `chroma_mcp`, `websearch`, `langchain_tavily_search`
+- `semantic_retrieval`: `chroma_mcp` (langchain) and local `chroma_*` tools (smolagents)
   - includes semantic retrieval over documentation and historical ServiceNow ticket corpus (via Chroma ingestion pipeline)
-- `file_tools`: `filesystem_mcp`
-  - includes file-based retrieval over documentation plus ticket JSON + attachments on filesystem
 
 ### Model
-- Open-weight models: `cborg_coder` (gpt-oss-120b)
-- Proprietary frontier models: claude-sonnet
+- Open-weight models: `gptoss` (`lbl/cborg-coder`, GPT-OSS-120B)
+- Proprietary models are out of scope for M1 to reduce API spend.
 
 ### Datasets
-- Q&A benchmark (expanded versions)
-- Single-turn ticket benchmark (synthetic benchmark-ready)
-- Additional categories (SRE / utilization), candidate track
+- `evals/test_cases`
+- `evals/simple_qa.jsonl`
+- Additional dataset expansion remains in the M2+ track.
 
 ### Variance
 - Incremental runs via `--run-count` and `--run-start`
@@ -32,13 +30,23 @@ Status: Draft v0.1
 
 | ID | Purpose | Config Pointer | Dataset Pointer | Status |
 |---|---|---|---|---|
-| E1 | No-tool baseline | `TBD` | `TBD` | Planned |
-| E2 | Tool-enabled baseline | `TBD` | `TBD` | Planned |
-| E3 | Coding-agent point | `TBD` | `TBD` | Planned |
-| E4 | Open vs proprietary comparison | `TBD` | `TBD` | Planned |
-| E5 | Variance run set | `TBD` | `TBD` | Planned |
+| E1 | No-tool baseline (LangChain) | `config/paper/cug_m1.yaml :: cug_lang_base_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
+| E2 | No-tool baseline (SmolAgents) | `config/paper/cug_m1.yaml :: cug_smol_base_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
+| E3 | Chroma retrieval baseline (LangChain) | `config/paper/cug_m1.yaml :: cug_lang_chroma_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
+| E4 | Chroma retrieval baseline (SmolAgents) | `config/paper/cug_m1.yaml :: cug_smol_chroma_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
+| E5 | Variance run set | E1-E4 with `--run-count` / `--run-start` | `evals/test_cases` + `evals/simple_qa.jsonl` | Planned |
+| E6 | External coding-agent comparison point | External runner outputs imported via `evals/import_runs.py` and scored with `evals/score_runs.py` | Imported run dataset IDs must match local references | Planned |
+
+Notes:
+- M1 ATHOS-run experiments are open-weight only (`gptoss` alias in `config/paper/cug_m1.yaml`).
+- For retrieval experiments, run generation should include `--aggregate-manifest <path>` to capture retrieval corpus provenance in canonical run artifacts.
 
 ## Changelog
+
+### v0.4
+- Added concrete M1 experiment matrix pointers to frozen config `config/paper/cug_m1.yaml`.
+- Locked M1 ATHOS-run scope to open-weight `gptoss` model only.
+- Added explicit external coding-agent experiment path (import + score workflow, not ATHOS flow execution).
 
 ### v0.2
 - Recorded pipeline robustness update: canonical run generation now preflights target `run.json` paths before execution to avoid partial-write reruns.
