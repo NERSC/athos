@@ -12,7 +12,9 @@ Status: Draft v0.1
 ### Tool Type
 - `llm_only` (no tools)
 - `semantic_retrieval`: `docs_rag_mcp`, `chroma_mcp`, `websearch`, `langchain_tavily_search`
+  - includes semantic retrieval over documentation and historical ServiceNow ticket corpus (via Chroma ingestion pipeline)
 - `file_tools`: `filesystem_mcp`
+  - includes file-based retrieval over documentation plus ticket JSON + attachments on filesystem
 
 ### Model
 - Open-weight models: `cborg_coder` (gpt-oss-120b)
@@ -37,6 +39,14 @@ Status: Draft v0.1
 | E5 | Variance run set | `TBD` | `TBD` | Planned |
 
 ## Changelog
+
+### v0.2
+- Recorded pipeline robustness update: canonical run generation now preflights target `run.json` paths before execution to avoid partial-write reruns.
+- Added planning note to watch `skipped_missing_reference` when scoring imported runs whose dataset IDs may not match local dataset naming.
+
+### v0.3
+- Clarified that historical ServiceNow tickets are an additional retrieval corpus under existing tool-type experiments (`semantic_retrieval` and `file_tools`).
+- Confirmed scope: no new evaluation datasets or metrics required for ticket-corpus integration; existing `test_cases`/Q&A benchmarks remain primary in v0.
 
 ### v0.1
 - Created minimal experiments document with axes, selected experiments, and changelog only.

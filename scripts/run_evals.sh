@@ -14,6 +14,7 @@ AGENT_SYSTEM="${AGENT_SYSTEM:-athos}"
 RUN_COUNT="${RUN_COUNT:-1}"
 RUN_START="${RUN_START:-0}"
 ALLOW_OVERWRITE_RUNS="${ALLOW_OVERWRITE_RUNS:-0}"
+AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-}"
 
 read -r -a flow_args <<< "${FLOWS}"
 if [[ ${#flow_args[@]} -eq 0 ]]; then
@@ -46,10 +47,17 @@ if [[ "${ALLOW_OVERWRITE_RUNS}" == "1" ]]; then
   cmd+=(--allow-overwrite-runs)
 fi
 
+if [[ -n "${AGGREGATE_MANIFEST}" ]]; then
+  cmd+=(--aggregate-manifest "${AGGREGATE_MANIFEST}")
+fi
+
 echo "Running flow sweep:"
 echo "  flows: ${FLOWS}"
 echo "  experiment_id: ${EXPERIMENT_ID}"
 echo "  output_root: ${RESULTS_ROOT}"
+if [[ -n "${AGGREGATE_MANIFEST}" ]]; then
+  echo "  aggregate_manifest: ${AGGREGATE_MANIFEST}"
+fi
 
 "${cmd[@]}"
 

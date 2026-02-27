@@ -23,6 +23,7 @@ python evals/run_evaluations.py \
   --flow <flow_name> [<flow_name2> ...] \
   [--cases-dir <dir1> --cases-dir <dir2> ...] \
   [--qa-file <qa.jsonl> ...] \
+  [--aggregate-manifest <aggregate_manifest.json>] \
   --output-dir <results_root> \
   --experiment-id <experiment_id> \
   [--agent-system <agent_system>] \
@@ -36,6 +37,7 @@ Arguments:
 - `--flow`: One or more flow names to test (required).
 - `--cases-dir`: Directory containing structured test case subdirectories. May be provided multiple times. Defaults to `test_cases` if no datasets are specified.
 - `--qa-file`: JSONL file of question/answer pairs. May be provided multiple times.
+- `--aggregate-manifest`: Optional aggregate Chroma manifest JSON. When set, aggregate DB provenance is recorded under each run's `request.input_artifacts`.
 - `--output-dir`: Root directory for canonical per-run output (`run.json` files). Required.
 - `--experiment-id`: Used in canonical output paths. Required.
 - `--agent-system`: Agent system label for canonical output (default: `athos`).
@@ -45,6 +47,7 @@ Arguments:
 
 Notes:
 - Canonical run paths are immutable by default; duplicate run paths fail unless `--allow-overwrite-runs` is used.
+- `--aggregate-manifest` is optional. If omitted, run artifacts are still written normally, but aggregate DB provenance metadata is not captured.
 
 ## Canonical per-run output
 
@@ -103,6 +106,17 @@ Example:
     --cases-dir evals/test_cases \
     --output-dir results \
     --experiment-id cug2026_main
+  ```
+
+- **Execution runs with aggregate DB provenance captured:**
+  ```bash
+  python evals/run_evaluations.py \
+    --config config/config.yaml \
+    --flow lang_chat \
+    --cases-dir evals/test_cases \
+    --output-dir results \
+    --experiment-id cug2026_main \
+    --aggregate-manifest /pscratch/sd/s/sfarrell/agentic-ops/athos_chroma/aggregates/manifests/current.json
   ```
 
 ## Scoring canonical runs
