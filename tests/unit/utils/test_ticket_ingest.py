@@ -143,6 +143,21 @@ def test_compute_corpus_fingerprint_is_stable(tmp_path):
     assert fp1.sha256 == fp2.sha256
 
 
+def test_compute_corpus_fingerprint_changes_for_selected_subset(tmp_path):
+    a = tmp_path / "a.json"
+    b = tmp_path / "b.json"
+    c = tmp_path / "c.json"
+    a.write_text("{}", encoding="utf-8")
+    b.write_text("{}", encoding="utf-8")
+    c.write_text("{}", encoding="utf-8")
+
+    full = compute_corpus_fingerprint(tmp_path, [a, b, c])
+    kept = compute_corpus_fingerprint(tmp_path, [a, c])
+    assert full.file_count == 3
+    assert kept.file_count == 2
+    assert full.sha256 != kept.sha256
+
+
 def test_write_manifest_creates_parent_dirs(tmp_path):
     manifest_path = tmp_path / "nested" / "run.json"
     payload = {"counts": {"input_files": 1}}

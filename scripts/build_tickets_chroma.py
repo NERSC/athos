@@ -251,6 +251,7 @@ def main() -> None:
     truncated_work_note_docs = 0
     chunked_tickets = 0
     kept_tickets = 0
+    kept_ticket_files: list[Path] = []
     for ticket_file in ticket_files:
         if args.limit is not None and kept_tickets >= args.limit:
             break
@@ -269,6 +270,7 @@ def main() -> None:
                 continue
 
             kept_tickets += 1
+            kept_ticket_files.append(ticket_file)
             ticket_docs = build_full_incident_document(
                 payload,
                 source_json_path=ticket_file,
@@ -289,7 +291,7 @@ def main() -> None:
             error_count += 1
             logger.exception("Failed to process %s", ticket_file)
 
-    fingerprint = compute_corpus_fingerprint(source_root, ticket_files)
+    fingerprint = compute_corpus_fingerprint(source_root, kept_ticket_files)
     resolved_documents, duplicate_doc_ids = _resolve_duplicate_policy(documents, args.on_duplicate_id)
     manifest = {
         "run_timestamp_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
