@@ -126,7 +126,7 @@ mcp_servers:
     args: [
       "chroma-mcp",
       "--client-type", "persistent",
-      "--data-dir", "${ATHOS_WORKSPACE}/chroma"
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma_20260225"
     ]
 
 
