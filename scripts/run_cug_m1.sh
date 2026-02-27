@@ -27,7 +27,10 @@ FLOWS="${FLOWS:-}"
 
 CASES_DIRS="${CASES_DIRS:-evals/test_cases}"
 QA_FILES="${QA_FILES:-evals/simple_qa.jsonl}"
-REQUIRE_AGGREGATE_MANIFEST_FOR_CHROMA="${REQUIRE_AGGREGATE_MANIFEST_FOR_CHROMA:-1}"
+REQUIRE_AGGREGATE_MANIFEST_FOR_CHROMA="${REQUIRE_AGGREGATE_MANIFEST_FOR_CHROMA:-0}"
+
+start_epoch="$(date +%s)"
+start_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if [[ -n "${FLOWS}" ]]; then
   read -r -a flow_args <<< "${FLOWS}"
@@ -74,10 +77,10 @@ for flow in "${flow_args[@]}"; do
 done
 
 if [[ "${has_chroma_flow}" == "1" ]]; then
-  if [[ -z "${ATHOS_CHROMA_PERSIST_DIR:-}" ]]; then
-    echo "ERROR: ATHOS_CHROMA_PERSIST_DIR must be set for chroma flows." >&2
-    exit 2
-  fi
+  #if [[ -z "${ATHOS_CHROMA_PERSIST_DIR:-}" ]]; then
+  #  echo "ERROR: ATHOS_CHROMA_PERSIST_DIR must be set for chroma flows." >&2
+  #  exit 2
+  #fi
   if [[ "${REQUIRE_AGGREGATE_MANIFEST_FOR_CHROMA}" == "1" && -z "${AGGREGATE_MANIFEST}" ]]; then
     echo "ERROR: AGGREGATE_MANIFEST is required for chroma flows (set REQUIRE_AGGREGATE_MANIFEST_FOR_CHROMA=0 to bypass)." >&2
     exit 2
@@ -119,14 +122,23 @@ echo "  flows: ${flow_args[*]}"
 echo "  experiment_id: ${EXPERIMENT_ID}"
 echo "  output_root: ${RESULTS_ROOT}"
 echo "  run_count/run_start: ${RUN_COUNT}/${RUN_START}"
-if [[ "${has_chroma_flow}" == "1" ]]; then
-  echo "  chroma_persist_dir: ${ATHOS_CHROMA_PERSIST_DIR}"
-fi
+echo "  started_at_utc: ${start_utc}"
+#if [[ "${has_chroma_flow}" == "1" ]]; then
+#  echo "  chroma_persist_dir: ${ATHOS_CHROMA_PERSIST_DIR}"
+#fi
 if [[ -n "${AGGREGATE_MANIFEST}" ]]; then
   echo "  aggregate_manifest: ${AGGREGATE_MANIFEST}"
 fi
 
 "${cmd[@]}"
 
+end_epoch="$(date +%s)"
+end_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+elapsed_sec="$((end_epoch - start_epoch))"
+
 echo "Done. Canonical runs written to:"
 echo "  ${RESULTS_ROOT}/${EXPERIMENT_ID}"
+echo "Run timing summary:"
+echo "  started_at_utc: ${start_utc}"
+echo "  finished_at_utc: ${end_utc}"
+echo "  elapsed_seconds: ${elapsed_sec}"

@@ -23,6 +23,9 @@ FAIL_ON_SKIP="${FAIL_ON_SKIP:-1}"
 CASES_DIRS="${CASES_DIRS:-evals/test_cases}"
 QA_FILES="${QA_FILES:-evals/simple_qa.jsonl}"
 
+start_epoch="$(date +%s)"
+start_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
 if [[ -z "${RUNS_DIR}" ]]; then
   if [[ -z "${EXPERIMENT_ID}" ]]; then
     echo "ERROR: set RUNS_DIR or EXPERIMENT_ID" >&2
@@ -78,6 +81,7 @@ echo "  judge_id: ${JUDGE_ID}"
 echo "  fail_on_skip: ${FAIL_ON_SKIP}"
 echo "  judgments_out: ${JUDGMENTS_OUT}"
 echo "  skips_out: ${SKIPS_OUT}"
+echo "  started_at_utc: ${start_utc}"
 
 "${score_cmd[@]}"
 
@@ -89,7 +93,15 @@ python evals/summarize_results.py \
   --judgments-dir "${JUDGMENTS_DIR}" \
   --output "${SUMMARY_OUT}"
 
+end_epoch="$(date +%s)"
+end_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+elapsed_sec="$((end_epoch - start_epoch))"
+
 echo "Done."
 echo "  Judgments: ${JUDGMENTS_OUT}"
 echo "  Skips: ${SKIPS_OUT}"
 echo "  Summary: ${SUMMARY_OUT}"
+echo "Run timing summary:"
+echo "  started_at_utc: ${start_utc}"
+echo "  finished_at_utc: ${end_utc}"
+echo "  elapsed_seconds: ${elapsed_sec}"
