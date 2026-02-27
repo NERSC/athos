@@ -1,7 +1,7 @@
 # Frozen CUG M1 configuration for ATHOS-run experiments.
 # Note: external coding-agent baselines are run outside ATHOS and imported via evals/import_runs.py.
 
-workspace_dir: "${ATHOS_WORKSPACE:-/tmp/athos_workspace}"
+workspace_dir: "${ATHOS_WORKSPACE}"
 
 models:
   gptoss:
@@ -20,7 +20,7 @@ mcp_servers:
     args: [
       "chroma-mcp",
       "--client-type", "persistent",
-      "--data-dir", "${ATHOS_CHROMA_PERSIST_DIR:-/tmp/athos_workspace/chroma_20260225}"
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma_20260225"
     ]
 
 tools:
