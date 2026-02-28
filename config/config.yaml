@@ -226,6 +226,14 @@ tools:
     module_path: "athos.tools.chroma"
     is_class: false
 
+  qa_dataset_generator:
+    description: "Generate ATHOS QA datasets via athos_qa/generate_qa_dataset.py"
+    callable_name: "generate_qa_dataset_tool"
+    module_path: "athos.tools.qa_dataset"
+    parameters: {}
+    is_class: false
+    framework: "smolagents"
+
 
 # Agent flows define the agent system
 flows:
@@ -407,6 +415,13 @@ flows:
       - chroma_get_documents
       - chroma_update_documents
       - chroma_delete_documents
+
+  smol_qa_dataset_agent:
+    description: "SmolAgents agent with QA dataset generation tool"
+    type: "smol_agent"
+    agent_type: "tool_calling"
+    model: "claude_sonnet"
+    tools: ["qa_dataset_generator"]
 
 # Logging configuration
 logging_config:
