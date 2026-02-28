@@ -11,6 +11,13 @@ models:
     api_base: "${CBORG_API_URL}"
     temperature: 0.3
     max_tokens: 16384
+  claude_sonnet:
+    description: "Anthropic Claude Sonnet via CBORG"
+    model_id: "anthropic/claude-sonnet"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
+    temperature: 0.7
+    max_tokens: 2048
 
 mcp_servers:
   chroma_mcp:
@@ -20,7 +27,7 @@ mcp_servers:
     args: [
       "chroma-mcp",
       "--client-type", "persistent",
-      "--data-dir", "${ATHOS_WORKSPACE}/chroma_20260225"
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
 
 tools:
@@ -58,11 +65,12 @@ flows:
     system_prompt_path: "../prompts/langgraph_chatbot_demo_system_prompt.txt"
     max_iterations: 20
 
-  cug_smol_base_gptoss:
-    description: "Smol no-tool baseline on GPT-OSS"
-    type: "smol_agent"
-    agent_type: "tool_calling"
-    model: "gptoss"
+  cug_lang_base_sonnet:
+    description: "LangChain no-tool baseline on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    system_prompt_path: "../prompts/langgraph_chatbot_demo_system_prompt.txt"
+    max_iterations: 20
 
   cug_lang_chroma_gptoss:
     description: "LangChain Chroma-retrieval baseline on GPT-OSS"
@@ -75,22 +83,16 @@ flows:
       Use available Chroma retrieval tools to gather evidence before answering.
       Cite the retrieved evidence clearly in your final response.
 
-  cug_smol_chroma_gptoss:
-    description: "Smol Chroma-retrieval baseline on GPT-OSS using local Chroma tools"
-    type: "smol_agent"
-    agent_type: "code"
-    model: "gptoss"
-    max_steps: 20
-    additional_authorized_imports: ["json"]
-    tools:
-      - chroma_list_collections
-      - chroma_peek_collection
-      - chroma_get_collection_info
-      - chroma_query_documents
-      - chroma_get_documents
-    instructions: |
-      Use Chroma tools to inspect collections and retrieve relevant context before answering.
-      Prefer read operations; do not modify collections during evaluation.
+  cug_lang_chroma_sonnet:
+    description: "LangChain Chroma-retrieval baseline on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["chroma_mcp"]
+    max_iterations: 24
+    system_prompt: |
+      You are an HPC operations assistant.
+      Use available Chroma retrieval tools to gather evidence before answering.
+      Cite the retrieved evidence clearly in your final response.
 
 logging_config:
   level: "INFO"

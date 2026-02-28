@@ -1,22 +1,21 @@
 # CUG Experiments v0
 
-Status: Draft v0.4
+Status: Draft v0.5
 
 ## Axes
 
 ### Agent Harness
-- `smolagents`
 - `langchain`
 - external coding-agent baselines (run outside ATHOS; imported for scoring)
 
 ### Tool Type
 - `llm_only` (no tools)
-- `semantic_retrieval`: `chroma_mcp` (langchain) and local `chroma_*` tools (smolagents)
+- `semantic_retrieval`: `chroma_mcp` (langchain)
   - includes semantic retrieval over documentation and historical ServiceNow ticket corpus (via Chroma ingestion pipeline)
 
 ### Model
 - Open-weight models: `gptoss` (`lbl/cborg-coder`, GPT-OSS-120B)
-- Proprietary models are out of scope for M1 to reduce API spend.
+- Proprietary models: `claude_sonnet` (`anthropic/claude-sonnet`)
 
 ### Datasets
 - `evals/test_cases`
@@ -31,17 +30,21 @@ Status: Draft v0.4
 | ID | Purpose | Config Pointer | Dataset Pointer | Status |
 |---|---|---|---|---|
 | E1 | No-tool baseline (LangChain) | `config/paper/cug_m1.yaml :: cug_lang_base_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
-| E2 | No-tool baseline (SmolAgents) | `config/paper/cug_m1.yaml :: cug_smol_base_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
+| E2 | No-tool baseline (LangChain, Sonnet) | `config/paper/cug_m1.yaml :: cug_lang_base_sonnet` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
 | E3 | Chroma retrieval baseline (LangChain) | `config/paper/cug_m1.yaml :: cug_lang_chroma_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
-| E4 | Chroma retrieval baseline (SmolAgents) | `config/paper/cug_m1.yaml :: cug_smol_chroma_gptoss` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
+| E4 | Chroma retrieval baseline (LangChain, Sonnet) | `config/paper/cug_m1.yaml :: cug_lang_chroma_sonnet` | `evals/test_cases` + `evals/simple_qa.jsonl` | Ready |
 | E5 | Variance run set | E1-E4 with `--run-count` / `--run-start` | `evals/test_cases` + `evals/simple_qa.jsonl` | Planned |
 | E6 | External coding-agent comparison point | External runner outputs imported via `evals/import_runs.py` and scored with `evals/score_runs.py` | Imported run dataset IDs must match local references | Planned |
 
 Notes:
-- M1 ATHOS-run experiments are open-weight only (`gptoss` alias in `config/paper/cug_m1.yaml`).
+- M1 ATHOS-run experiments cover both open-weight (`gptoss`) and proprietary (`claude_sonnet`) model baselines through LangChain flows in `config/paper/cug_m1.yaml`.
 - For retrieval experiments, run generation should include `--aggregate-manifest <path>` to capture retrieval corpus provenance in canonical run artifacts.
 
 ## Changelog
+
+### v0.5
+- Replaced SmolAgents M1 matrix rows with LangChain Claude Sonnet baselines (no-tool + Chroma retrieval).
+- Updated model-axis scope to include both `gptoss` and `claude_sonnet` for M1 ATHOS-run experiments.
 
 ### v0.4
 - Added concrete M1 experiment matrix pointers to frozen config `config/paper/cug_m1.yaml`.

@@ -8,7 +8,7 @@ set -euo pipefail
 # Usage examples:
 #   scripts/run_cug_m1.sh
 #   FLOW_SET=base scripts/run_cug_m1.sh
-#   FLOW_SET=chroma AGGREGATE_MANIFEST=/path/to/aggregate.json ATHOS_CHROMA_PERSIST_DIR=/path/to/chroma scripts/run_cug_m1.sh
+#   FLOW_SET=chroma AGGREGATE_MANIFEST=/path/to/aggregate.json scripts/run_cug_m1.sh
 #   FLOWS="cug_lang_base_gptoss cug_lang_chroma_gptoss" scripts/run_cug_m1.sh
 
 CONFIG_PATH="${CONFIG_PATH:-config/paper/cug_m1.yaml}"
@@ -18,7 +18,7 @@ AGENT_SYSTEM="${AGENT_SYSTEM:-athos}"
 RUN_COUNT="${RUN_COUNT:-1}"
 RUN_START="${RUN_START:-0}"
 ALLOW_OVERWRITE_RUNS="${ALLOW_OVERWRITE_RUNS:-0}"
-AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-}"
+AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-$SCRATCH/athos/chroma/aggregates/manifests/current.json}"
 
 # all | base | chroma
 FLOW_SET="${FLOW_SET:-all}"
@@ -39,21 +39,21 @@ else
     all)
       flow_args=(
         cug_lang_base_gptoss
-        cug_smol_base_gptoss
+        cug_lang_base_sonnet
         cug_lang_chroma_gptoss
-        cug_smol_chroma_gptoss
+        cug_lang_chroma_sonnet
       )
       ;;
     base)
       flow_args=(
         cug_lang_base_gptoss
-        cug_smol_base_gptoss
+        cug_lang_base_sonnet
       )
       ;;
     chroma)
       flow_args=(
         cug_lang_chroma_gptoss
-        cug_smol_chroma_gptoss
+        cug_lang_chroma_sonnet
       )
       ;;
     *)
