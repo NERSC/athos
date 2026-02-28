@@ -103,7 +103,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-root",
         type=Path,
-        default=Path("/pscratch/sd/s/sfarrell/agentic-ops/athos_chroma"),
+        default=Path("/pscratch/sd/s/sfarrell/athos/chroma"),
         help="Output root for versioned source DBs",
     )
     parser.add_argument(

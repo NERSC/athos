@@ -116,7 +116,7 @@ Example:
     --cases-dir evals/test_cases \
     --output-dir results \
     --experiment-id cug2026_main \
-    --aggregate-manifest /pscratch/sd/s/sfarrell/agentic-ops/athos_chroma/aggregates/manifests/current.json
+    --aggregate-manifest /pscratch/sd/s/sfarrell/athos/chroma/aggregates/manifests/current.json
   ```
 
 ## Scoring canonical runs

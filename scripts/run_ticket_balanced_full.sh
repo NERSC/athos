@@ -8,11 +8,11 @@ set -euo pipefail
 # Example:
 #   scripts/run_ticket_balanced_full.sh \
 #     /pscratch/sd/s/sfarrell/agentic-ops/get-sn-tickets/servicenow_incidents \
-#     /pscratch/sd/s/sfarrell/agentic-ops/athos_chroma \
+#     /pscratch/sd/s/sfarrell/athos/chroma \
 #     20260223
 
 SOURCE_ROOT="${1:-/pscratch/sd/s/sfarrell/agentic-ops/get-sn-tickets/servicenow_incidents}"
-PERSIST_ROOT="${2:-/pscratch/sd/s/sfarrell/agentic-ops/athos_chroma}"
+PERSIST_ROOT="${2:-/pscratch/sd/s/sfarrell/athos/chroma}"
 RUN_TAG="${3:-$(date -u +%Y%m%d)}"
 
 PERSIST_DIR="${PERSIST_ROOT}/servicenow_tickets_balanced_v0_${RUN_TAG}"
