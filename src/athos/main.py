@@ -184,17 +184,19 @@ async def main() -> None:
                 "--flow and --input are required unless --show-config or --gradio is used"
             )
 
+        metadata = {"cli": True}
+        if args.verbose > 0:
+            metadata["verbosity_level"] = args.verbose
+        if args.verbose >= 2:
+            metadata["debug_include_steps"] = True
+
         result = await runner.execute(
             flow_name=args.flow,
             message=args.input,
             session_id="cli_session",
             user_id="cli_user",
             interface="cli",
-            metadata={
-                "cli": True,
-                "verbosity_level": args.verbose,
-                "debug_include_steps": args.verbose >= 2,
-            },
+            metadata=metadata,
         )
 
         if not result.success or result.output is None:
