@@ -279,8 +279,8 @@ def test_score_runs_records_skips_and_fail_on_skip(tmp_path, monkeypatch):
 
     judgment = json.loads(out_jsonl.read_text().splitlines()[0])
     assert judgment["judgment_status"] == "skipped_missing_output"
-    assert judgment["score"] is None
-    assert judgment["pass"] is None
+    assert judgment["score"] == 0.0
+    assert judgment["pass"] is False
 
     skip = json.loads(skips_jsonl.read_text().splitlines()[0])
     assert skip["schema_version"] == "athos.skip.v1"
@@ -393,7 +393,8 @@ def test_score_runs_treats_whitespace_output_as_missing(tmp_path, monkeypatch):
 
     judgment = json.loads(out_jsonl.read_text().splitlines()[0])
     assert judgment["judgment_status"] == "skipped_missing_output"
-    assert judgment["score"] is None
+    assert judgment["score"] == 0.0
+    assert judgment["pass"] is False
 
 
 def test_score_runs_resolves_references_by_dataset_and_case_id(tmp_path, monkeypatch):
@@ -590,10 +591,11 @@ def test_score_runs_skips_non_success_execution_status(tmp_path, monkeypatch):
 
     judgment = json.loads(out_jsonl.read_text().splitlines()[0])
     assert judgment["judgment_status"] == "skipped_execution_status"
-    assert judgment["score"] is None
+    assert judgment["score"] == 0.0
+    assert judgment["pass"] is False
 
 
-def test_score_runs_skips_non_numeric_judge_score(tmp_path, monkeypatch):
+def test_score_runs_fails_on_non_numeric_judge_score(tmp_path, monkeypatch):
     runs_dir = tmp_path / "runs"
     _write_run(
         runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
@@ -640,8 +642,5 @@ def test_score_runs_skips_non_numeric_judge_score(tmp_path, monkeypatch):
             str(out_jsonl),
         ],
     )
-    score_runs_mod.main()
-
-    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
-    assert judgment["judgment_status"] == "skipped_invalid_judge_score"
-    assert judgment["score"] is None
+    with pytest.raises(RuntimeError, match="Judge returned non-numeric score"):
+        score_runs_mod.main()

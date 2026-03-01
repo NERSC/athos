@@ -76,7 +76,8 @@ class AgentFlow(BaseFlow):
         """
         self._full_config = full_config
         self._mcp_clients = list(mcp_clients or [])
-        self._verbosity_level = int(agent_kwargs.get("verbosity_level", 1) or 1)
+        configured_verbosity = agent_kwargs.get("verbosity_level", 1)
+        self._verbosity_level = 1 if configured_verbosity is None else int(configured_verbosity)
 
         # Fetch tools from any provided MCP servers
         for client in self._mcp_clients:
@@ -184,6 +185,12 @@ class AgentFlow(BaseFlow):
         message = input.message.content
         reset_agent_memory = bool(input.metadata.get("reset_agent_memory", False))
         debug_include_steps = bool(input.metadata.get("debug_include_steps", False))
+        execution_verbosity_override = input.metadata.get("verbosity_level")
+        execution_verbosity = (
+            self._verbosity_level
+            if execution_verbosity_override is None
+            else int(execution_verbosity_override)
+        )
 
         try:
             result = await asyncio.to_thread(
@@ -208,8 +215,11 @@ class AgentFlow(BaseFlow):
             if debug_include_steps and hasattr(result, "steps"):
                 metadata["smolagent_steps"] = getattr(result, "steps", [])
                 metadata["smolagent_state"] = getattr(result, "state", None)
-            if self._verbosity_level >= 2 and hasattr(result, "steps"):
-                self._log_smolagent_steps(getattr(result, "steps", []))
+            if execution_verbosity >= 2 and hasattr(result, "steps"):
+                self._log_smolagent_steps(
+                    getattr(result, "steps", []),
+                    include_raw=execution_verbosity >= 3,
+                )
 
             content = getattr(result, "final_answer", None)
             if content is None:
@@ -228,7 +238,7 @@ class AgentFlow(BaseFlow):
                 metadata={"error": str(e)}
             )
 
-    def _log_smolagent_steps(self, steps: list[dict[str, Any]]) -> None:
+    def _log_smolagent_steps(self, steps: list[dict[str, Any]], include_raw: bool = False) -> None:
         """Emit richer per-step debug logs driven by flow verbosity."""
         for step in steps:
             step_number = step.get("step_number")
@@ -243,7 +253,7 @@ class AgentFlow(BaseFlow):
                 "model_output_message_tool_calls": model_output_message.get("tool_calls"),
                 "error": error,
             }
-            if self._verbosity_level >= 3 and "raw" in model_output_message:
+            if include_raw and "raw" in model_output_message:
                 debug_payload["model_output_message_raw"] = model_output_message.get("raw")
 
             logger.info(

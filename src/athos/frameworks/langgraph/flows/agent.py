@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Mapping, Optional, Sequence, TYPE_CHECKING, Self
@@ -79,6 +80,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         mcp_clients: List["MultiServerMCPClient"],
         system_prompt: Optional[str],
         max_iterations: int,
+        verbosity_level: int,
         full_config: AthosConfig,
     ) -> None:
         """Construct a LangChain create_agent flow with all dependencies."""
@@ -89,6 +91,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         self._mcp_clients = mcp_clients
         self.system_prompt = system_prompt
         self.max_iterations = max_iterations
+        self._verbosity_level = 1 if verbosity_level is None else int(verbosity_level)
         self._graph = None  # type: ignore[assignment]
         self._graph_lock = asyncio.Lock()
         self._graph_needs_rebuild = True
@@ -156,6 +159,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             mcp_clients=mcp_clients,
             system_prompt=system_prompt,
             max_iterations=flow_config.max_iterations,
+            verbosity_level=flow_config.verbosity_level,
             full_config=athos_config,
         )
 
@@ -163,6 +167,13 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         """Execute the agent graph and return structured output."""
 
         logger.info("LangChainAgentFlow.execute message: %s", input.message.content)
+        debug_include_steps = bool(input.metadata.get("debug_include_steps", False))
+        execution_verbosity_override = input.metadata.get("verbosity_level")
+        execution_verbosity = (
+            self._verbosity_level
+            if execution_verbosity_override is None
+            else int(execution_verbosity_override)
+        )
 
         await self._ensure_mcp_tools_loaded()
         await self._ensure_graph_built()
@@ -187,15 +198,32 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             )
         except Exception as exc:
             logger.error("LangChain create_agent execution failed: %s", exc)
+            error_metadata: Dict[str, Any] = {
+                "error": True,
+                "exception_type": type(exc).__name__,
+            }
+            if debug_include_steps:
+                error_metadata["langgraph_steps"] = []
+                error_metadata["langgraph_state"] = {
+                    "error": str(exc),
+                    "exception_type": type(exc).__name__,
+                }
             return FlowOutput(
                 content=f"Error: {exc}",
-                metadata={"error": True, "exception_type": type(exc).__name__},
+                metadata=error_metadata,
             )
 
         # Debug logging of the graph state
         if logger.isEnabledFor(logging.DEBUG):
-            for message in result_state["messages"]:
-                message.pretty_print()
+            messages = result_state.get("messages", []) if isinstance(result_state, dict) else []
+            for message in messages:
+                if hasattr(message, "pretty_print"):
+                    message.pretty_print()
+        if execution_verbosity >= 2:
+            self._log_langgraph_steps(
+                result_state,
+                include_raw=execution_verbosity >= 3,
+            )
 
         content = self._extract_response(result_state)
         metadata: Dict[str, Any] = {
@@ -213,6 +241,15 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         tool_calls = self._extract_tool_calls(result_state)
         if tool_calls:
             metadata["tool_calls"] = tool_calls
+        if debug_include_steps:
+            metadata["langgraph_steps"] = self._extract_langgraph_steps(
+                result_state,
+                include_raw=execution_verbosity >= 3,
+            )
+            metadata["langgraph_state"] = self._extract_langgraph_state(
+                result_state,
+                include_raw=execution_verbosity >= 3,
+            )
 
         return FlowOutput(content=content, metadata=metadata)
 
@@ -657,6 +694,68 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         raise RuntimeError("LangChain create_agent graph did not produce a response")
 
+    def _extract_langgraph_steps(self, state: Any, include_raw: bool = False) -> List[Dict[str, Any]]:
+        """Build a JSON-safe per-message debug payload from LangGraph state."""
+
+        messages: Sequence["BaseMessage"]
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        steps: List[Dict[str, Any]] = []
+        for index, message in enumerate(messages, start=1):
+            entry: Dict[str, Any] = {
+                "step_number": index,
+                "message_type": type(message).__name__,
+                "role": getattr(message, "type", None),
+                "content": getattr(message, "content", None),
+                "name": getattr(message, "name", None),
+                "tool_calls": getattr(message, "tool_calls", None),
+                "invalid_tool_calls": getattr(message, "invalid_tool_calls", None),
+                "tool_call_id": getattr(message, "tool_call_id", None),
+                "response_metadata": getattr(message, "response_metadata", None),
+            }
+            if include_raw:
+                entry["raw"] = repr(message)
+            steps.append(entry)
+        return steps
+
+    def _extract_langgraph_state(self, state: Any, include_raw: bool = False) -> Dict[str, Any]:
+        """Return a compact JSON-safe summary of full state for debugging."""
+
+        if isinstance(state, dict):
+            payload: Dict[str, Any] = {
+                "state_type": "dict",
+                "keys": sorted(state.keys()),
+                "message_count": len(state.get("messages", [])),
+                "has_structured_response": "structured_response" in state,
+            }
+            if include_raw:
+                payload["raw"] = json.loads(json.dumps(state, default=str))
+            return payload
+
+        payload = {
+            "state_type": type(state).__name__,
+            "has_messages": hasattr(state, "messages"),
+            "has_structured_response": hasattr(state, "structured_response"),
+        }
+        if include_raw:
+            payload["raw"] = repr(state)
+        return payload
+
+    def _log_langgraph_steps(self, state: Any, include_raw: bool = False) -> None:
+        """Emit structured LangGraph state/message debug logs."""
+
+        debug_payload = {
+            "state": self._extract_langgraph_state(state, include_raw=include_raw),
+            "steps": self._extract_langgraph_steps(state, include_raw=include_raw),
+        }
+        logger.info(
+            "langgraph step debug:\n%s",
+            json.dumps(debug_payload, indent=2, default=str),
+        )
+
 
 class LangChainAgentFlowConfig(BaseFlowConfig):
     """Configuration schema for :class:`LangChainAgentFlow`."""
@@ -702,6 +801,11 @@ class LangChainAgentFlowConfig(BaseFlowConfig):
         default=20,
         gt=0,
         description="Maximum iterations allowed during agent execution.",
+    )
+    verbosity_level: int = Field(
+        default=1,
+        ge=0,
+        description="Verbosity level for framework-specific debug logs.",
     )
 
 

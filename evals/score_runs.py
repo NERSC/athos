@@ -165,6 +165,7 @@ def main() -> None:
         skips_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     scored_count = 0
+    zero_scored_failure_count = 0
     skipped_count = 0
     skipped_reasons: dict[str, int] = {}
     skips: list[dict] = []
@@ -225,6 +226,9 @@ def main() -> None:
             if not (isinstance(run_id, str) and run_id):
                 judgment_status = "skipped_invalid_run"
                 feedback = "Skipped: missing required run_id."
+                score = 0.0
+                passed = False
+                zero_scored_failure_count += 1
                 _record_skip(
                     run_path=run_path,
                     run_id=run_id_for_judgment,
@@ -235,6 +239,9 @@ def main() -> None:
             elif execution_status != "success":
                 judgment_status = "skipped_execution_status"
                 feedback = f"Skipped: execution status={execution_status}."
+                score = 0.0
+                passed = False
+                zero_scored_failure_count += 1
                 _record_skip(
                     run_path=run_path,
                     run_id=run_id_for_judgment,
@@ -243,20 +250,22 @@ def main() -> None:
                     detail=feedback,
                 )
             elif isinstance(reference, str) and reference and output_text_present:
-                score, feedback = evaluate_response(judge_model_instance, reference, output_text)
+                try:
+                    score, feedback = evaluate_response(
+                        judge_model_instance, reference, output_text
+                    )
+                except Exception as exc:  # pragma: no cover - passthrough safety
+                    raise RuntimeError(
+                        f"Judge evaluation failed for run_id={run_id_for_judgment} "
+                        f"path={run_path_str}"
+                    ) from exc
                 if isinstance(score, (int, float)):
                     passed = score >= args.passing_score
                     scored_count += 1
                 else:
-                    judgment_status = "skipped_invalid_judge_score"
-                    if not isinstance(feedback, str) or not feedback:
-                        feedback = "Skipped: judge returned non-numeric score."
-                    _record_skip(
-                        run_path=run_path,
-                        run_id=run_id_for_judgment,
-                        case_id=case_id,
-                        reason=judgment_status,
-                        detail=feedback,
+                    raise RuntimeError(
+                        "Judge returned non-numeric score "
+                        f"for run_id={run_id_for_judgment} path={run_path_str}"
                     )
             else:
                 if not (isinstance(reference, str) and reference):
@@ -268,6 +277,9 @@ def main() -> None:
                 else:
                     judgment_status = "skipped_invalid_run"
                     feedback = "Skipped: invalid run payload."
+                score = 0.0
+                passed = False
+                zero_scored_failure_count += 1
                 _record_skip(
                     run_path=run_path,
                     run_id=run_id,
@@ -300,7 +312,8 @@ def main() -> None:
 
     print(
         f"Wrote judgments to {output_path} "
-        f"(scored={scored_count}, skipped={skipped_count}, total={len(run_paths)}, "
+        f"(scored={scored_count}, zero_scored_failures={zero_scored_failure_count}, "
+        f"skipped={skipped_count}, total={len(run_paths)}, "
         f"skip_reasons={skipped_reasons})"
     )
 
