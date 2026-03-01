@@ -120,6 +120,11 @@ def parse_args() -> argparse.Namespace:
         help="Parse/normalize and report counts only; do not write Chroma",
     )
     parser.add_argument(
+        "--allow-file-errors",
+        action="store_true",
+        help="Exit successfully even when some ticket files fail to process",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
@@ -356,6 +361,10 @@ def main() -> None:
             print(f"filtered_by_reason={dict(filtered_counts)}")
         if args.manifest_out:
             write_manifest(Path(args.manifest_out), manifest)
+        if error_count and not args.allow_file_errors:
+            raise RuntimeError(
+                f"Encountered {error_count} file processing errors; rerun with --allow-file-errors to continue"
+            )
         return
 
     import chromadb
@@ -385,6 +394,10 @@ def main() -> None:
         print(f"filtered_by_reason={dict(filtered_counts)}")
     if args.manifest_out:
         write_manifest(Path(args.manifest_out), manifest)
+    if error_count and not args.allow_file_errors:
+        raise RuntimeError(
+            f"Encountered {error_count} file processing errors; rerun with --allow-file-errors to continue"
+        )
 
 
 if __name__ == "__main__":
