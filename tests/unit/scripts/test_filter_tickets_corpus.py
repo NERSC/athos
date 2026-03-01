@@ -95,6 +95,7 @@ def test_filter_copies_selected_json_and_attachments(tmp_path: Path, monkeypatch
     assert manifest["counts"]["attachments_missing"] == 0
     assert manifest["source_path"] == str(output_root.resolve())
     assert manifest["upstream_source_path"] == str(source_root.resolve())
+    assert manifest["config"]["materialized"] is True
 
 
 def test_filter_fails_on_missing_attachment_by_default(tmp_path: Path, monkeypatch):
@@ -172,3 +173,41 @@ def test_filter_allows_missing_attachment_with_flag(tmp_path: Path, monkeypatch)
     filter_tickets_corpus_mod.main()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["counts"]["attachments_missing"] == 1
+
+
+def test_filter_dry_run_marks_manifest_non_materialized(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    incident_json = incident_dir / "selected.json"
+    incident_json.write_text(
+        json.dumps(
+            _payload(
+                incident_number="INC0001",
+                contact_type="Email",
+                local_paths=[],
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--dry-run",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["config"]["dry_run"] is True
+    assert manifest["config"]["materialized"] is False

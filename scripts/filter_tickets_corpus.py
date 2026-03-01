@@ -334,6 +334,7 @@ def main() -> None:
             "exclude_assignment_group_regex": args.exclude_assignment_group_regex,
             "limit": args.limit,
             "dry_run": args.dry_run,
+            "materialized": not args.dry_run,
         },
         "counts": {
             "input_files": len(ticket_files),

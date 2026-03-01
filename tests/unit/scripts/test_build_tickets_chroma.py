@@ -222,3 +222,33 @@ def test_main_non_dry_run_fails_before_writing_when_file_errors(tmp_path: Path, 
     assert loaded["counts"]["errors"] == 1
     # Pre-write failure should avoid creating Chroma persistence artifacts.
     assert not persist_dir.exists()
+
+
+def test_main_rejects_non_materialized_selected_manifest(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    source_root.mkdir()
+    selected_manifest = tmp_path / "selected_manifest.json"
+    selected_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "athos.ticket_filter_manifest.v1",
+                "source_path": str(tmp_path / "filtered"),
+                "selected_files": ["INC001/01/selected.json"],
+                "config": {"dry_run": True, "materialized": False},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_tickets_chroma.py",
+            "--selected-corpus-manifest",
+            str(selected_manifest),
+            "--dry-run",
+        ],
+    )
+
+    with pytest.raises(ValueError, match="non-materialized output"):
+        build_tickets_chroma_mod.main()

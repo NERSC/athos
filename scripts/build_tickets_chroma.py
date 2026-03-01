@@ -172,10 +172,16 @@ def _load_selected_corpus_manifest(path: Path) -> tuple[Path, list[Path]]:
 
     source_path = payload.get("source_path")
     selected_files = payload.get("selected_files")
+    config = payload.get("config")
     if not isinstance(source_path, str) or not source_path.strip():
         raise ValueError(f"Manifest missing string source_path: {path}")
     if not isinstance(selected_files, list):
         raise ValueError(f"Manifest missing selected_files list: {path}")
+    if isinstance(config, dict) and config.get("materialized") is False:
+        raise ValueError(
+            "Selected corpus manifest indicates dry-run/non-materialized output; "
+            "rerun filter stage without --dry-run before ingestion"
+        )
 
     source_root = Path(source_path).resolve()
     ticket_files: list[Path] = []
