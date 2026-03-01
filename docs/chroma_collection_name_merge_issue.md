@@ -1,5 +1,7 @@
 # Chroma Collection Name Merge Issue
 
+**Status:** mitigated locally via pinning `langchain-mcp-adapters==0.1.14`; upstream fix for the `0.2.x` path is still pending.
+
 ## Summary
 
 When running CUG Chroma flows, both `cug_lang_chroma_sonnet` and `cug_lang_chroma_gptoss` intermittently (and often consistently) call Chroma tools with an invalid merged collection name:
