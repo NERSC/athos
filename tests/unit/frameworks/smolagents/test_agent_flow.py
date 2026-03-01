@@ -108,7 +108,7 @@ async def test_agent_flow_logs_step_debug_at_verbose_level(monkeypatch, caplog):
         mode=ExecutionMode.SYNC,
     )
 
-    with caplog.at_level("INFO"):
+    with caplog.at_level("INFO", logger="athos.frameworks.smolagents.flows.agent"):
         await flow.execute(flow_input)
 
     assert "smolagents step debug" in caplog.text
