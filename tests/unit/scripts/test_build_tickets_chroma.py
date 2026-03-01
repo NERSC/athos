@@ -174,3 +174,51 @@ def test_main_dry_run_ingests_from_selected_manifest_without_refiltering(
     assert manifest["input_source_mode"] == "selected_corpus_manifest"
     assert manifest["counts"]["kept_tickets"] == 1
     assert "filtered" not in manifest["counts"]
+
+
+def test_main_non_dry_run_fails_before_writing_when_file_errors(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    source_root.mkdir()
+    (source_root / "good.json").write_text(
+        json.dumps(_valid_ticket_payload()),
+        encoding="utf-8",
+    )
+    (source_root / "bad.json").write_text("{not valid json", encoding="utf-8")
+    selected_manifest = tmp_path / "selected_manifest.json"
+    selected_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "athos.ticket_filter_manifest.v1",
+                "source_path": str(source_root),
+                "selected_files": ["good.json", "bad.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    persist_dir = tmp_path / "chroma"
+    ingest_manifest = tmp_path / "ingest_manifest.json"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_tickets_chroma.py",
+            "--selected-corpus-manifest",
+            str(selected_manifest),
+            "--persist-dir",
+            str(persist_dir),
+            "--collection-name",
+            "ticket_ingest_atomicity_test",
+            "--manifest-out",
+            str(ingest_manifest),
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="Encountered 1 file processing errors"):
+        build_tickets_chroma_mod.main()
+
+    assert ingest_manifest.exists()
+    loaded = json.loads(ingest_manifest.read_text(encoding="utf-8"))
+    assert loaded["counts"]["errors"] == 1
+    # Pre-write failure should avoid creating Chroma persistence artifacts.
+    assert not persist_dir.exists()

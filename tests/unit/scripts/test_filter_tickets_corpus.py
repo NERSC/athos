@@ -93,6 +93,8 @@ def test_filter_copies_selected_json_and_attachments(tmp_path: Path, monkeypatch
     assert manifest["counts"]["selected_files"] == 1
     assert manifest["counts"]["attachments_copied"] == 2
     assert manifest["counts"]["attachments_missing"] == 0
+    assert manifest["source_path"] == str(output_root.resolve())
+    assert manifest["upstream_source_path"] == str(source_root.resolve())
 
 
 def test_filter_fails_on_missing_attachment_by_default(tmp_path: Path, monkeypatch):

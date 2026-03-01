@@ -313,12 +313,17 @@ def main() -> None:
             error_count += 1
             logger.exception("Failed to process %s", ticket_file)
 
-    fingerprint = compute_corpus_fingerprint(source_root, selected_files)
+    materialized_selected_files = [output_root / path.relative_to(source_root) for path in selected_files]
+    if args.dry_run:
+        fingerprint = compute_corpus_fingerprint(source_root, selected_files)
+    else:
+        fingerprint = compute_corpus_fingerprint(output_root, materialized_selected_files)
     selected_rel_paths = [str(path.relative_to(source_root)) for path in selected_files]
     manifest = {
         "schema_version": "athos.ticket_filter_manifest.v1",
         "run_timestamp_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "source_path": str(source_root),
+        "source_path": str(output_root),
+        "upstream_source_path": str(source_root),
         "output_root": str(output_root),
         "config": {
             "mode": args.mode,

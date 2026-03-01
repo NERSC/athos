@@ -182,7 +182,12 @@ def _load_selected_corpus_manifest(path: Path) -> tuple[Path, list[Path]]:
     for item in selected_files:
         if not isinstance(item, str) or not item.strip():
             raise ValueError(f"Manifest selected_files entries must be non-empty strings: {path}")
-        ticket_files.append(source_root / Path(item))
+        candidate = source_root / Path(item)
+        if not candidate.exists():
+            raise FileNotFoundError(
+                f"Manifest-selected ticket file does not exist under source_path: {candidate}"
+            )
+        ticket_files.append(candidate)
     return source_root, ticket_files
 
 
@@ -281,6 +286,13 @@ def main() -> None:
             )
         return
 
+    if error_count and not args.allow_file_errors:
+        if args.manifest_out:
+            write_manifest(Path(args.manifest_out), manifest)
+        raise RuntimeError(
+            f"Encountered {error_count} file processing errors; rerun with --allow-file-errors to continue"
+        )
+
     import chromadb
 
     client = chromadb.PersistentClient(path=str(Path(args.persist_dir)))
@@ -305,10 +317,6 @@ def main() -> None:
     )
     if args.manifest_out:
         write_manifest(Path(args.manifest_out), manifest)
-    if error_count and not args.allow_file_errors:
-        raise RuntimeError(
-            f"Encountered {error_count} file processing errors; rerun with --allow-file-errors to continue"
-        )
 
 
 if __name__ == "__main__":
