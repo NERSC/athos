@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from collections import Counter
 from datetime import datetime, timezone
+import json
 import logging
 from pathlib import Path
 import re
@@ -38,7 +39,11 @@ def _positive_int(value: str) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build a ChromaDB collection from ticket JSON files")
-    parser.add_argument("source_path", help="Path to ticket export root")
+    parser.add_argument("source_path", nargs="?", help="Path to ticket export root")
+    parser.add_argument(
+        "--selected-corpus-manifest",
+        help="Path to stage-1 filter manifest with selected_files + source_path",
+    )
     parser.add_argument("--persist-dir", default="chroma", help="Directory to store ChromaDB data")
     parser.add_argument(
         "--collection-name",
@@ -231,30 +236,69 @@ def _get_git_sha() -> str | None:
     return sha or None
 
 
+def _load_selected_corpus_manifest(path: Path) -> tuple[Path, list[Path]]:
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object manifest at {path}")
+
+    source_path = payload.get("source_path")
+    selected_files = payload.get("selected_files")
+    if not isinstance(source_path, str) or not source_path.strip():
+        raise ValueError(f"Manifest missing string source_path: {path}")
+    if not isinstance(selected_files, list):
+        raise ValueError(f"Manifest missing selected_files list: {path}")
+
+    source_root = Path(source_path).resolve()
+    ticket_files: list[Path] = []
+    for item in selected_files:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f"Manifest selected_files entries must be non-empty strings: {path}")
+        ticket_files.append(source_root / Path(item))
+    return source_root, ticket_files
+
+
 def main() -> None:
     args = parse_args()
     configure_logging(args.verbose)
 
-    source_root = Path(args.source_path)
-    if not source_root.exists():
-        raise FileNotFoundError(f"Source path does not exist: {source_root}")
+    if bool(args.source_path) == bool(args.selected_corpus_manifest):
+        raise ValueError("Provide exactly one of source_path or --selected-corpus-manifest")
 
-    ticket_files = list(iter_ticket_json_files(source_root))
+    selected_manifest_path: Path | None = None
+    if args.selected_corpus_manifest:
+        selected_manifest_path = Path(args.selected_corpus_manifest).resolve()
+        source_root, ticket_files = _load_selected_corpus_manifest(selected_manifest_path)
+        input_source_mode = "selected_corpus_manifest"
+        min_created_date_str = None
+        include_contact_types: set[str] = set()
+        exclude_contact_types: set[str] = set()
+        min_created_date = None
+        created_by_pattern = None
+        assignment_group_pattern = None
+        filtering_enabled = False
+    else:
+        source_root = Path(args.source_path).resolve()
+        if not source_root.exists():
+            raise FileNotFoundError(f"Source path does not exist: {source_root}")
+        ticket_files = list(iter_ticket_json_files(source_root))
+        input_source_mode = "source_scan"
 
-    min_created_date_str, include_contact_types, exclude_contact_types = _resolve_mode_filters(args)
-    min_created_date = (
-        datetime.strptime(min_created_date_str, "%Y-%m-%d").date()
-        if min_created_date_str
-        else None
-    )
-    created_by_pattern = (
-        re.compile(args.exclude_created_by_regex) if args.exclude_created_by_regex else None
-    )
-    assignment_group_pattern = (
-        re.compile(args.exclude_assignment_group_regex)
-        if args.exclude_assignment_group_regex
-        else None
-    )
+        min_created_date_str, include_contact_types, exclude_contact_types = _resolve_mode_filters(args)
+        min_created_date = (
+            datetime.strptime(min_created_date_str, "%Y-%m-%d").date()
+            if min_created_date_str
+            else None
+        )
+        created_by_pattern = (
+            re.compile(args.exclude_created_by_regex) if args.exclude_created_by_regex else None
+        )
+        assignment_group_pattern = (
+            re.compile(args.exclude_assignment_group_regex)
+            if args.exclude_assignment_group_regex
+            else None
+        )
+        filtering_enabled = True
 
     documents: list[tuple[str, str, dict[str, object]]] = []
     error_count = 0
@@ -269,17 +313,18 @@ def main() -> None:
             break
         try:
             payload = load_ticket_json(ticket_file)
-            filter_reason = evaluate_ticket_filter_reason(
-                payload,
-                min_created_date=min_created_date,
-                include_contact_types=include_contact_types,
-                exclude_contact_types=exclude_contact_types,
-                exclude_created_by_pattern=created_by_pattern,
-                exclude_assignment_group_pattern=assignment_group_pattern,
-            )
-            if filter_reason:
-                filtered_counts[filter_reason] += 1
-                continue
+            if filtering_enabled:
+                filter_reason = evaluate_ticket_filter_reason(
+                    payload,
+                    min_created_date=min_created_date,
+                    include_contact_types=include_contact_types,
+                    exclude_contact_types=exclude_contact_types,
+                    exclude_created_by_pattern=created_by_pattern,
+                    exclude_assignment_group_pattern=assignment_group_pattern,
+                )
+                if filter_reason:
+                    filtered_counts[filter_reason] += 1
+                    continue
 
             kept_tickets += 1
             kept_ticket_files.append(ticket_file)
@@ -308,6 +353,8 @@ def main() -> None:
     manifest = {
         "run_timestamp_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "source_path": str(source_root.resolve()),
+        "input_source_mode": input_source_mode,
+        "selected_corpus_manifest": str(selected_manifest_path) if selected_manifest_path else None,
         "collection_name": args.collection_name,
         "persist_dir": str(Path(args.persist_dir)),
         "dry_run": args.dry_run,

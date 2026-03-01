@@ -81,3 +81,72 @@ def test_main_dry_run_allows_file_errors_with_flag(tmp_path: Path, monkeypatch):
     build_tickets_chroma_mod.main()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["counts"]["errors"] == 1
+
+
+def test_main_requires_exactly_one_input_source(monkeypatch):
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_tickets_chroma.py",
+            "--dry-run",
+        ],
+    )
+    with pytest.raises(ValueError, match="exactly one of source_path or --selected-corpus-manifest"):
+        build_tickets_chroma_mod.main()
+
+
+def test_main_dry_run_ingests_from_selected_manifest_without_refiltering(
+    tmp_path: Path, monkeypatch
+):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    ticket_path = incident_dir / "selected.json"
+    ticket_path.write_text(
+        json.dumps(
+            {
+                "metadata": {"incident_number": "INC0001", "sys_id": "sys_inc_1"},
+                "incident_fields": {
+                    "sys_created_on": "2019-01-01 00:00:00",
+                    "contact_type": "Staff Initiated",
+                    "short_description": "old auto-generated incident",
+                    "description": "old incident",
+                },
+                "discussions": {"customer_facing_comments": [], "internal_work_notes": []},
+                "attachments": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    selected_manifest = tmp_path / "selected_manifest.json"
+    selected_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "athos.ticket_filter_manifest.v1",
+                "source_path": str(source_root),
+                "selected_files": ["INC001/01/selected.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    ingest_manifest = tmp_path / "ingest_manifest.json"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_tickets_chroma.py",
+            "--selected-corpus-manifest",
+            str(selected_manifest),
+            "--dry-run",
+            "--manifest-out",
+            str(ingest_manifest),
+        ],
+    )
+
+    build_tickets_chroma_mod.main()
+    manifest = json.loads(ingest_manifest.read_text(encoding="utf-8"))
+    assert manifest["input_source_mode"] == "selected_corpus_manifest"
+    assert manifest["counts"]["kept_tickets"] == 1
+    assert manifest["counts"]["filtered"] == 0
