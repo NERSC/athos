@@ -188,7 +188,13 @@ def _load_selected_corpus_manifest(path: Path) -> tuple[Path, list[Path]]:
     for item in selected_files:
         if not isinstance(item, str) or not item.strip():
             raise ValueError(f"Manifest selected_files entries must be non-empty strings: {path}")
-        candidate = source_root / Path(item)
+        candidate = (source_root / Path(item)).resolve()
+        try:
+            candidate.relative_to(source_root)
+        except ValueError as exc:
+            raise ValueError(
+                f"Manifest selected_files entry escapes source_path: {item}"
+            ) from exc
         if not candidate.exists():
             raise FileNotFoundError(
                 f"Manifest-selected ticket file does not exist under source_path: {candidate}"
