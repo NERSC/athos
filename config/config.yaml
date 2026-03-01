@@ -126,7 +126,7 @@ mcp_servers:
     args: [
       "chroma-mcp",
       "--client-type", "persistent",
-      "--data-dir", "${ATHOS_WORKSPACE}/chroma_20260225"
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
 
 
@@ -397,8 +397,8 @@ flows:
   smol_chroma_agent:
     description: "SmolAgents code agent with local ChromaDB tools"
     type: "smol_agent"
-    agent_type: "code"
-    model: "claude_sonnet"
+    agent_type: "tool_calling"
+    model: "cborg_coder" #"claude_sonnet"
     max_steps: 20
     additional_authorized_imports: ["json"]
     tools:
