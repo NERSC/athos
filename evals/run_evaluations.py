@@ -337,6 +337,7 @@ async def main():
                     user_id="evaluator",
                     mode=ExecutionMode.SYNC,
                     interface="evaluation",
+                    metadata={"reset_agent_memory": True},
                 )
                 if result.success and result.output:
                     response = result.output.content

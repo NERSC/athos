@@ -54,7 +54,7 @@ Scope:
 - Implement run-first architecture per `docs/eval_pipeline_v2.md`.
 - Support incremental run indexing (`--run-count`, `--run-start`).
 - Separate execution from judging/scoring.
-- Keep legacy compatibility while migrating.
+- Maintain compatibility for importing/scoring external runs.
 
 Deliverables:
 - `Pipeline v0`: dual-write mode (legacy summary + canonical per-run outputs).
@@ -64,9 +64,11 @@ Deliverables:
 Exit criteria:
 - First full experimental milestone can run and summarize using the upgraded pipeline.
 
-Status update (2026-02-22):
-- Core pipeline upgrades for canonical per-run artifacts, decoupled scoring, and run-path preflight collision checks are implemented.
+Status update (2026-02-27):
+- `Pipeline v0/v1/v1.1` are implemented in repository (`run_evaluations.py`, `score_runs.py`, `import_runs.py`, `summarize_results.py`) with integration coverage.
+- Canonical run-path preflight collision checks and decoupled scoring/summarization are in place for repeated runs over time.
 - Remaining known limitation: `score_runs.py` currently treats `(dataset_id, case_id)` lookup misses as missing reference, so imported runs with mismatched dataset naming can be skipped (`skipped_missing_reference`).
+- Focus has shifted from pipeline buildout to M1 execution hardening and experiment completion.
 
 ## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
 
@@ -86,6 +88,12 @@ Deliverables:
 
 Exit criteria:
 - Ticket corpus can be indexed and queried by configured semantic retrieval agents in M1 experiments.
+
+Status update (2026-02-27):
+- Ticket ingestion pipeline v0 is implemented (`scripts/build_tickets_chroma.py`, `src/athos/utils/ticket_ingest.py`) with filtering modes, truncation/chunk controls, and manifest + corpus fingerprint output.
+- Operational wrappers for balanced-mode ingestion and aggregate DB builds are available (`scripts/run_ticket_balanced_full.sh`, `scripts/build_chroma_aggregate.py`, `scripts/run_build_chroma_aggregate.sh`).
+- Unit and integration coverage exists for ingestion and aggregate builds, including semantic smoke checks.
+- Remaining work is M1 operational execution: produce/freeze versioned corpus manifests and ensure those manifests are attached to run artifacts.
 
 ## 2. Dataset Curation (Parallel Workstream)
 
@@ -154,6 +162,11 @@ Principle:
 Goal:
 - Run initial matrix on first curated dataset versions with upgraded pipeline.
 
+Execution gates:
+- Build a versioned retrieval aggregate DB for M1 and archive its manifest (docs + consulting docs + balanced tickets).
+- Run `evals/run_evaluations.py` with `--aggregate-manifest <path>` so each `run.json` records retrieval corpus provenance in `request.input_artifacts`.
+- Record aggregate manifest path/version, dataset pointers, config refs, and git SHA in the M1 run manifest/checklist.
+
 Outputs:
 - `Run Artifacts v0`
 - `Judgments v0`
@@ -204,6 +217,6 @@ Policy:
 ## Immediate Next Steps
 
 1. Write `Scope Memo v0` and `Experiment Matrix v0` from current configs.
-2. Run M1 baseline experiments using pipeline v1 artifacts (canonical runs + decoupled judgments).
+2. Build/freeze the M1 versioned retrieval aggregate DB and manifest, then run M1 baseline experiments using `--aggregate-manifest` and pipeline v1 artifacts (canonical runs + decoupled judgments).
 3. Start `QA Dataset v0` and `Ticket Dataset v0` curation in parallel.
 4. Define M1 checklist and target date, including explicit tracking for `skipped_missing_reference` rates on imported runs.

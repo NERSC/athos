@@ -2,6 +2,7 @@ from typing import Any, ClassVar, List, Optional
 from typing_extensions import Literal
 from enum import Enum
 import asyncio
+import json
 import logging
 from pathlib import Path
 from pydantic import Field, model_validator, ValidationInfo
@@ -75,6 +76,7 @@ class AgentFlow(BaseFlow):
         """
         self._full_config = full_config
         self._mcp_clients = list(mcp_clients or [])
+        self._verbosity_level = int(agent_kwargs.get("verbosity_level", 1) or 1)
 
         # Fetch tools from any provided MCP servers
         for client in self._mcp_clients:
@@ -180,12 +182,14 @@ class AgentFlow(BaseFlow):
             FlowOutput with agent response
         """
         message = input.message.content
+        reset_agent_memory = bool(input.metadata.get("reset_agent_memory", False))
+        debug_include_steps = bool(input.metadata.get("debug_include_steps", False))
 
         try:
             result = await asyncio.to_thread(
                 self.agent.run,
                 message,
-                reset=False,
+                reset=reset_agent_memory,
                 return_full_result=True,
             )
             metadata: dict[str, Any] = {
@@ -200,6 +204,12 @@ class AgentFlow(BaseFlow):
             tool_calls = extract_tool_calls_from_result(result)
             if tool_calls:
                 metadata["tool_calls"] = tool_calls
+
+            if debug_include_steps and hasattr(result, "steps"):
+                metadata["smolagent_steps"] = getattr(result, "steps", [])
+                metadata["smolagent_state"] = getattr(result, "state", None)
+            if self._verbosity_level >= 2 and hasattr(result, "steps"):
+                self._log_smolagent_steps(getattr(result, "steps", []))
 
             content = getattr(result, "final_answer", None)
             if content is None:
@@ -216,6 +226,29 @@ class AgentFlow(BaseFlow):
             return FlowOutput(
                 content=f"Error: {e}",
                 metadata={"error": str(e)}
+            )
+
+    def _log_smolagent_steps(self, steps: list[dict[str, Any]]) -> None:
+        """Emit richer per-step debug logs driven by flow verbosity."""
+        for step in steps:
+            step_number = step.get("step_number")
+            model_output = step.get("model_output")
+            model_output_message = step.get("model_output_message") or {}
+            error = step.get("error")
+
+            debug_payload: dict[str, Any] = {
+                "step_number": step_number,
+                "model_output": model_output,
+                "model_output_message_content": model_output_message.get("content"),
+                "model_output_message_tool_calls": model_output_message.get("tool_calls"),
+                "error": error,
+            }
+            if self._verbosity_level >= 3 and "raw" in model_output_message:
+                debug_payload["model_output_message_raw"] = model_output_message.get("raw")
+
+            logger.info(
+                "smolagents step debug:\n%s",
+                json.dumps(debug_payload, indent=2, default=str),
             )
 
     async def cleanup(self) -> None:

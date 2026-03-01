@@ -1,0 +1,101 @@
+# Frozen CUG M1 configuration for ATHOS-run experiments.
+# Note: external coding-agent baselines are run outside ATHOS and imported via evals/import_runs.py.
+
+workspace_dir: "${ATHOS_WORKSPACE}"
+
+models:
+  gptoss:
+    description: "Open-weight GPT-OSS-120B via CBORG"
+    model_id: "lbl/cborg-coder"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
+    temperature: 0.3
+    max_tokens: 16384
+  claude_sonnet:
+    description: "Anthropic Claude Sonnet via CBORG"
+    model_id: "anthropic/claude-sonnet"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
+    temperature: 0.7
+    max_tokens: 2048
+
+mcp_servers:
+  chroma_mcp:
+    description: "ChromaDB MCP server for persistent vector database operations"
+    mcp_type: "mcp_stdio"
+    command: "uvx"
+    args: [
+      "chroma-mcp",
+      "--client-type", "persistent",
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma"
+    ]
+
+tools:
+  chroma_list_collections:
+    description: "List ChromaDB collections"
+    callable_name: "chroma_list_collections"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_peek_collection:
+    description: "Peek documents from a ChromaDB collection"
+    callable_name: "chroma_peek_collection"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_collection_info:
+    description: "Get ChromaDB collection info"
+    callable_name: "chroma_get_collection_info"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_query_documents:
+    description: "Query documents from a ChromaDB collection"
+    callable_name: "chroma_query_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_documents:
+    description: "Fetch documents from a ChromaDB collection"
+    callable_name: "chroma_get_documents"
+    module_path: "athos.tools.chroma"
+    is_class: false
+
+flows:
+  cug_lang_base_gptoss:
+    description: "LangChain no-tool baseline on GPT-OSS"
+    type: "langchain_agent"
+    model: "gptoss"
+    system_prompt_path: "../prompts/langgraph_chatbot_demo_system_prompt.txt"
+    max_iterations: 20
+
+  cug_lang_base_sonnet:
+    description: "LangChain no-tool baseline on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    system_prompt_path: "../prompts/langgraph_chatbot_demo_system_prompt.txt"
+    max_iterations: 20
+
+  cug_lang_chroma_gptoss:
+    description: "LangChain Chroma-retrieval baseline on GPT-OSS"
+    type: "langchain_agent"
+    model: "gptoss"
+    mcp_servers: ["chroma_mcp"]
+    max_iterations: 24
+    system_prompt: |
+      You are an HPC operations assistant.
+      Use available Chroma retrieval tools to gather evidence before answering.
+      Cite the retrieved evidence clearly in your final response.
+
+  cug_lang_chroma_sonnet:
+    description: "LangChain Chroma-retrieval baseline on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["chroma_mcp"]
+    max_iterations: 24
+    system_prompt: |
+      You are an HPC operations assistant.
+      Use available Chroma retrieval tools to gather evidence before answering.
+      Cite the retrieved evidence clearly in your final response.
+
+logging_config:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    - type: "console"
