@@ -204,6 +204,68 @@ async def test_execute_metadata_includes_checkpoint_info(flow):
 
 
 @pytest.mark.asyncio
+async def test_execute_includes_langgraph_debug_metadata_when_requested(flow):
+    """Test that debug_include_steps returns framework-agnostic step/state debug payload."""
+    from langchain_core.messages import AIMessage
+
+    mock_ainvoke = AsyncMock(return_value={
+        "messages": [AIMessage(content="Test response")],
+        "structured_response": None,
+    })
+
+    flow._ensure_mcp_tools_loaded = AsyncMock()
+    flow._ensure_graph_built = AsyncMock()
+    flow._graph = MagicMock()
+    flow._graph.ainvoke = mock_ainvoke
+
+    session = FlowSession(session_id=SESSION_ID_BASIC, user_id=USER_ID)
+    flow_input = FlowInput(
+        message="Hello",
+        session=session,
+        mode=ExecutionMode.SYNC,
+        metadata={"debug_include_steps": True},
+    )
+
+    output = await flow.execute(flow_input)
+
+    assert "langgraph_steps" in output.metadata
+    assert "langgraph_state" in output.metadata
+    assert isinstance(output.metadata["langgraph_steps"], list)
+    assert output.metadata["langgraph_steps"][0]["message_type"] == "AIMessage"
+    assert output.metadata["langgraph_steps"][0]["content"] == "Test response"
+    assert output.metadata["langgraph_state"]["message_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_includes_raw_langgraph_debug_payload_at_high_verbosity(flow):
+    """Test runtime verbosity override enables raw payload emission for debug dumps."""
+    from langchain_core.messages import AIMessage
+
+    mock_ainvoke = AsyncMock(return_value={
+        "messages": [AIMessage(content="Test response")],
+        "structured_response": None,
+    })
+
+    flow._ensure_mcp_tools_loaded = AsyncMock()
+    flow._ensure_graph_built = AsyncMock()
+    flow._graph = MagicMock()
+    flow._graph.ainvoke = mock_ainvoke
+
+    session = FlowSession(session_id=SESSION_ID_BASIC, user_id=USER_ID)
+    flow_input = FlowInput(
+        message="Hello",
+        session=session,
+        mode=ExecutionMode.SYNC,
+        metadata={"debug_include_steps": True, "verbosity_level": 3},
+    )
+
+    output = await flow.execute(flow_input)
+
+    assert "raw" in output.metadata["langgraph_steps"][0]
+    assert "raw" in output.metadata["langgraph_state"]
+
+
+@pytest.mark.asyncio
 async def test_stream_uses_thread_id(flow):
     """Test that stream() passes thread_id in config to graph.astream().
 

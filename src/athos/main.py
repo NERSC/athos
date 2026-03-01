@@ -2,6 +2,7 @@
 # Built on top of Hugging Face SmolAgents
 
 import asyncio
+import json
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -120,8 +121,9 @@ async def main() -> None:
     parser.add_argument(
         "-v",
         "--verbose",
-        action="store_true",
-        help="Enable DEBUG logging",
+        action="count",
+        default=0,
+        help="Increase verbosity (-v debug logs, -vv include step dumps, -vvv include raw payloads when available)",
     )
     parser.add_argument(
         "--set",
@@ -188,7 +190,11 @@ async def main() -> None:
             session_id="cli_session",
             user_id="cli_user",
             interface="cli",
-            metadata={"cli": True},
+            metadata={
+                "cli": True,
+                "verbosity_level": args.verbose,
+                "debug_include_steps": args.verbose >= 2,
+            },
         )
 
         if not result.success or result.output is None:
@@ -196,6 +202,10 @@ async def main() -> None:
             return
 
         print(result.output.content)
+
+        if args.verbose >= 2 and isinstance(result.output.metadata, dict):
+            print("\n[Metadata]")
+            print(json.dumps(result.output.metadata, indent=2, default=str))
 
         for artifact in result.output.artifacts:
             print(f"\n[Artifact: {artifact.display_name or artifact.type}]")
