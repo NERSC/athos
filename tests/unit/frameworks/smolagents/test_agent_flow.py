@@ -88,9 +88,10 @@ async def test_agent_flow_includes_step_debug_metadata_when_requested(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_agent_flow_logs_step_debug_at_verbose_level(monkeypatch, caplog):
+async def test_agent_flow_logs_step_debug_at_verbose_level(monkeypatch):
     flow, mock_agent = _build_flow_with_mock_agent(monkeypatch)
     flow._verbosity_level = 2
+    flow._log_smolagent_steps = Mock()
     mock_agent.run.return_value = SimpleNamespace(
         final_answer="ok",
         steps=[
@@ -108,11 +109,19 @@ async def test_agent_flow_logs_step_debug_at_verbose_level(monkeypatch, caplog):
         mode=ExecutionMode.SYNC,
     )
 
-    with caplog.at_level("INFO", logger="athos.frameworks.smolagents.flows.agent"):
-        await flow.execute(flow_input)
+    await flow.execute(flow_input)
 
-    assert "smolagents step debug" in caplog.text
-    assert '"step_number": 1' in caplog.text
+    flow._log_smolagent_steps.assert_called_once_with(
+        [
+            {
+                "step_number": 1,
+                "model_output": None,
+                "model_output_message": {"content": None, "tool_calls": [{"id": "t1"}]},
+                "error": {"message": "parse error"},
+            }
+        ],
+        include_raw=False,
+    )
 
 
 @pytest.mark.asyncio
