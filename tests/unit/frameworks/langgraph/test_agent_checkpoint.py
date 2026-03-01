@@ -266,6 +266,35 @@ async def test_execute_includes_raw_langgraph_debug_payload_at_high_verbosity(fl
 
 
 @pytest.mark.asyncio
+async def test_execute_runtime_verbosity_zero_disables_step_logging(flow):
+    from langchain_core.messages import AIMessage
+
+    mock_ainvoke = AsyncMock(return_value={
+        "messages": [AIMessage(content="Test response")],
+        "structured_response": None,
+    })
+
+    flow._ensure_mcp_tools_loaded = AsyncMock()
+    flow._ensure_graph_built = AsyncMock()
+    flow._graph = MagicMock()
+    flow._graph.ainvoke = mock_ainvoke
+    flow._verbosity_level = 2
+    flow._log_langgraph_steps = MagicMock()
+
+    session = FlowSession(session_id=SESSION_ID_BASIC, user_id=USER_ID)
+    flow_input = FlowInput(
+        message="Hello",
+        session=session,
+        mode=ExecutionMode.SYNC,
+        metadata={"verbosity_level": 0},
+    )
+
+    await flow.execute(flow_input)
+
+    flow._log_langgraph_steps.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_stream_uses_thread_id(flow):
     """Test that stream() passes thread_id in config to graph.astream().
 

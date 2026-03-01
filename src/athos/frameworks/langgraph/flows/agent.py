@@ -91,7 +91,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         self._mcp_clients = mcp_clients
         self.system_prompt = system_prompt
         self.max_iterations = max_iterations
-        self._verbosity_level = int(verbosity_level or 1)
+        self._verbosity_level = 1 if verbosity_level is None else int(verbosity_level)
         self._graph = None  # type: ignore[assignment]
         self._graph_lock = asyncio.Lock()
         self._graph_needs_rebuild = True
@@ -168,8 +168,11 @@ class LangChainAgentFlow(BaseLangGraphFlow):
 
         logger.info("LangChainAgentFlow.execute message: %s", input.message.content)
         debug_include_steps = bool(input.metadata.get("debug_include_steps", False))
-        execution_verbosity = int(
-            input.metadata.get("verbosity_level", self._verbosity_level) or self._verbosity_level
+        execution_verbosity_override = input.metadata.get("verbosity_level")
+        execution_verbosity = (
+            self._verbosity_level
+            if execution_verbosity_override is None
+            else int(execution_verbosity_override)
         )
 
         await self._ensure_mcp_tools_loaded()

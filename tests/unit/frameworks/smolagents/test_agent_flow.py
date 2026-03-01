@@ -113,3 +113,24 @@ async def test_agent_flow_logs_step_debug_at_verbose_level(monkeypatch, caplog):
 
     assert "smolagents step debug" in caplog.text
     assert '"step_number": 1' in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_agent_flow_runtime_verbosity_zero_disables_step_debug(monkeypatch):
+    flow, mock_agent = _build_flow_with_mock_agent(monkeypatch)
+    flow._verbosity_level = 2
+    flow._log_smolagent_steps = Mock()
+    mock_agent.run.return_value = SimpleNamespace(
+        final_answer="ok",
+        steps=[{"step_number": 1, "model_output": None}],
+    )
+    flow_input = FlowInput(
+        message="hello",
+        session=FlowSession(session_id="s5", user_id="u5"),
+        mode=ExecutionMode.SYNC,
+        metadata={"verbosity_level": 0},
+    )
+
+    await flow.execute(flow_input)
+
+    flow._log_smolagent_steps.assert_not_called()

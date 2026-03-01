@@ -76,7 +76,8 @@ class AgentFlow(BaseFlow):
         """
         self._full_config = full_config
         self._mcp_clients = list(mcp_clients or [])
-        self._verbosity_level = int(agent_kwargs.get("verbosity_level", 1) or 1)
+        configured_verbosity = agent_kwargs.get("verbosity_level", 1)
+        self._verbosity_level = 1 if configured_verbosity is None else int(configured_verbosity)
 
         # Fetch tools from any provided MCP servers
         for client in self._mcp_clients:
@@ -184,8 +185,11 @@ class AgentFlow(BaseFlow):
         message = input.message.content
         reset_agent_memory = bool(input.metadata.get("reset_agent_memory", False))
         debug_include_steps = bool(input.metadata.get("debug_include_steps", False))
-        execution_verbosity = int(
-            input.metadata.get("verbosity_level", self._verbosity_level) or self._verbosity_level
+        execution_verbosity_override = input.metadata.get("verbosity_level")
+        execution_verbosity = (
+            self._verbosity_level
+            if execution_verbosity_override is None
+            else int(execution_verbosity_override)
         )
 
         try:
