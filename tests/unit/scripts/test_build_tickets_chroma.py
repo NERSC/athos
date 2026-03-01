@@ -33,20 +33,32 @@ def _valid_ticket_payload() -> dict[str, object]:
 
 
 def test_main_dry_run_fails_when_any_file_errors(tmp_path: Path, monkeypatch):
-    source_root = tmp_path / "tickets"
+    source_root = tmp_path / "servicenow_incidents"
     source_root.mkdir()
     (source_root / "good.json").write_text(
         json.dumps(_valid_ticket_payload()),
         encoding="utf-8",
     )
     (source_root / "bad.json").write_text("{not valid json", encoding="utf-8")
+    selected_manifest = tmp_path / "selected_manifest.json"
+    selected_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "athos.ticket_filter_manifest.v1",
+                "source_path": str(source_root),
+                "selected_files": ["good.json", "bad.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(
         sys,
         "argv",
         [
             "build_tickets_chroma.py",
-            str(source_root),
+            "--selected-corpus-manifest",
+            str(selected_manifest),
             "--dry-run",
         ],
     )
@@ -56,13 +68,24 @@ def test_main_dry_run_fails_when_any_file_errors(tmp_path: Path, monkeypatch):
 
 
 def test_main_dry_run_allows_file_errors_with_flag(tmp_path: Path, monkeypatch):
-    source_root = tmp_path / "tickets"
+    source_root = tmp_path / "servicenow_incidents"
     source_root.mkdir()
     (source_root / "good.json").write_text(
         json.dumps(_valid_ticket_payload()),
         encoding="utf-8",
     )
     (source_root / "bad.json").write_text("{not valid json", encoding="utf-8")
+    selected_manifest = tmp_path / "selected_manifest.json"
+    selected_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "athos.ticket_filter_manifest.v1",
+                "source_path": str(source_root),
+                "selected_files": ["good.json", "bad.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
     manifest_path = tmp_path / "manifest.json"
 
     monkeypatch.setattr(
@@ -70,7 +93,8 @@ def test_main_dry_run_allows_file_errors_with_flag(tmp_path: Path, monkeypatch):
         "argv",
         [
             "build_tickets_chroma.py",
-            str(source_root),
+            "--selected-corpus-manifest",
+            str(selected_manifest),
             "--dry-run",
             "--allow-file-errors",
             "--manifest-out",
@@ -83,7 +107,7 @@ def test_main_dry_run_allows_file_errors_with_flag(tmp_path: Path, monkeypatch):
     assert manifest["counts"]["errors"] == 1
 
 
-def test_main_requires_exactly_one_input_source(monkeypatch):
+def test_main_requires_selected_manifest_arg(monkeypatch):
     monkeypatch.setattr(
         sys,
         "argv",
@@ -92,7 +116,7 @@ def test_main_requires_exactly_one_input_source(monkeypatch):
             "--dry-run",
         ],
     )
-    with pytest.raises(ValueError, match="exactly one of source_path or --selected-corpus-manifest"):
+    with pytest.raises(SystemExit):
         build_tickets_chroma_mod.main()
 
 
@@ -149,4 +173,4 @@ def test_main_dry_run_ingests_from_selected_manifest_without_refiltering(
     manifest = json.loads(ingest_manifest.read_text(encoding="utf-8"))
     assert manifest["input_source_mode"] == "selected_corpus_manifest"
     assert manifest["counts"]["kept_tickets"] == 1
-    assert manifest["counts"]["filtered"] == 0
+    assert "filtered" not in manifest["counts"]

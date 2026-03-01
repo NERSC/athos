@@ -4,22 +4,31 @@ set -euo pipefail
 SOURCE_ROOT="${1:-/pscratch/sd/s/sfarrell/agentic-ops/get-sn-tickets/servicenow_incidents}"
 TARGET_KEPT="${2:-500}"
 WORK_ROOT="${3:-/tmp/ticket_balanced_smoke}"
+RUN_TAG="${4:-smoke_${TARGET_KEPT}_$(date -u +%Y%m%d)}"
 
+FILTERED_ROOT="${WORK_ROOT}/filtered_${TARGET_KEPT}"
+FILTER_MANIFEST="${WORK_ROOT}/filter_manifest_${TARGET_KEPT}.json"
 PERSIST_DIR="${WORK_ROOT}/chroma_${TARGET_KEPT}"
-COLLECTION_NAME="servicenow_tickets_balanced_smoke_${TARGET_KEPT}"
-MANIFEST_PATH="${WORK_ROOT}/manifest_${TARGET_KEPT}.json"
+COLLECTION_NAME="servicenow_tickets_balanced_v0_${RUN_TAG}"
+INGEST_MANIFEST="${WORK_ROOT}/ingest_manifest_${TARGET_KEPT}.json"
 
 echo "source_root=${SOURCE_ROOT}"
 echo "target_kept=${TARGET_KEPT}"
 echo "work_root=${WORK_ROOT}"
+echo "run_tag=${RUN_TAG}"
 
-python scripts/build_tickets_chroma.py \
+python scripts/filter_tickets_corpus.py \
   "${SOURCE_ROOT}" \
-  --persist-dir "${PERSIST_DIR}" \
-  --collection-name "${COLLECTION_NAME}" \
+  --output-root "${FILTERED_ROOT}" \
   --mode balanced \
   --limit "${TARGET_KEPT}" \
-  --manifest-out "${MANIFEST_PATH}"
+  --manifest-out "${FILTER_MANIFEST}"
+
+python scripts/build_tickets_chroma.py \
+  --selected-corpus-manifest "${FILTER_MANIFEST}" \
+  --persist-dir "${PERSIST_DIR}" \
+  --collection-name "${COLLECTION_NAME}" \
+  --manifest-out "${INGEST_MANIFEST}"
 
 python - <<PY
 import chromadb
@@ -45,6 +54,7 @@ for q in queries:
         print(f"  {i}. id={doc_id} incident={incident} category={category} contact_type={contact}")
 PY
 
-echo "manifest=${MANIFEST_PATH}"
+echo "filter_manifest=${FILTER_MANIFEST}"
+echo "ingest_manifest=${INGEST_MANIFEST}"
 echo "persist_dir=${PERSIST_DIR}"
 echo "collection=${COLLECTION_NAME}"
