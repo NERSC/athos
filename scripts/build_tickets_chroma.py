@@ -4,30 +4,22 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 from datetime import datetime, timezone
+import json
 import logging
 from pathlib import Path
-import re
 import subprocess
 from typing import Any
 
 from athos.utils.ticket_ingest import (
     build_full_incident_document,
     compute_corpus_fingerprint,
-    evaluate_ticket_filter_reason,
-    iter_ticket_json_files,
     load_ticket_json,
     write_manifest,
 )
 
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_MIN_CREATED_DATE = "2023-01-01"
-DEFAULT_EXCLUDE_CONTACT_TYPES = ("Staff Initiated", "System Alert Auto Generated")
-STRICT_INCLUDE_CONTACT_TYPES = ("Email", "User Web Interface", "Phone", "In Person")
-
 
 def _positive_int(value: str) -> int:
     parsed = int(value)
@@ -37,43 +29,19 @@ def _positive_int(value: str) -> int:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build a ChromaDB collection from ticket JSON files")
-    parser.add_argument("source_path", help="Path to ticket export root")
+    parser = argparse.ArgumentParser(
+        description="Build a ChromaDB collection from a selected ticket corpus manifest"
+    )
+    parser.add_argument(
+        "--selected-corpus-manifest",
+        required=True,
+        help="Path to stage-1 filter manifest with selected_files + source_path",
+    )
     parser.add_argument("--persist-dir", default="chroma", help="Directory to store ChromaDB data")
     parser.add_argument(
         "--collection-name",
         default="servicenow_tickets_v0",
         help="Name of the Chroma collection",
-    )
-    parser.add_argument(
-        "--mode",
-        choices=("balanced", "user_support_strict", "full_corpus"),
-        default="balanced",
-        help="Filter policy mode",
-    )
-    parser.add_argument(
-        "--min-created-date",
-        help="Exclude tickets created before YYYY-MM-DD",
-    )
-    parser.add_argument(
-        "--exclude-contact-type",
-        action="append",
-        default=None,
-        help="Exclude this contact type (repeatable)",
-    )
-    parser.add_argument(
-        "--include-contact-type",
-        action="append",
-        default=None,
-        help="Only include these contact types (repeatable)",
-    )
-    parser.add_argument(
-        "--exclude-created-by-regex",
-        help="Regex for creators to exclude",
-    )
-    parser.add_argument(
-        "--exclude-assignment-group-regex",
-        help="Regex for assignment groups to exclude",
     )
     parser.add_argument(
         "--max-comment-chars",
@@ -92,11 +60,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=40000,
         help="Maximum chars per full incident document before chunk fallback",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        help="Max number of kept tickets to process (applied after filters)",
     )
     parser.add_argument(
         "--batch-size",
@@ -120,6 +83,11 @@ def parse_args() -> argparse.Namespace:
         help="Parse/normalize and report counts only; do not write Chroma",
     )
     parser.add_argument(
+        "--allow-file-errors",
+        action="store_true",
+        help="Exit successfully even when some ticket files fail to process",
+    )
+    parser.add_argument(
         "-v",
         "--verbose",
         action="count",
@@ -136,36 +104,6 @@ def configure_logging(verbosity: int) -> None:
     elif verbosity == 1:
         level = logging.INFO
     logging.basicConfig(level=level)
-
-
-def _normalize_type_set(values: list[str] | tuple[str, ...] | None) -> set[str]:
-    if not values:
-        return set()
-    return {item.strip() for item in values if item and item.strip()}
-
-
-def _resolve_mode_filters(args: argparse.Namespace) -> tuple[str | None, set[str], set[str]]:
-    if args.mode == "full_corpus":
-        min_created_date = None
-        include_contact_types: set[str] = set()
-        exclude_contact_types: set[str] = set()
-    elif args.mode == "user_support_strict":
-        min_created_date = DEFAULT_MIN_CREATED_DATE
-        include_contact_types = set(STRICT_INCLUDE_CONTACT_TYPES)
-        exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
-    else:  # balanced
-        min_created_date = DEFAULT_MIN_CREATED_DATE
-        include_contact_types = set()
-        exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
-
-    if args.min_created_date is not None:
-        min_created_date = args.min_created_date
-    if args.include_contact_type is not None:
-        include_contact_types = _normalize_type_set(args.include_contact_type)
-    if args.exclude_contact_type is not None:
-        exclude_contact_types = _normalize_type_set(args.exclude_contact_type)
-
-    return min_created_date, include_contact_types, exclude_contact_types
 
 
 def _resolve_duplicate_policy(
@@ -226,55 +164,63 @@ def _get_git_sha() -> str | None:
     return sha or None
 
 
+def _load_selected_corpus_manifest(path: Path) -> tuple[Path, list[Path]]:
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object manifest at {path}")
+
+    source_path = payload.get("source_path")
+    selected_files = payload.get("selected_files")
+    config = payload.get("config")
+    if not isinstance(source_path, str) or not source_path.strip():
+        raise ValueError(f"Manifest missing string source_path: {path}")
+    if not isinstance(selected_files, list):
+        raise ValueError(f"Manifest missing selected_files list: {path}")
+    if isinstance(config, dict) and config.get("materialized") is False:
+        raise ValueError(
+            "Selected corpus manifest indicates dry-run/non-materialized output; "
+            "rerun filter stage without --dry-run before ingestion"
+        )
+
+    source_root = Path(source_path).resolve()
+    ticket_files: list[Path] = []
+    for item in selected_files:
+        if not isinstance(item, str) or not item.strip():
+            raise ValueError(f"Manifest selected_files entries must be non-empty strings: {path}")
+        candidate = (source_root / Path(item)).resolve()
+        try:
+            candidate.relative_to(source_root)
+        except ValueError as exc:
+            raise ValueError(
+                f"Manifest selected_files entry escapes source_path: {item}"
+            ) from exc
+        if not candidate.exists():
+            raise FileNotFoundError(
+                f"Manifest-selected ticket file does not exist under source_path: {candidate}"
+            )
+        ticket_files.append(candidate)
+    return source_root, ticket_files
+
+
 def main() -> None:
     args = parse_args()
     configure_logging(args.verbose)
 
-    source_root = Path(args.source_path)
-    if not source_root.exists():
-        raise FileNotFoundError(f"Source path does not exist: {source_root}")
-
-    ticket_files = list(iter_ticket_json_files(source_root))
-
-    min_created_date_str, include_contact_types, exclude_contact_types = _resolve_mode_filters(args)
-    min_created_date = (
-        datetime.strptime(min_created_date_str, "%Y-%m-%d").date()
-        if min_created_date_str
-        else None
-    )
-    created_by_pattern = (
-        re.compile(args.exclude_created_by_regex) if args.exclude_created_by_regex else None
-    )
-    assignment_group_pattern = (
-        re.compile(args.exclude_assignment_group_regex)
-        if args.exclude_assignment_group_regex
-        else None
-    )
+    selected_manifest_path = Path(args.selected_corpus_manifest).resolve()
+    source_root, ticket_files = _load_selected_corpus_manifest(selected_manifest_path)
+    input_source_mode = "selected_corpus_manifest"
 
     documents: list[tuple[str, str, dict[str, object]]] = []
     error_count = 0
-    filtered_counts: Counter[str] = Counter()
     truncated_comment_docs = 0
     truncated_work_note_docs = 0
     chunked_tickets = 0
     kept_tickets = 0
     kept_ticket_files: list[Path] = []
     for ticket_file in ticket_files:
-        if args.limit is not None and kept_tickets >= args.limit:
-            break
         try:
             payload = load_ticket_json(ticket_file)
-            filter_reason = evaluate_ticket_filter_reason(
-                payload,
-                min_created_date=min_created_date,
-                include_contact_types=include_contact_types,
-                exclude_contact_types=exclude_contact_types,
-                exclude_created_by_pattern=created_by_pattern,
-                exclude_assignment_group_pattern=assignment_group_pattern,
-            )
-            if filter_reason:
-                filtered_counts[filter_reason] += 1
-                continue
 
             kept_tickets += 1
             kept_ticket_files.append(ticket_file)
@@ -303,6 +249,8 @@ def main() -> None:
     manifest = {
         "run_timestamp_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "source_path": str(source_root.resolve()),
+        "input_source_mode": input_source_mode,
+        "selected_corpus_manifest": str(selected_manifest_path) if selected_manifest_path else None,
         "collection_name": args.collection_name,
         "persist_dir": str(Path(args.persist_dir)),
         "dry_run": args.dry_run,
@@ -312,24 +260,15 @@ def main() -> None:
             "sha256": fingerprint.sha256,
         },
         "config": {
-            "mode": args.mode,
-            "min_created_date": min_created_date_str,
-            "include_contact_types": sorted(include_contact_types),
-            "exclude_contact_types": sorted(exclude_contact_types),
-            "exclude_created_by_regex": args.exclude_created_by_regex,
-            "exclude_assignment_group_regex": args.exclude_assignment_group_regex,
             "max_comment_chars": args.max_comment_chars,
             "max_work_note_chars": args.max_work_note_chars,
             "max_incident_chars": args.max_incident_chars,
-            "limit": args.limit,
             "batch_size": args.batch_size,
             "on_duplicate_id": args.on_duplicate_id,
         },
         "counts": {
             "input_files": len(ticket_files),
             "kept_tickets": kept_tickets,
-            "filtered": int(sum(filtered_counts.values())),
-            "filtered_by_reason": dict(filtered_counts),
             "documents_before_dedup": len(documents),
             "documents_written": len(resolved_documents),
             "duplicate_doc_ids_in_run": duplicate_doc_ids,
@@ -345,18 +284,26 @@ def main() -> None:
             "dry_run=true "
             f"files={len(ticket_files)} "
             f"documents={len(resolved_documents)} "
-            f"filtered={sum(filtered_counts.values())} "
             f"chunked_tickets={chunked_tickets} "
             f"truncated_comment_docs={truncated_comment_docs} "
             f"truncated_work_note_docs={truncated_work_note_docs} "
             f"duplicate_doc_ids={duplicate_doc_ids} "
             f"errors={error_count}"
         )
-        if filtered_counts:
-            print(f"filtered_by_reason={dict(filtered_counts)}")
         if args.manifest_out:
             write_manifest(Path(args.manifest_out), manifest)
+        if error_count and not args.allow_file_errors:
+            raise RuntimeError(
+                f"Encountered {error_count} file processing errors; rerun with --allow-file-errors to continue"
+            )
         return
+
+    if error_count and not args.allow_file_errors:
+        if args.manifest_out:
+            write_manifest(Path(args.manifest_out), manifest)
+        raise RuntimeError(
+            f"Encountered {error_count} file processing errors; rerun with --allow-file-errors to continue"
+        )
 
     import chromadb
 
@@ -374,15 +321,12 @@ def main() -> None:
         f"collection={args.collection_name} "
         f"files={len(ticket_files)} "
         f"documents={len(resolved_documents)} "
-        f"filtered={sum(filtered_counts.values())} "
         f"chunked_tickets={chunked_tickets} "
         f"truncated_comment_docs={truncated_comment_docs} "
         f"truncated_work_note_docs={truncated_work_note_docs} "
         f"duplicate_doc_ids={duplicate_doc_ids} "
         f"errors={error_count}"
     )
-    if filtered_counts:
-        print(f"filtered_by_reason={dict(filtered_counts)}")
     if args.manifest_out:
         write_manifest(Path(args.manifest_out), manifest)
 
