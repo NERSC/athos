@@ -4,12 +4,44 @@ This directory contains test cases and utilities for evaluating ATHOS agent flow
 
 ## JSONL question/answer format
 
-Q&A datasets are supplied as [JSON Lines](https://jsonlines.org/) files where each line is a standalone JSON object with three keys: `name`, `question`, and `answer`.
+Q&A datasets are supplied as [JSON Lines](https://jsonlines.org/) files where each line is a standalone JSON object.
+
+### Canonical schema (v2)
+
+Required keys:
+- `id`: unique case identifier
+- `question`: prompt shown to the flow
+- `answer`: reference answer used by evaluator
+
+Optional keys:
+- `difficulty`
+- `source_doc`
+- `section`
+- `source_passage`
+- `metadata` (free-form object)
 
 Example:
 
 ```jsonl
-{"name": "perlmutter_gpus", "question": "What type of GPUs are in the Perlmutter supercomputer?", "answer": "Nvidia A100s, 40G and 80G types"}
+{"id": "aa2a81b8bc73", "question": "How many A100 GPUs are on each GPU node on Perlmutter?", "answer": "Each GPU node on Perlmutter has four NVIDIA A100 40 GB GPUs.", "difficulty": "easy", "source_doc": "https://docs.nersc.gov/systems/perlmutter/architecture/", "section": "Perlmutter Architecture"}
+```
+
+### Backward compatibility
+
+The loader accepts legacy records that use:
+- `name` instead of `id`
+- `qa_id` instead of `id`
+
+`question` and `answer` are required for all variants. Loader validation will fail on malformed JSON, missing/empty `question` or `answer`, or duplicate case IDs.
+
+### Migrating datasets
+
+Use the migration utility to normalize any JSONL dataset to v2:
+
+```bash
+python scripts/migrate_qa_dataset.py \
+  --input /path/to/input.jsonl \
+  --output /path/to/output.jsonl
 ```
 
 Pass one or more of these files to `run_evaluations.py` using the `--qa-file` flag.
