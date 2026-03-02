@@ -184,18 +184,30 @@ def _resolve_attachment_candidate(
     *,
     source_root: Path,
 ) -> Path | None:
+    source_root_resolved = source_root.resolve()
+
+    def _resolve_if_allowed(candidate: Path) -> Path | None:
+        resolved = candidate.resolve()
+        if not resolved.exists():
+            return None
+        try:
+            resolved.relative_to(source_root_resolved)
+        except ValueError:
+            return None
+        return resolved
+
     candidate = Path(local_path)
     if candidate.is_absolute():
-        return candidate if candidate.exists() else None
+        return None
 
-    joined = (source_root / candidate).resolve()
-    if joined.exists():
+    joined = _resolve_if_allowed(source_root / candidate)
+    if joined is not None:
         return joined
 
     parts = list(candidate.parts)
     if parts and parts[0] == source_root.name:
-        stripped = (source_root / Path(*parts[1:])).resolve()
-        if stripped.exists():
+        stripped = _resolve_if_allowed(source_root / Path(*parts[1:]))
+        if stripped is not None:
             return stripped
     return None
 
@@ -294,8 +306,19 @@ def main() -> None:
 
             for attachment_dir in _iter_attachment_dir_candidates(ticket_file):
                 for file_path in sorted(attachment_dir.rglob("*")):
-                    if file_path.is_file():
-                        attachment_sources.add(file_path.resolve())
+                    if not file_path.is_file():
+                        continue
+                    resolved_path = file_path.resolve()
+                    try:
+                        resolved_path.relative_to(source_root)
+                    except ValueError:
+                        logger.warning(
+                            "Skipping out-of-root attachment discovered under %s: %s",
+                            attachment_dir,
+                            file_path,
+                        )
+                        continue
+                    attachment_sources.add(resolved_path)
 
             for attachment_src in sorted(attachment_sources):
                 attachment_rel = _relative_output_path(
