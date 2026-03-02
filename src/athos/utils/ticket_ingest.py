@@ -188,9 +188,17 @@ def evaluate_ticket_filter_reason(
     exclude_contact_types: set[str] | None = None,
     exclude_created_by_pattern: re.Pattern[str] | None = None,
     exclude_assignment_group_pattern: re.Pattern[str] | None = None,
+    exclude_short_description_exact: set[str] | None = None,
+    exclude_short_description_prefixes: tuple[str, ...] | list[str] | None = None,
+    exclude_short_description_patterns: list[re.Pattern[str]] | None = None,
+    exclude_if_no_messages: bool = False,
+    exclude_if_all_messages_from_authors: set[str] | None = None,
+    exclude_if_single_message_no_attachments: bool = False,
 ) -> str | None:
     """Return a filter reason code if ticket should be skipped, else ``None``."""
     fields = extract_ticket_filter_fields(record)
+    metadata = _as_mapping(record.get("metadata"))
+    incident_fields = _as_mapping(record.get("incident_fields"))
 
     if min_created_date is not None:
         created_date = _parse_created_date(fields.sys_created_on)
@@ -211,6 +219,52 @@ def evaluate_ticket_filter_reason(
 
     if exclude_assignment_group_pattern and exclude_assignment_group_pattern.search(fields.assignment_group):
         return "excluded_assignment_group_regex"
+
+    short_description = _extract_scalar(record, metadata, incident_fields, "short_description")
+    short_description_lc = short_description.lower()
+
+    if exclude_short_description_exact and short_description:
+        if short_description_lc in {item.lower() for item in exclude_short_description_exact}:
+            return "excluded_short_description_exact"
+
+    if exclude_short_description_prefixes and short_description:
+        for prefix in exclude_short_description_prefixes:
+            if short_description_lc.startswith(prefix.lower()):
+                return "excluded_short_description_prefix"
+
+    if exclude_short_description_patterns and short_description:
+        for pattern in exclude_short_description_patterns:
+            if pattern.search(short_description):
+                return "excluded_short_description_regex"
+
+    discussions = _as_mapping(record.get("discussions"))
+    message_count = 0
+    message_authors: list[str] = []
+    for key in ("customer_facing_comments", "internal_work_notes"):
+        for entry in _as_list(discussions.get(key)):
+            if not isinstance(entry, Mapping):
+                continue
+            author = _stringify(entry.get("created_by"))
+            if author.lower() == "system":
+                continue
+            text = _stringify(entry.get("text") or entry.get("value") or entry.get("display_value"))
+            if not text:
+                continue
+            message_count += 1
+            message_authors.append(author.lower())
+
+    if exclude_if_no_messages and message_count == 0:
+        return "excluded_no_messages"
+
+    if exclude_if_all_messages_from_authors and message_count > 0:
+        lowered_excluded_authors = {author.lower() for author in exclude_if_all_messages_from_authors}
+        if all(author in lowered_excluded_authors for author in message_authors):
+            return "excluded_all_messages_from_authors"
+
+    if exclude_if_single_message_no_attachments and message_count == 1:
+        attachments = _as_list(record.get("attachments"))
+        if not attachments:
+            return "excluded_single_message_no_attachments"
 
     return None
 

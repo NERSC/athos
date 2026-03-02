@@ -27,6 +27,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_MIN_CREATED_DATE = "2023-01-01"
 DEFAULT_EXCLUDE_CONTACT_TYPES = ("Staff Initiated", "System Alert Auto Generated")
 STRICT_INCLUDE_CONTACT_TYPES = ("Email", "User Web Interface", "Phone", "In Person")
+DEFAULT_EXCLUDE_SHORT_DESCRIPTION_EXACT = (
+    "ticket from iris: new pi account request",
+)
+DEFAULT_EXCLUDE_SHORT_DESCRIPTION_PREFIXES = (
+    "storage quota increase request:",
+)
+DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES = (
+    r"^renewal of .+ training for staff$",
+    r"nersc account activation",
+)
+DEFAULT_EXCLUDE_ALL_MESSAGES_AUTHORS = ("autoticketing", "pm-node-info-bot")
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,6 +79,42 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--exclude-assignment-group-regex",
         help="Regex for assignment groups to exclude",
+    )
+    parser.add_argument(
+        "--exclude-short-description-exact",
+        action="append",
+        default=None,
+        help="Exclude tickets with exactly matching short description (case-insensitive, repeatable)",
+    )
+    parser.add_argument(
+        "--exclude-short-description-prefix",
+        action="append",
+        default=None,
+        help="Exclude tickets whose short description starts with prefix (case-insensitive, repeatable)",
+    )
+    parser.add_argument(
+        "--exclude-short-description-regex",
+        action="append",
+        default=None,
+        help="Exclude tickets whose short description matches regex (repeatable)",
+    )
+    parser.add_argument(
+        "--exclude-if-no-messages",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Exclude tickets with no non-system discussion messages",
+    )
+    parser.add_argument(
+        "--exclude-all-messages-author",
+        action="append",
+        default=None,
+        help="Exclude ticket if all non-system messages are by these authors (repeatable, case-insensitive)",
+    )
+    parser.add_argument(
+        "--exclude-if-single-message-no-attachments",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Exclude tickets with exactly one non-system message and no attachments",
     )
     parser.add_argument(
         "--limit",
@@ -118,19 +165,49 @@ def _normalize_type_set(values: list[str] | tuple[str, ...] | None) -> set[str]:
     return {item.strip() for item in values if item and item.strip()}
 
 
-def _resolve_mode_filters(args: argparse.Namespace) -> tuple[str | None, set[str], set[str]]:
+def _resolve_mode_filters(
+    args: argparse.Namespace,
+) -> tuple[
+    str | None,
+    set[str],
+    set[str],
+    set[str],
+    tuple[str, ...],
+    tuple[str, ...],
+    bool,
+    set[str],
+    bool,
+]:
     if args.mode == "full_corpus":
         min_created_date = None
         include_contact_types: set[str] = set()
         exclude_contact_types: set[str] = set()
+        exclude_short_description_exact: set[str] = set()
+        exclude_short_description_prefixes: tuple[str, ...] = tuple()
+        exclude_short_description_regexes: tuple[str, ...] = tuple()
+        exclude_if_no_messages = False
+        exclude_all_messages_authors: set[str] = set()
+        exclude_if_single_message_no_attachments = False
     elif args.mode == "user_support_strict":
         min_created_date = DEFAULT_MIN_CREATED_DATE
         include_contact_types = set(STRICT_INCLUDE_CONTACT_TYPES)
         exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
+        exclude_short_description_exact = {item.lower() for item in DEFAULT_EXCLUDE_SHORT_DESCRIPTION_EXACT}
+        exclude_short_description_prefixes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_PREFIXES
+        exclude_short_description_regexes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES
+        exclude_if_no_messages = True
+        exclude_all_messages_authors = {item.lower() for item in DEFAULT_EXCLUDE_ALL_MESSAGES_AUTHORS}
+        exclude_if_single_message_no_attachments = True
     else:  # balanced
         min_created_date = DEFAULT_MIN_CREATED_DATE
         include_contact_types = set()
         exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
+        exclude_short_description_exact = {item.lower() for item in DEFAULT_EXCLUDE_SHORT_DESCRIPTION_EXACT}
+        exclude_short_description_prefixes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_PREFIXES
+        exclude_short_description_regexes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES
+        exclude_if_no_messages = True
+        exclude_all_messages_authors = {item.lower() for item in DEFAULT_EXCLUDE_ALL_MESSAGES_AUTHORS}
+        exclude_if_single_message_no_attachments = True
 
     if args.min_created_date is not None:
         min_created_date = args.min_created_date
@@ -138,7 +215,45 @@ def _resolve_mode_filters(args: argparse.Namespace) -> tuple[str | None, set[str
         include_contact_types = _normalize_type_set(args.include_contact_type)
     if args.exclude_contact_type is not None:
         exclude_contact_types = _normalize_type_set(args.exclude_contact_type)
-    return min_created_date, include_contact_types, exclude_contact_types
+    if args.exclude_short_description_exact is not None:
+        exclude_short_description_exact = {
+            item.lower().strip()
+            for item in args.exclude_short_description_exact
+            if item and item.strip()
+        }
+    if args.exclude_short_description_prefix is not None:
+        exclude_short_description_prefixes = tuple(
+            item.strip()
+            for item in args.exclude_short_description_prefix
+            if item and item.strip()
+        )
+    if args.exclude_short_description_regex is not None:
+        exclude_short_description_regexes = tuple(
+            item.strip()
+            for item in args.exclude_short_description_regex
+            if item and item.strip()
+        )
+    if args.exclude_if_no_messages is not None:
+        exclude_if_no_messages = args.exclude_if_no_messages
+    if args.exclude_all_messages_author is not None:
+        exclude_all_messages_authors = {
+            item.lower().strip()
+            for item in args.exclude_all_messages_author
+            if item and item.strip()
+        }
+    if args.exclude_if_single_message_no_attachments is not None:
+        exclude_if_single_message_no_attachments = args.exclude_if_single_message_no_attachments
+    return (
+        min_created_date,
+        include_contact_types,
+        exclude_contact_types,
+        exclude_short_description_exact,
+        exclude_short_description_prefixes,
+        exclude_short_description_regexes,
+        exclude_if_no_messages,
+        exclude_all_messages_authors,
+        exclude_if_single_message_no_attachments,
+    )
 
 
 def _stringify(value: Any) -> str:
@@ -242,7 +357,17 @@ def main() -> None:
         else output_root / "filter_manifest.json"
     )
 
-    min_created_date_str, include_contact_types, exclude_contact_types = _resolve_mode_filters(args)
+    (
+        min_created_date_str,
+        include_contact_types,
+        exclude_contact_types,
+        exclude_short_description_exact,
+        exclude_short_description_prefixes,
+        exclude_short_description_regexes,
+        exclude_if_no_messages,
+        exclude_all_messages_authors,
+        exclude_if_single_message_no_attachments,
+    ) = _resolve_mode_filters(args)
     min_created_date = (
         datetime.strptime(min_created_date_str, "%Y-%m-%d").date()
         if min_created_date_str
@@ -256,6 +381,7 @@ def main() -> None:
         if args.exclude_assignment_group_regex
         else None
     )
+    short_description_patterns = [re.compile(expr, re.IGNORECASE) for expr in exclude_short_description_regexes]
 
     ticket_files = list(iter_ticket_json_files(source_root))
     filtered_counts: Counter[str] = Counter()
@@ -282,6 +408,12 @@ def main() -> None:
                 exclude_contact_types=exclude_contact_types,
                 exclude_created_by_pattern=created_by_pattern,
                 exclude_assignment_group_pattern=assignment_group_pattern,
+                exclude_short_description_exact=exclude_short_description_exact,
+                exclude_short_description_prefixes=exclude_short_description_prefixes,
+                exclude_short_description_patterns=short_description_patterns,
+                exclude_if_no_messages=exclude_if_no_messages,
+                exclude_if_all_messages_from_authors=exclude_all_messages_authors,
+                exclude_if_single_message_no_attachments=exclude_if_single_message_no_attachments,
             )
             if filter_reason:
                 filtered_counts[filter_reason] += 1
@@ -355,6 +487,12 @@ def main() -> None:
             "exclude_contact_types": sorted(exclude_contact_types),
             "exclude_created_by_regex": args.exclude_created_by_regex,
             "exclude_assignment_group_regex": args.exclude_assignment_group_regex,
+            "exclude_short_description_exact": sorted(exclude_short_description_exact),
+            "exclude_short_description_prefixes": list(exclude_short_description_prefixes),
+            "exclude_short_description_regexes": list(exclude_short_description_regexes),
+            "exclude_if_no_messages": exclude_if_no_messages,
+            "exclude_all_messages_authors": sorted(exclude_all_messages_authors),
+            "exclude_if_single_message_no_attachments": exclude_if_single_message_no_attachments,
             "limit": args.limit,
             "dry_run": args.dry_run,
             "materialized": not args.dry_run,
