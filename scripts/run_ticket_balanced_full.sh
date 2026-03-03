@@ -22,5 +22,5 @@ echo "source_root=${SOURCE_ROOT}"
 echo "persist_root=${PERSIST_ROOT}"
 echo "run_tag=${RUN_TAG}"
 
-scripts/run_ticket_filter_balanced_full.sh "${SOURCE_ROOT}" "${PERSIST_ROOT}" "${RUN_TAG}"
-scripts/run_ticket_ingest_from_manifest.sh "${FILTER_MANIFEST}" "${PERSIST_ROOT}" "${RUN_TAG}"
+time scripts/run_ticket_filter_balanced_full.sh "${SOURCE_ROOT}" "${PERSIST_ROOT}" "${RUN_TAG}"
+time scripts/run_ticket_ingest_from_manifest.sh "${FILTER_MANIFEST}" "${PERSIST_ROOT}" "${RUN_TAG}"
