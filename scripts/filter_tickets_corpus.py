@@ -286,12 +286,14 @@ def _extract_attachment_local_paths(record: Mapping[str, Any]) -> list[str]:
 
 
 def _iter_attachment_dir_candidates(ticket_file: Path) -> Iterable[Path]:
+    expected_prefix = f"{ticket_file.stem}_"
     for child in sorted(ticket_file.parent.iterdir()):
         if not child.is_dir():
             continue
         name_lower = child.name.lower()
         if name_lower.endswith("_attachements") or name_lower.endswith("_attachments"):
-            yield child
+            if child.name.startswith(expected_prefix):
+                yield child
 
 
 def _resolve_attachment_candidate(
