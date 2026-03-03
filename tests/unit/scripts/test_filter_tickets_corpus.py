@@ -27,7 +27,12 @@ def _payload(*, incident_number: str, contact_type: str, local_paths: list[str])
             "short_description": "test",
             "description": "test",
         },
-        "discussions": {"customer_facing_comments": [], "internal_work_notes": []},
+        "discussions": {
+            "customer_facing_comments": [
+                {"timestamp": "2025-01-01 00:00:00", "created_by": "user", "text": "help"}
+            ],
+            "internal_work_notes": [],
+        },
         "attachments": [{"local_path": path} for path in local_paths],
     }
 
@@ -63,7 +68,7 @@ def test_filter_copies_selected_json_and_attachments(tmp_path: Path, monkeypatch
 
     referenced_attachment = incident_dir / "example.log"
     referenced_attachment.write_text("ref", encoding="utf-8")
-    sibling_attachment_dir = incident_dir / "00_20260212_012659_attachements"
+    sibling_attachment_dir = incident_dir / "selected_20260212_012659_attachements"
     sibling_attachment_dir.mkdir()
     sibling_attachment = sibling_attachment_dir / "extra.txt"
     sibling_attachment.write_text("sibling", encoding="utf-8")
@@ -86,7 +91,7 @@ def test_filter_copies_selected_json_and_attachments(tmp_path: Path, monkeypatch
 
     assert (output_root / "INC001" / "01" / "selected.json").exists()
     assert (output_root / "INC001" / "01" / "example.log").exists()
-    assert (output_root / "INC001" / "01" / "00_20260212_012659_attachements" / "extra.txt").exists()
+    assert (output_root / "INC001" / "01" / "selected_20260212_012659_attachements" / "extra.txt").exists()
     assert not (output_root / "INC001" / "01" / "filtered_out.json").exists()
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -166,6 +171,7 @@ def test_filter_allows_missing_attachment_with_flag(tmp_path: Path, monkeypatch)
             str(output_root),
             "--manifest-out",
             str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
             "--allow-missing-attachments",
         ],
     )
@@ -245,6 +251,7 @@ def test_filter_rejects_out_of_root_attachment_paths(tmp_path: Path, monkeypatch
             str(output_root),
             "--manifest-out",
             str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
             "--allow-missing-attachments",
         ],
     )
@@ -256,3 +263,95 @@ def test_filter_rejects_out_of_root_attachment_paths(tmp_path: Path, monkeypatch
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["counts"]["attachments_missing"] == 2
+
+
+def test_filter_balanced_default_excludes_short_description_pattern(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    incident_json = incident_dir / "selected.json"
+    incident_json.write_text(
+        json.dumps(
+            {
+                "metadata": {"incident_number": "INC0001", "sys_id": "sys_inc_1"},
+                "incident_fields": {
+                    "sys_created_on": "2025-01-01 00:00:00",
+                    "contact_type": "Email",
+                    "short_description": "Storage Quota Increase Request: project",
+                    "description": "request",
+                },
+                "discussions": {"customer_facing_comments": [], "internal_work_notes": []},
+                "attachments": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+            "--allow-missing-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["counts"]["selected_files"] == 0
+    assert manifest["counts"]["filtered_by_reason"]["excluded_short_description_prefix"] == 1
+
+
+def test_filter_ignores_non_matching_sibling_attachment_dirs(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    incident_json = incident_dir / "94.json"
+    incident_json.write_text(
+        json.dumps(
+            _payload(
+                incident_number="INC0001",
+                contact_type="Email",
+                local_paths=[],
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    unrelated_attachment_dir = incident_dir / "36_20260212_012659_attachements"
+    unrelated_attachment_dir.mkdir()
+    unrelated_attachment = unrelated_attachment_dir / "extra.txt"
+    unrelated_attachment.write_text("sibling", encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+            "--allow-missing-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["counts"]["selected_files"] == 1
+    assert manifest["counts"]["attachments_copied"] == 0
+    assert not (output_root / "INC001" / "01" / "36_20260212_012659_attachements" / "extra.txt").exists()

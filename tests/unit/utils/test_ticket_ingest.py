@@ -130,6 +130,74 @@ def test_evaluate_ticket_filter_reason_regex_exclusions():
     assert reason == "excluded_created_by_regex"
 
 
+def test_evaluate_ticket_filter_reason_short_description_exact():
+    record = _sample_record()
+    record["incident_fields"]["short_description"] = "Ticket from IRIS: New PI Account Request"
+    reason = evaluate_ticket_filter_reason(
+        record,
+        exclude_short_description_exact={"ticket from iris: new pi account request"},
+    )
+    assert reason == "excluded_short_description_exact"
+
+
+def test_evaluate_ticket_filter_reason_short_description_prefix():
+    record = _sample_record()
+    record["incident_fields"]["short_description"] = "Storage Quota Increase Request: project"
+    reason = evaluate_ticket_filter_reason(
+        record,
+        exclude_short_description_prefixes=("storage quota increase request:",),
+    )
+    assert reason == "excluded_short_description_prefix"
+
+
+def test_evaluate_ticket_filter_reason_short_description_regex():
+    record = _sample_record()
+    record["incident_fields"]["short_description"] = "Renewal of GPU training for staff"
+    reason = evaluate_ticket_filter_reason(
+        record,
+        exclude_short_description_patterns=[re.compile(r"^renewal of .+ training for staff$", re.IGNORECASE)],
+    )
+    assert reason == "excluded_short_description_regex"
+
+
+def test_evaluate_ticket_filter_reason_no_messages():
+    record = _sample_record()
+    record["discussions"]["customer_facing_comments"] = []
+    record["discussions"]["internal_work_notes"] = []
+    reason = evaluate_ticket_filter_reason(
+        record,
+        exclude_if_no_messages=True,
+    )
+    assert reason == "excluded_no_messages"
+
+
+def test_evaluate_ticket_filter_reason_all_messages_from_authors():
+    record = _sample_record()
+    record["discussions"]["customer_facing_comments"] = [
+        {"timestamp": "t1", "created_by": "autoticketing", "text": "msg"}
+    ]
+    record["discussions"]["internal_work_notes"] = []
+    reason = evaluate_ticket_filter_reason(
+        record,
+        exclude_if_all_messages_from_authors={"autoticketing", "pm-node-info-bot"},
+    )
+    assert reason == "excluded_all_messages_from_authors"
+
+
+def test_evaluate_ticket_filter_reason_single_message_no_attachments():
+    record = _sample_record()
+    record["discussions"]["customer_facing_comments"] = [
+        {"timestamp": "t1", "created_by": "user", "text": "msg"}
+    ]
+    record["discussions"]["internal_work_notes"] = []
+    record["attachments"] = []
+    reason = evaluate_ticket_filter_reason(
+        record,
+        exclude_if_single_message_no_attachments=True,
+    )
+    assert reason == "excluded_single_message_no_attachments"
+
+
 def test_compute_corpus_fingerprint_is_stable(tmp_path):
     a = tmp_path / "a.json"
     b = tmp_path / "sub" / "b.json"
