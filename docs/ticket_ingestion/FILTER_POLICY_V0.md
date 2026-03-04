@@ -26,7 +26,16 @@ Rationale:
 - These classes are strongly associated with internal/ops workflows.
 - Large outlier incidents are heavily concentrated in this slice.
 
-## 3) Oversized discussion controls
+## 3) Close-code include filter (balanced default)
+
+- Include:
+  - `Solved (Permanently)`
+
+Rationale:
+- Prioritizes incidents with explicit permanent resolution signal.
+- Excludes large classes like `Not Solved (No User Response)` that usually have weak/no fix signal.
+
+## 4) Oversized discussion controls
 
 - `max_comment_chars = 12000`
 - `max_work_note_chars = 12000`
@@ -36,7 +45,7 @@ Rationale:
 - Prevent single records from being dominated by machine-generated diagnostic dumps.
 - Keep chunks retrievable and useful for agent context.
 
-## 4) Attachment handling
+## 5) Attachment handling
 
 - Include text-like attachment content (if enabled):
   - `txt`, `log`, `csv`, `sh`, `md` (optionally `rtf`)
@@ -61,12 +70,12 @@ Rationale:
 
 ## `balanced` (default)
 
-- Apply defaults 1-4.
+- Apply defaults 1-5.
 - Do not apply creator/group regex excludes.
 
 ## `user_support_strict`
 
-- Apply defaults 1-4.
+- Apply defaults 1,2,4,5.
 - Add contact-type include list: `Email`, `User Web Interface`, `Phone`, `In Person`.
 - Optionally enable creator/group regex excludes.
 
@@ -83,6 +92,7 @@ Example CLI flags:
 --min-created-date 2023-01-01
 --exclude-contact-type "Staff Initiated" --exclude-contact-type "System Alert Auto Generated"
 --include-contact-type "Email" --include-contact-type "User Web Interface"
+--include-close-code "Solved (Permanently)"
 --exclude-created-by-regex "^(autoticketing|auto-ops)$"
 --exclude-assignment-group-regex "^(HPC POC|Perlmutter Admin)$"
 --max-comment-chars 12000
@@ -102,4 +112,3 @@ Each ingestion run should persist filter settings in its manifest:
 - counts: input, kept, filtered_by_reason, chunked, truncated
 
 This is required for reproducibility and versioned comparison across corpus builds.
-
