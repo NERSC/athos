@@ -1,5 +1,8 @@
-# ATHOS logs folder
+# Various ATHOS folders
 logs/
+.codex/
+workspace/
+data/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
