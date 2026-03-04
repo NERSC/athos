@@ -18,7 +18,7 @@ AGENT_SYSTEM="${AGENT_SYSTEM:-athos}"
 RUN_COUNT="${RUN_COUNT:-1}"
 RUN_START="${RUN_START:-0}"
 ALLOW_OVERWRITE_RUNS="${ALLOW_OVERWRITE_RUNS:-0}"
-AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-$SCRATCH/athos/chroma/aggregates/manifests/current.json}"
+AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-$SCRATCH/athos/chroma/aggregates/manifests/athos_eval_bundle_20260303.json}"
 
 # all | base | chroma
 FLOW_SET="${FLOW_SET:-all}"

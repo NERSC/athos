@@ -9,7 +9,7 @@ set -euo pipefail
 #   scripts/run_ticket_balanced_full.sh \
 #     /pscratch/sd/s/sfarrell/agentic-ops/get-sn-tickets/servicenow_incidents \
 #     /pscratch/sd/s/sfarrell/athos/chroma \
-#     20260223
+#     20260303
 
 SOURCE_ROOT="${1:-/pscratch/sd/s/sfarrell/agentic-ops/get-sn-tickets/servicenow_incidents}"
 PERSIST_ROOT="${2:-/pscratch/sd/s/sfarrell/athos/chroma}"

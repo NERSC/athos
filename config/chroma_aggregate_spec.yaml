@@ -1,11 +1,11 @@
 aggregate:
   name: athos_eval_bundle
-  version: "20260225"
+  version: "20260303"
   description: "M1 retrieval bundle"
 
 output:
-  persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/aggregates/athos_eval_bundle_20260225
-  manifest_out: /pscratch/sd/s/sfarrell/athos/chroma/aggregates/manifests/athos_eval_bundle_20260225.json
+  persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/aggregates/athos_eval_bundle_20260303
+  manifest_out: /pscratch/sd/s/sfarrell/athos/chroma/aggregates/manifests/athos_eval_bundle_20260303.json
   overwrite: false
 
 components:
@@ -25,9 +25,9 @@ components:
 
   - logical_name: tickets
     source:
-      persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/servicenow_tickets_balanced_v0_20260223
-      collection: servicenow_tickets_balanced_v0_20260223
-      version: "20260223"
+      persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/servicenow_tickets_balanced_v0_20260303
+      collection: servicenow_tickets_balanced_v0_20260303
+      version: "20260303"
     target_collection: tickets
 
 validation:
