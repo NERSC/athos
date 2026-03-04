@@ -38,6 +38,7 @@ DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES = (
     r"nersc account activation",
 )
 DEFAULT_EXCLUDE_ALL_MESSAGES_AUTHORS = ("autoticketing", "pm-node-info-bot")
+DEFAULT_INCLUDE_CLOSE_CODES_BALANCED = ("Solved (Permanently)",)
 
 
 def parse_args() -> argparse.Namespace:
@@ -75,6 +76,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--exclude-created-by-regex",
         help="Regex for creators to exclude",
+    )
+    parser.add_argument(
+        "--include-close-code",
+        action="append",
+        default=None,
+        help="Only include these close codes (repeatable)",
+    )
+    parser.add_argument(
+        "--exclude-close-code",
+        action="append",
+        default=None,
+        help="Exclude these close codes (repeatable)",
     )
     parser.add_argument(
         "--exclude-assignment-group-regex",
@@ -165,10 +178,32 @@ def _normalize_type_set(values: list[str] | tuple[str, ...] | None) -> set[str]:
     return {item.strip() for item in values if item and item.strip()}
 
 
+def _normalize_close_code(value: str) -> str:
+    normalized = value.strip()
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {'"', "'"}:
+        normalized = normalized[1:-1].strip()
+    return normalized
+
+
+def _normalize_close_code_set(values: list[str] | tuple[str, ...] | None) -> set[str]:
+    if not values:
+        return set()
+    normalized: set[str] = set()
+    for item in values:
+        if not item:
+            continue
+        normalized_item = _normalize_close_code(item)
+        if normalized_item:
+            normalized.add(normalized_item)
+    return normalized
+
+
 def _resolve_mode_filters(
     args: argparse.Namespace,
 ) -> tuple[
     str | None,
+    set[str],
+    set[str],
     set[str],
     set[str],
     set[str],
@@ -182,6 +217,8 @@ def _resolve_mode_filters(
         min_created_date = None
         include_contact_types: set[str] = set()
         exclude_contact_types: set[str] = set()
+        include_close_codes: set[str] = set()
+        exclude_close_codes: set[str] = set()
         exclude_short_description_exact: set[str] = set()
         exclude_short_description_prefixes: tuple[str, ...] = tuple()
         exclude_short_description_regexes: tuple[str, ...] = tuple()
@@ -192,6 +229,8 @@ def _resolve_mode_filters(
         min_created_date = DEFAULT_MIN_CREATED_DATE
         include_contact_types = set(STRICT_INCLUDE_CONTACT_TYPES)
         exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
+        include_close_codes = set()
+        exclude_close_codes = set()
         exclude_short_description_exact = {item.lower() for item in DEFAULT_EXCLUDE_SHORT_DESCRIPTION_EXACT}
         exclude_short_description_prefixes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_PREFIXES
         exclude_short_description_regexes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES
@@ -202,6 +241,8 @@ def _resolve_mode_filters(
         min_created_date = DEFAULT_MIN_CREATED_DATE
         include_contact_types = set()
         exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
+        include_close_codes = set(DEFAULT_INCLUDE_CLOSE_CODES_BALANCED)
+        exclude_close_codes = set()
         exclude_short_description_exact = {item.lower() for item in DEFAULT_EXCLUDE_SHORT_DESCRIPTION_EXACT}
         exclude_short_description_prefixes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_PREFIXES
         exclude_short_description_regexes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES
@@ -215,6 +256,10 @@ def _resolve_mode_filters(
         include_contact_types = _normalize_type_set(args.include_contact_type)
     if args.exclude_contact_type is not None:
         exclude_contact_types = _normalize_type_set(args.exclude_contact_type)
+    if args.include_close_code is not None:
+        include_close_codes = _normalize_close_code_set(args.include_close_code)
+    if args.exclude_close_code is not None:
+        exclude_close_codes = _normalize_close_code_set(args.exclude_close_code)
     if args.exclude_short_description_exact is not None:
         exclude_short_description_exact = {
             item.lower().strip()
@@ -247,6 +292,8 @@ def _resolve_mode_filters(
         min_created_date,
         include_contact_types,
         exclude_contact_types,
+        include_close_codes,
+        exclude_close_codes,
         exclude_short_description_exact,
         exclude_short_description_prefixes,
         exclude_short_description_regexes,
@@ -363,6 +410,8 @@ def main() -> None:
         min_created_date_str,
         include_contact_types,
         exclude_contact_types,
+        include_close_codes,
+        exclude_close_codes,
         exclude_short_description_exact,
         exclude_short_description_prefixes,
         exclude_short_description_regexes,
@@ -408,6 +457,8 @@ def main() -> None:
                 min_created_date=min_created_date,
                 include_contact_types=include_contact_types,
                 exclude_contact_types=exclude_contact_types,
+                include_close_codes=include_close_codes,
+                exclude_close_codes=exclude_close_codes,
                 exclude_created_by_pattern=created_by_pattern,
                 exclude_assignment_group_pattern=assignment_group_pattern,
                 exclude_short_description_exact=exclude_short_description_exact,
@@ -487,6 +538,8 @@ def main() -> None:
             "min_created_date": min_created_date_str,
             "include_contact_types": sorted(include_contact_types),
             "exclude_contact_types": sorted(exclude_contact_types),
+            "include_close_codes": sorted(include_close_codes),
+            "exclude_close_codes": sorted(exclude_close_codes),
             "exclude_created_by_regex": args.exclude_created_by_regex,
             "exclude_assignment_group_regex": args.exclude_assignment_group_regex,
             "exclude_short_description_exact": sorted(exclude_short_description_exact),

@@ -27,6 +27,7 @@ def _sample_record():
             "short_description": "fail for module load slatec",
             "description": "module load error",
             "contact_type": "Email",
+            "close_code": "Solved (Permanently)",
             "sys_created_by": "guest",
             "assigned_to": "consultant",
             "priority": "3 - Moderate",
@@ -196,6 +197,25 @@ def test_evaluate_ticket_filter_reason_single_message_no_attachments():
         exclude_if_single_message_no_attachments=True,
     )
     assert reason == "excluded_single_message_no_attachments"
+
+
+def test_evaluate_ticket_filter_reason_close_code_not_in_include_list():
+    record = _sample_record()
+    record["incident_fields"]["close_code"] = "Not Solved (No User Response)"
+    reason = evaluate_ticket_filter_reason(
+        record,
+        include_close_codes={"Solved (Permanently)"},
+    )
+    assert reason == "close_code_not_in_include_list"
+
+
+def test_evaluate_ticket_filter_reason_excluded_close_code():
+    record = _sample_record()
+    reason = evaluate_ticket_filter_reason(
+        record,
+        exclude_close_codes={"Solved (Permanently)"},
+    )
+    assert reason == "excluded_close_code"
 
 
 def test_compute_corpus_fingerprint_is_stable(tmp_path):

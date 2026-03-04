@@ -18,12 +18,19 @@ filter_tickets_corpus_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(filter_tickets_corpus_mod)
 
 
-def _payload(*, incident_number: str, contact_type: str, local_paths: list[str]) -> dict[str, object]:
+def _payload(
+    *,
+    incident_number: str,
+    contact_type: str,
+    local_paths: list[str],
+    close_code: str = "Solved (Permanently)",
+) -> dict[str, object]:
     return {
         "metadata": {"incident_number": incident_number, "sys_id": f"sys_{incident_number}"},
         "incident_fields": {
             "sys_created_on": "2025-01-01 00:00:00",
             "contact_type": contact_type,
+            "close_code": close_code,
             "short_description": "test",
             "description": "test",
         },
@@ -280,6 +287,7 @@ def test_filter_balanced_default_excludes_short_description_pattern(tmp_path: Pa
                 "incident_fields": {
                     "sys_created_on": "2025-01-01 00:00:00",
                     "contact_type": "Email",
+                    "close_code": "Solved (Permanently)",
                     "short_description": "Storage Quota Increase Request: project",
                     "description": "request",
                 },
@@ -355,3 +363,88 @@ def test_filter_ignores_non_matching_sibling_attachment_dirs(tmp_path: Path, mon
     assert manifest["counts"]["selected_files"] == 1
     assert manifest["counts"]["attachments_copied"] == 0
     assert not (output_root / "INC001" / "01" / "36_20260212_012659_attachements" / "extra.txt").exists()
+
+
+def test_filter_balanced_default_requires_solved_permanently(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    rejected_json = incident_dir / "rejected.json"
+    rejected_json.write_text(
+        json.dumps(
+            _payload(
+                incident_number="INC0001",
+                contact_type="Email",
+                local_paths=[],
+                close_code="Not Solved (No User Response)",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+            "--allow-missing-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["counts"]["selected_files"] == 0
+    assert manifest["counts"]["filtered_by_reason"]["close_code_not_in_include_list"] == 1
+    assert manifest["config"]["include_close_codes"] == ["Solved (Permanently)"]
+
+
+def test_filter_allows_overriding_include_close_code(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    selected_json = incident_dir / "selected.json"
+    selected_json.write_text(
+        json.dumps(
+            _payload(
+                incident_number="INC0001",
+                contact_type="Email",
+                local_paths=[],
+                close_code="Not Solved (No User Response)",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--include-close-code",
+            "Not Solved (No User Response)",
+            "--no-exclude-if-single-message-no-attachments",
+            "--allow-missing-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["counts"]["selected_files"] == 1
+    assert manifest["config"]["include_close_codes"] == ["Not Solved (No User Response)"]

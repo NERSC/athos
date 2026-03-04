@@ -143,6 +143,14 @@ def _format_attachment_line(entry: Mapping[str, Any]) -> str:
     return ""
 
 
+def _normalize_close_code(value: str) -> str:
+    """Normalize close code strings while preserving canonical values."""
+    normalized = value.strip()
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {'"', "'"}:
+        normalized = normalized[1:-1].strip()
+    return normalized
+
+
 def extract_ticket_filter_fields(record: Mapping[str, Any]) -> TicketFilterFields:
     """Extract filter-relevant fields from a ticket record."""
     metadata = _as_mapping(record.get("metadata"))
@@ -186,6 +194,8 @@ def evaluate_ticket_filter_reason(
     min_created_date: date | None = None,
     include_contact_types: set[str] | None = None,
     exclude_contact_types: set[str] | None = None,
+    include_close_codes: set[str] | None = None,
+    exclude_close_codes: set[str] | None = None,
     exclude_created_by_pattern: re.Pattern[str] | None = None,
     exclude_assignment_group_pattern: re.Pattern[str] | None = None,
     exclude_short_description_exact: set[str] | None = None,
@@ -213,6 +223,13 @@ def evaluate_ticket_filter_reason(
 
     if exclude_contact_types and fields.contact_type in exclude_contact_types:
         return "excluded_contact_type"
+
+    close_code = _normalize_close_code(_extract_scalar(record, metadata, incident_fields, "close_code"))
+    if include_close_codes and close_code not in include_close_codes:
+        return "close_code_not_in_include_list"
+
+    if exclude_close_codes and close_code in exclude_close_codes:
+        return "excluded_close_code"
 
     if exclude_created_by_pattern and exclude_created_by_pattern.search(fields.created_by):
         return "excluded_created_by_regex"

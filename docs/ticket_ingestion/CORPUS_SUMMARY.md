@@ -80,6 +80,7 @@ Includes core fields useful for retrieval and filtering:
 - `assignment_group`
 - `assigned_to`
 - `priority`, `impact`, `urgency`
+- `close_code`, `close_notes`, `resolved_at`, `resolved_by`
 - `sys_created_on`, `sys_updated_on`, `opened_at`, `closed_at`, etc.
 
 ### `discussions`
@@ -220,9 +221,42 @@ These counts help choose initial ingestion defaults:
 - User-facing contact types + recent:
   - `24,735` (`32.48%`)
 
+## Closure-Code Signals (Observed Counts)
+
+`incident_fields.close_code` is populated on all records (blank value in some records).
+
+Observed distribution (`n=76,146`):
+
+- `Solved (Permanently)`: `42,127` (`55.32%`)
+- `Not Solved (No User Response)`: `21,775` (`28.60%`)
+- `Resolved by Requester`: `4,041` (`5.31%`)
+- `Solved (Work Around)`: `3,692` (`4.85%`)
+- blank: `1,671` (`2.19%`)
+- `Closed by Requester`: `1,069` (`1.40%`)
+- `No Fault Found`: `815` (`1.07%`)
+- `Duplicate`: `625` (`0.82%`)
+- Remaining values (`Not Solved (Not Reproducible)`, `Not Solved (Too Costly)`, `Unknown (External Incident)`, and a few corpus-specific labels) are each `<0.2%`.
+
+Filtering impact examples:
+
+- Keep only `Solved (Permanently)`:
+  - `42,127` (`55.32%`)
+- Keep `Solved (Permanently|Work Around|Resolved by Requester)`:
+  - `49,860` (`65.48%`)
+
+Representative ticket examples in the corpus:
+
+- Solved:
+  - `INC0048988` (`Solved (Permanently)`) at `/Users/sfarrell/Work/agentic-ops/athos/data/servicenow_incidents/INC004/89/88.json`
+  - `INC0186174` (`Solved (Work Around)`) at `/Users/sfarrell/Work/agentic-ops/athos/data/servicenow_incidents/INC018/61/74.json`
+- Not solved / unsuitable for resolution retrieval:
+  - `INC0043375` (`Not Solved (No User Response)`) at `/Users/sfarrell/Work/agentic-ops/athos/data/servicenow_incidents/INC004/33/75.json`
+  - `INC0186132` (`Duplicate`) at `/Users/sfarrell/Work/agentic-ops/athos/data/servicenow_incidents/INC018/61/32.json`
+
 Recommended as pipeline knobs:
 - date cutoff (`min_created_date`)
 - contact-type excludes/include list
+- close-code include/exclude list
 - creator regex exclude
 - assignment-group include/exclude rules
 - max comment chars / max incident chars
