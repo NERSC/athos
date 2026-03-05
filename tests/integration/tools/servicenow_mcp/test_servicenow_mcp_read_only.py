@@ -22,7 +22,10 @@ async def test_read_only_mode_disables_write_tools():
     )
 
     server = ServiceNowMCPServer(config)
-    tools = await server.mcp.list_tools()
+    list_tools_fn = getattr(server.mcp, "list_tools", None)
+    if list_tools_fn is None:
+        list_tools_fn = server.mcp._list_tools
+    tools = await list_tools_fn()
     tool_names = {tool.name for tool in tools}
 
     write_tools = {"create_incident", "update_incident", "add_comment", "resolve_incident"}
