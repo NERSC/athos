@@ -136,8 +136,8 @@ def test_load_qa_cases(tmp_path):
 
     cases = load_qa_cases(qa_file)
     assert cases == [
-        {"name": "c1", "description": "q1", "solution": "a1"},
-        {"name": "c2", "description": "q2", "solution": "a2"},
+        {"id": "c1", "name": "c1", "description": "q1", "solution": "a1", "metadata": {}},
+        {"id": "c2", "name": "c2", "description": "q2", "solution": "a2", "metadata": {}},
     ]
 
 
