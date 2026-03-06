@@ -188,6 +188,10 @@ def _parse_created_date(value: str) -> date | None:
         return None
 
 
+def _normalize_state(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
 def evaluate_ticket_filter_reason(
     record: Mapping[str, Any],
     *,
@@ -196,6 +200,7 @@ def evaluate_ticket_filter_reason(
     exclude_contact_types: set[str] | None = None,
     include_close_codes: set[str] | None = None,
     exclude_close_codes: set[str] | None = None,
+    require_closed_or_resolved_state: bool = False,
     exclude_created_by_pattern: re.Pattern[str] | None = None,
     exclude_assignment_group_pattern: re.Pattern[str] | None = None,
     exclude_short_description_exact: set[str] | None = None,
@@ -230,6 +235,11 @@ def evaluate_ticket_filter_reason(
 
     if exclude_close_codes and close_code in exclude_close_codes:
         return "excluded_close_code"
+
+    if require_closed_or_resolved_state:
+        state = _normalize_state(_extract_scalar(record, metadata, incident_fields, "state", "incident_state"))
+        if state not in {"closed", "resolved"}:
+            return "state_not_closed_or_resolved"
 
     if exclude_created_by_pattern and exclude_created_by_pattern.search(fields.created_by):
         return "excluded_created_by_regex"

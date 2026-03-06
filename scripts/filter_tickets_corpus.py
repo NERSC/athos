@@ -90,6 +90,12 @@ def parse_args() -> argparse.Namespace:
         help="Exclude these close codes (repeatable)",
     )
     parser.add_argument(
+        "--require-closed-or-resolved-state",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Require incident state to be Closed/Resolved",
+    )
+    parser.add_argument(
         "--exclude-assignment-group-regex",
         help="Regex for assignment groups to exclude",
     )
@@ -204,6 +210,7 @@ def _resolve_mode_filters(
     str | None,
     set[str],
     set[str],
+    bool,
     set[str],
     set[str],
     set[str],
@@ -219,6 +226,7 @@ def _resolve_mode_filters(
         exclude_contact_types: set[str] = set()
         include_close_codes: set[str] = set()
         exclude_close_codes: set[str] = set()
+        require_closed_or_resolved_state = False
         exclude_short_description_exact: set[str] = set()
         exclude_short_description_prefixes: tuple[str, ...] = tuple()
         exclude_short_description_regexes: tuple[str, ...] = tuple()
@@ -231,6 +239,7 @@ def _resolve_mode_filters(
         exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
         include_close_codes = set()
         exclude_close_codes = set()
+        require_closed_or_resolved_state = True
         exclude_short_description_exact = {item.lower() for item in DEFAULT_EXCLUDE_SHORT_DESCRIPTION_EXACT}
         exclude_short_description_prefixes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_PREFIXES
         exclude_short_description_regexes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES
@@ -243,6 +252,7 @@ def _resolve_mode_filters(
         exclude_contact_types = set(DEFAULT_EXCLUDE_CONTACT_TYPES)
         include_close_codes = set(DEFAULT_INCLUDE_CLOSE_CODES_BALANCED)
         exclude_close_codes = set()
+        require_closed_or_resolved_state = True
         exclude_short_description_exact = {item.lower() for item in DEFAULT_EXCLUDE_SHORT_DESCRIPTION_EXACT}
         exclude_short_description_prefixes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_PREFIXES
         exclude_short_description_regexes = DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES
@@ -260,6 +270,8 @@ def _resolve_mode_filters(
         include_close_codes = _normalize_close_code_set(args.include_close_code)
     if args.exclude_close_code is not None:
         exclude_close_codes = _normalize_close_code_set(args.exclude_close_code)
+    if args.require_closed_or_resolved_state is not None:
+        require_closed_or_resolved_state = args.require_closed_or_resolved_state
     if args.exclude_short_description_exact is not None:
         exclude_short_description_exact = {
             item.lower().strip()
@@ -294,6 +306,7 @@ def _resolve_mode_filters(
         exclude_contact_types,
         include_close_codes,
         exclude_close_codes,
+        require_closed_or_resolved_state,
         exclude_short_description_exact,
         exclude_short_description_prefixes,
         exclude_short_description_regexes,
@@ -412,6 +425,7 @@ def main() -> None:
         exclude_contact_types,
         include_close_codes,
         exclude_close_codes,
+        require_closed_or_resolved_state,
         exclude_short_description_exact,
         exclude_short_description_prefixes,
         exclude_short_description_regexes,
@@ -459,6 +473,7 @@ def main() -> None:
                 exclude_contact_types=exclude_contact_types,
                 include_close_codes=include_close_codes,
                 exclude_close_codes=exclude_close_codes,
+                require_closed_or_resolved_state=require_closed_or_resolved_state,
                 exclude_created_by_pattern=created_by_pattern,
                 exclude_assignment_group_pattern=assignment_group_pattern,
                 exclude_short_description_exact=exclude_short_description_exact,
@@ -540,6 +555,7 @@ def main() -> None:
             "exclude_contact_types": sorted(exclude_contact_types),
             "include_close_codes": sorted(include_close_codes),
             "exclude_close_codes": sorted(exclude_close_codes),
+            "require_closed_or_resolved_state": require_closed_or_resolved_state,
             "exclude_created_by_regex": args.exclude_created_by_regex,
             "exclude_assignment_group_regex": args.exclude_assignment_group_regex,
             "exclude_short_description_exact": sorted(exclude_short_description_exact),
