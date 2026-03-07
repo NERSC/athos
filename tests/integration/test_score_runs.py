@@ -23,7 +23,14 @@ spec.loader.exec_module(score_runs_mod)
 
 
 def _write_run(
-    path: Path, run_id: str, case_id: str, output_text: str, dataset_id: str = "cases"
+    path: Path,
+    run_id: str,
+    case_id: str,
+    output_text: str,
+    dataset_id: str = "cases",
+    execution_status: str = "success",
+    error_type: str | None = None,
+    error_message: str | None = None,
 ) -> None:
     payload = {
         "schema_version": "athos.run.v1",
@@ -40,9 +47,9 @@ def _write_run(
         "execution": {
             "started_at_utc": "2026-02-15T00:00:00+00:00",
             "finished_at_utc": "2026-02-15T00:00:01+00:00",
-            "status": "success",
-            "error_type": None,
-            "error_message": None,
+            "status": execution_status,
+            "error_type": error_type,
+            "error_message": error_message,
         },
         "request": {
             "input_text": "input",
@@ -593,6 +600,181 @@ def test_score_runs_skips_non_success_execution_status(tmp_path, monkeypatch):
     assert judgment["judgment_status"] == "skipped_execution_status"
     assert judgment["score"] == 0.0
     assert judgment["pass"] is False
+
+
+def test_score_runs_skips_upstream_error_status(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
+        run_id="run-1",
+        case_id="case_one",
+        output_text="Error: Error code: 504 - gateway failure",
+        execution_status="upstream_error",
+        error_type="http_504",
+        error_message="Upstream gateway/provider failure in flow output.",
+    )
+
+    case_root = tmp_path / "cases" / "case_one"
+    case_root.mkdir(parents=True)
+    (case_root / "user_description.txt").write_text("desc")
+    (case_root / "solution.md").write_text("expected answer")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+    monkeypatch.setattr(
+        score_runs_mod,
+        "evaluate_response",
+        lambda _model, _sol, _resp: (88, "good"),
+    )
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--judge-model",
+            "judge_model",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    score_runs_mod.main()
+
+    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
+    assert judgment["judgment_status"] == "skipped_upstream_error"
+    assert judgment["score"] == 0.0
+    assert judgment["pass"] is False
+
+
+def test_score_runs_legacy_error_output_detects_gateway_time_out(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
+        run_id="run-1",
+        case_id="case_one",
+        output_text=(
+            "Error: Error code: 504 - <html><h1>504 Gateway Time-out</h1></html>"
+        ),
+        execution_status="success",
+    )
+
+    case_root = tmp_path / "cases" / "case_one"
+    case_root.mkdir(parents=True)
+    (case_root / "user_description.txt").write_text("desc")
+    (case_root / "solution.md").write_text("expected answer")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+    monkeypatch.setattr(
+        score_runs_mod,
+        "evaluate_response",
+        lambda _model, _sol, _resp: (88, "good"),
+    )
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--judge-model",
+            "judge_model",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    score_runs_mod.main()
+
+    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
+    assert judgment["judgment_status"] == "skipped_upstream_error"
+    assert judgment["score"] == 0.0
+    assert judgment["pass"] is False
+
+
+def test_score_runs_does_not_skip_normal_answer_that_mentions_bad_gateway(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "cases" / "case_one" / "0" / "run.json",
+        run_id="run-1",
+        case_id="case_one",
+        output_text=(
+            "The service returned 502 Bad Gateway earlier, but the likely issue is"
+            " backend overload. Retry after maintenance."
+        ),
+        execution_status="success",
+    )
+
+    case_root = tmp_path / "cases" / "case_one"
+    case_root.mkdir(parents=True)
+    (case_root / "user_description.txt").write_text("desc")
+    (case_root / "solution.md").write_text("expected answer")
+
+    dummy_cfg = SimpleNamespace(
+        models={"judge_model": SimpleNamespace(model_id="judge_model")}
+    )
+    monkeypatch.setattr(score_runs_mod, "build_config", Mock(return_value=dummy_cfg))
+    monkeypatch.setattr(
+        score_runs_mod.smolagents_factories,
+        "build_model",
+        lambda _cfg: object(),
+    )
+    monkeypatch.setattr(
+        score_runs_mod,
+        "evaluate_response",
+        lambda _model, _sol, _resp: (91, "good"),
+    )
+
+    out_jsonl = tmp_path / "judgments.jsonl"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "score_runs",
+            "--config",
+            "cfg.yaml",
+            "--runs-dir",
+            str(runs_dir),
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--judge-model",
+            "judge_model",
+            "--output",
+            str(out_jsonl),
+        ],
+    )
+    score_runs_mod.main()
+
+    judgment = json.loads(out_jsonl.read_text().splitlines()[0])
+    assert judgment["judgment_status"] == "scored"
+    assert judgment["score"] == 91.0
+    assert judgment["pass"] is True
 
 
 def test_score_runs_fails_on_non_numeric_judge_score(tmp_path, monkeypatch):
