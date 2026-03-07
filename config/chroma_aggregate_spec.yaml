@@ -1,33 +1,33 @@
 aggregate:
   name: athos_eval_bundle
-  version: "20260303"
-  description: "M1 retrieval bundle"
+  version: "20260306_local"
+  description: "Local retrieval bundle (docs + consulting + latest ticket retrieval)"
 
 output:
-  persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/aggregates/athos_eval_bundle_20260303
-  manifest_out: /pscratch/sd/s/sfarrell/athos/chroma/aggregates/manifests/athos_eval_bundle_20260303.json
+  persist_dir: data/chroma/aggregates/athos_eval_bundle_20260306_local
+  manifest_out: data/chroma/aggregates/manifests/athos_eval_bundle_20260306_local.json
   overwrite: false
 
 components:
   - logical_name: docs
     source:
-      persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/docs_db_20260225
+      persist_dir: data/chroma/docs_db_20260225
       collection: docs_v1_20260225
       version: "20260225"
     target_collection: docs
 
   - logical_name: consulting_docs
     source:
-      persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/consulting_docs_db_20260225
+      persist_dir: data/chroma/consulting_docs_db_20260225
       collection: consulting_docs_v1_20260225
       version: "20260225"
     target_collection: consulting_docs
 
   - logical_name: tickets
     source:
-      persist_dir: /pscratch/sd/s/sfarrell/athos/chroma/servicenow_tickets_balanced_v0_20260303
-      collection: servicenow_tickets_balanced_v0_20260303
-      version: "20260303"
+      persist_dir: data/chroma/servicenow_tickets_balanced_v0_20260306_retrieval_lt_20250901
+      collection: servicenow_tickets_balanced_v0_20260306_retrieval_lt_20250901
+      version: "20260306_retrieval_lt_20250901"
     target_collection: tickets
 
 validation:
