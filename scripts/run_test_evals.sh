@@ -12,6 +12,8 @@ RUN_COUNT="${RUN_COUNT:-1}"
 RESULTS_ROOT="${RESULTS_ROOT:-results}"
 LOGS_ROOT="${LOGS_ROOT:-logs}"
 AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-}"
+CASES_DIR="${CASES_DIR:-data/ticket_cases}"
+QA_FILE="${QA_FILE:-evals/simple_qa.v2.jsonl}"
 
 experiment_id="smoke_$(date +%Y%m%d_%H%M%S)"
 runs_dir="${RESULTS_ROOT}/${experiment_id}"
@@ -26,8 +28,8 @@ run_cmd=(
   python evals/run_evaluations.py
   --config config/config.yaml
   --flow "${FLOW_NAME}"
-  --cases-dir evals/test_cases
-  --qa-file evals/simple_qa.jsonl
+  --cases-dir "${CASES_DIR}"
+  --qa-file "${QA_FILE}"
   --output-dir "${RESULTS_ROOT}"
   --experiment-id "${experiment_id}"
   --run-count "${RUN_COUNT}"
@@ -41,8 +43,8 @@ echo "==> [2/3] Scoring canonical runs"
 python evals/score_runs.py \
   --config config/config.yaml \
   --runs-dir "${runs_dir}" \
-  --cases-dir evals/test_cases \
-  --qa-file evals/simple_qa.jsonl \
+  --cases-dir "${CASES_DIR}" \
+  --qa-file "${QA_FILE}" \
   --judge-model "${JUDGE_MODEL}" \
   --judge-id "${JUDGE_ID}" \
   --judge-prompt-version "${JUDGE_PROMPT_VERSION}" \
