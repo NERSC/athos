@@ -28,6 +28,7 @@ def _build_command(
     url: str | None,
     validate: str | None,
     output: str,
+    eval_output: str | None,
     max_chunks: int | None,
     backend: str,
     model: str | None,
@@ -56,6 +57,8 @@ def _build_command(
         cmd.extend(["--input-dir", "docs"])
 
     cmd.extend(["--output", output, "--backend", backend])
+    if eval_output:
+        cmd.extend(["--eval-output", eval_output])
 
     if max_chunks is not None:
         if max_chunks <= 0:
@@ -74,6 +77,7 @@ def generate_qa_dataset_tool(
     input_file: str | None = None,
     url: str | None = None,
     output: str = "athos_qa/generated_qa_dataset.jsonl",
+    eval_output: str | None = None,
     max_chunks: int | None = None,
     backend: str = "auto",
     model: str | None = None,
@@ -88,7 +92,8 @@ def generate_qa_dataset_tool(
         url: URL to fetch and process.
         output: Output JSONL path for raw generated pairs.
         max_chunks: Optional chunk limit for quick test runs.
-        backend: LLM backend: auto, cborg, anthropic, or openai.
+        eval_output: Optional explicit eval-ready output path.
+        backend: LLM backend: auto, cborg, anthropic, openai, or local.
         model: Optional model override for the chosen backend.
         validate: Validate an existing dataset path instead of generating a new one.
         timeout_seconds: Max runtime for the subprocess command.
@@ -109,6 +114,7 @@ def generate_qa_dataset_tool(
         url=url,
         validate=validate,
         output=output,
+        eval_output=eval_output,
         max_chunks=max_chunks,
         backend=backend,
         model=model,
@@ -140,7 +146,14 @@ def generate_qa_dataset_tool(
     if not output_path.is_absolute():
         output_path = _repo_root() / output_path
     deduped_path = output_path.with_suffix(".deduped.jsonl")
+    output_suffix = output_path.suffix if output_path.suffix else ".jsonl"
+    eval_ready_path = Path(eval_output) if eval_output else output_path.with_name(
+        f"qa_eval_ready_{output_path.stem}{output_suffix}"
+    )
+    if not eval_ready_path.is_absolute():
+        eval_ready_path = _repo_root() / eval_ready_path
 
     response["output_path"] = str(output_path)
     response["deduped_output_path"] = str(deduped_path)
+    response["eval_ready_output_path"] = str(eval_ready_path)
     return response

@@ -12,16 +12,21 @@ Given the documentation passage below, generate between 3 and 6 Q&A pairs follow
 
 **Question rules:**
 - Ask about specific, verifiable facts directly stated in the passage (e.g., limits, names, paths, commands, policies, deadlines)
-- Write questions as a user or operator would naturally ask them — not "According to the passage..." phrasing
+- Write questions as a real NERSC user or operator would ask them — imagine someone typing into a help portal or Slack, with no knowledge of any documentation structure
+- Never reference "the passage", "the document", "this section", or any source material in the question
+- Bad example: "According to the documentation, what is the scratch quota per user?"
+- Good example: "What is the scratch storage quota for a NERSC user?"
 - Vary the question style: some should be direct lookups ("What is the scratch quota?"), some should be task-oriented ("How do I request more storage?")
 - Avoid questions whose answers require information outside the passage
 - Avoid yes/no questions unless they test a genuinely important fact
+- If a question only makes sense in the context of reading a specific passage (i.e., it would confuse someone who hadn't just read it), discard it and generate a different one
 
 **Answer rules:**
 - Answers must be short and verifiable — ideally 1–2 sentences, never more than 3
 - Answers must be directly supported by the passage — do not infer or extrapolate
 - Include specific values, paths, commands, or policy language where relevant
 - Do not start answers with "Based on the documentation..." or similar hedging phrases
+- Answers should stand alone — a reader should not need to consult any document to understand or verify the answer
 
 **Difficulty levels:**
 - `easy`: direct single-fact lookup (e.g., "What is the path to scratch?")

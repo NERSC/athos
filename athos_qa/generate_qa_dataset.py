@@ -46,12 +46,14 @@ Setup (OpenAI direct - fallback):
 import os
 import re
 import json
+import sys
 import time
 import hashlib
 import argparse
 import logging
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
+from typing import Any
 
 import tiktoken
 import requests
@@ -104,6 +106,14 @@ class QAPair:
     section: str
     chunk_id: str
     qa_id: str            # hash of question
+
+
+QA_PAIR_FIELDS = {f.name for f in fields(QAPair)}
+
+LOCAL_STOPWORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in",
+    "is", "it", "of", "on", "or", "that", "the", "to", "with", "you", "your",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -170,11 +180,101 @@ def resolve_backend(backend: str) -> str:
     if os.environ.get("OPENAI_API_KEY"):
         return "openai"
 
-    raise ValueError(
-        "No API key found for --backend auto.\n"
-        "Set one of: CBORG_API_KEY, ANTHROPIC_API_KEY, OPENAI_API_KEY\n"
-        "or pass --backend explicitly."
+    log.warning(
+        "No API key found for --backend auto. Falling back to local backend."
     )
+    return "local"
+
+
+def _extract_passage_from_prompt(prompt: str) -> str:
+    m = re.search(
+        r"Documentation passage:\s*---\s*(.*?)\s*---\s*Source document:",
+        prompt,
+        flags=re.DOTALL,
+    )
+    return (m.group(1) if m else prompt).strip()
+
+
+def _pick_topic(sentence: str) -> str:
+    words = re.findall(r"[A-Za-z0-9_/$.-]+", sentence)
+    filtered = [w for w in words if w.lower() not in LOCAL_STOPWORDS and len(w) > 2]
+    if not filtered:
+        filtered = words
+    topic = " ".join(filtered[:6]).strip()
+    return topic or "this topic"
+
+
+def _score_sentence(sentence: str) -> tuple[int, str]:
+    score = 0
+    if re.search(r"\d", sentence):
+        score += 2
+    if re.search(r"/|--|\\$|[A-Z]{2,}", sentence):
+        score += 2
+    if len(sentence.split()) >= 10:
+        score += 1
+    if ":" in sentence:
+        score += 1
+    clean = " ".join(sentence.split())
+    return score, clean
+
+
+def _local_generate_pairs(prompt: str) -> list[dict[str, Any]]:
+    passage = _extract_passage_from_prompt(prompt)
+    raw_parts = re.split(r"(?<=[.!?])\s+|\n+", passage)
+    candidates = []
+    seen = set()
+    for part in raw_parts:
+        sentence = part.strip()
+        if len(sentence.split()) < 8:
+            continue
+        score, clean = _score_sentence(sentence)
+        if not clean:
+            continue
+        key = clean.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append((score, clean))
+
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    selected = [text for _, text in candidates[:4]]
+    if not selected and passage:
+        selected = [" ".join(passage.split()[:30]).strip()]
+
+    pairs = []
+    for idx, sent in enumerate(selected):
+        topic = _pick_topic(sent)
+        words = sent.split()
+        answer = " ".join(words[:45]).strip()
+        if len(answer.split()) < 3:
+            continue
+        if len(answer.split()) > 80:
+            answer = " ".join(answer.split()[:80])
+
+        difficulty = "easy"
+        if len(words) >= 24:
+            difficulty = "hard"
+        elif len(words) >= 14:
+            difficulty = "medium"
+
+        question = f"What does NERSC documentation say about {topic}?"
+        if idx == 1:
+            question = f"How is {topic} described in NERSC docs?"
+        elif idx == 2:
+            question = f"What details are provided for {topic}?"
+        elif idx == 3:
+            question = f"For operators, what should be known about {topic}?"
+
+        pairs.append(
+            {
+                "question": question,
+                "answer": answer,
+                "difficulty": difficulty,
+                "source_passage": sent,
+            }
+        )
+
+    return pairs
 
 
 def make_client(backend: str):
@@ -269,9 +369,18 @@ def make_client(backend: str):
 
         return call
 
+    elif backend == "local":
+        log.info("Using local backend (extractive heuristic generator)")
+
+        def call(prompt: str) -> str:
+            pairs = _local_generate_pairs(prompt)
+            return json.dumps(pairs)
+
+        return call
+
     else:
         raise ValueError(
-            f"Unknown backend '{backend}'. Choose 'auto', 'cborg', 'anthropic', or 'openai'."
+            f"Unknown backend '{backend}'. Choose 'auto', 'cborg', 'anthropic', 'openai', or 'local'."
         )
 
 
@@ -502,21 +611,40 @@ def is_valid_pair(qa: QAPair) -> bool:
     return True
 
 
-def validate_dataset(path: Path):
+def validate_dataset(path: Path) -> dict:
     """Print stats and flag issues in an existing dataset file."""
     pairs = []
+    parse_errors = 0
     with open(path) as f:
         for line in f:
             line = line.strip()
             if line:
-                pairs.append(QAPair(**json.loads(line)))
+                try:
+                    payload = json.loads(line)
+                    if not isinstance(payload, dict):
+                        parse_errors += 1
+                        continue
+
+                    # Keep validator compatible with legacy rows containing extra keys.
+                    clean = {k: v for k, v in payload.items() if k in QA_PAIR_FIELDS}
+                    if "chunk_id" not in clean:
+                        source_passage = clean.get("source_passage", "")
+                        clean["chunk_id"] = hashlib.md5(source_passage.encode("utf-8")).hexdigest()[:12]
+                    if "qa_id" not in clean:
+                        question = clean.get("question", "")
+                        clean["qa_id"] = hashlib.md5(question.encode("utf-8")).hexdigest()[:12]
+
+                    pairs.append(QAPair(**clean))
+                except Exception:
+                    parse_errors += 1
 
     total = len(pairs)
     print(f"\n=== Dataset Validation Report ===")
     print(f"Total pairs:   {total}")
+    print(f"Parse errors:  {parse_errors}")
     if total == 0:
         print("No pairs found — check your API key and input source.")
-        return
+        return {"total": 0, "valid": 0, "filtered_out": 0, "parse_errors": parse_errors}
 
     valid = [p for p in pairs if is_valid_pair(p)]
     print(f"Valid pairs:   {len(valid)} ({100*len(valid)//total}%)")
@@ -545,6 +673,13 @@ def validate_dataset(path: Path):
     print(f"\nBy source document:")
     for doc, count in sorted(docs.items(), key=lambda x: -x[1]):
         print(f"  {count:4d}  {doc}")
+
+    return {
+        "total": total,
+        "valid": len(valid),
+        "filtered_out": total - len(valid),
+        "parse_errors": parse_errors,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -606,14 +741,29 @@ def run_pipeline(args):
     deduped = deduplicate(all_pairs)
 
     deduped_path = output_path.with_suffix(".deduped.jsonl")
+    output_suffix = output_path.suffix if output_path.suffix else ".jsonl"
+    eval_ready_path = (
+        Path(args.eval_output)
+        if args.eval_output
+        else output_path.with_name(f"qa_eval_ready_{output_path.stem}{output_suffix}")
+    )
+
     with open(deduped_path, "w") as f:
         for p in deduped:
             f.write(json.dumps(asdict(p)) + "\n")
 
-    log.info(f"Final dataset: {len(deduped)} pairs -> {deduped_path}")
+    with open(eval_ready_path, "w") as f:
+        for p in deduped:
+            f.write(json.dumps(asdict(p)) + "\n")
+
+    log.info(f"Intermediate raw dataset: {len(all_pairs)} pairs -> {output_path}")
+    log.info(f"Intermediate deduped dataset: {len(deduped)} pairs -> {deduped_path}")
+    log.info(f"Eval-ready dataset: {len(deduped)} pairs -> {eval_ready_path}")
 
     # 5. Summary
-    validate_dataset(deduped_path)
+    stats = validate_dataset(eval_ready_path)
+    if stats["total"] == 0:
+        raise RuntimeError("Validation failed: generated dataset is empty.")
 
 
 # ---------------------------------------------------------------------------
@@ -635,9 +785,12 @@ def main():
 
     parser.add_argument("--output",     default="qa_dataset.jsonl",
                         help="Output JSONL file (default: qa_dataset.jsonl)")
+    parser.add_argument("--eval-output", default=None,
+                        help="Optional explicit eval-ready output path. "
+                             "Default: qa_eval_ready_<output_stem>.jsonl")
     parser.add_argument("--max-chunks", type=int, default=None,
                         help="Limit number of chunks processed (useful for testing)")
-    parser.add_argument("--backend",    choices=["auto", "cborg", "anthropic", "openai"], default="auto",
+    parser.add_argument("--backend",    choices=["auto", "cborg", "anthropic", "openai", "local"], default="auto",
                         help="LLM backend to use (default: auto)")
     parser.add_argument("--model",      default=None,
                         help="Override the model name (e.g. 'lbl/cborg-coder-v3' for open-weight via CBORG)")
@@ -660,7 +813,9 @@ def main():
             )
 
     if args.validate:
-        validate_dataset(Path(args.validate))
+        stats = validate_dataset(Path(args.validate))
+        if stats["total"] == 0:
+            sys.exit(1)
     else:
         if not (args.input_dir or args.input_file or args.url):
             parser.error("Provide one of: --input-dir, --input-file, --url, or --validate")

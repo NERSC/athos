@@ -10,7 +10,7 @@ Install dependencies:
 pip install openai anthropic tiktoken beautifulsoup4 requests scikit-learn numpy tqdm
 ```
 
-Set one API key (the script supports `--backend auto|cborg|anthropic|openai`):
+Set one API key (the script supports `--backend auto|cborg|anthropic|openai|local`):
 
 ```bash
 # Option 1: CBORG (NERSC/LBNL)
@@ -23,6 +23,13 @@ export ANTHROPIC_API_KEY=your_anthropic_key
 export OPENAI_API_KEY=your_openai_key
 ```
 
+No key mode:
+
+```bash
+# Local extractive backend (no external API calls)
+python generate_qa_dataset.py --backend local --input-dir ./nersc_docs --output qa_local.jsonl
+```
+
 ## Quick Start
 
 ```bash
@@ -31,6 +38,9 @@ python generate_qa_dataset.py --backend auto --url https://docs.nersc.gov/system
 
 # Force OpenAI backend
 python generate_qa_dataset.py --backend openai --url https://docs.nersc.gov/systems/perlmutter/architecture/ --output qa_simple.jsonl
+
+# Force local backend (offline, heuristic generation)
+python generate_qa_dataset.py --backend local --url https://docs.nersc.gov/systems/perlmutter/architecture/ --output qa_local.jsonl
 
 # From a directory of markdown docs
 python generate_qa_dataset.py --input-dir ./nersc_docs --output qa_simple.jsonl
@@ -46,7 +56,13 @@ python generate_qa_dataset.py --input-dir ./nersc_docs --max-chunks 5 --output q
 
 # Validate / get stats on an existing dataset
 python generate_qa_dataset.py --validate qa_simple.deduped.jsonl
+
+# Write eval-ready file to an explicit path
+python generate_qa_dataset.py --input-dir ./nersc_docs --output qa_run.jsonl --eval-output qa_eval_ready_run.jsonl
 ```
+
+Validation is automatically run at the end of generation on the deduped dataset.
+If generation produces an empty dataset, the script now exits non-zero.
 
 ## Output Format
 
@@ -65,9 +81,12 @@ Each line in the `.jsonl` output is a JSON object:
 }
 ```
 
-Two files are written:
+Three files are written:
 - `qa_simple.jsonl` — raw output (one pair per line, written incrementally)
-- `qa_simple.deduped.jsonl` — after near-duplicate removal (use this one)
+- `qa_simple.deduped.jsonl` — deduped intermediate
+- `qa_eval_ready_qa_simple.jsonl` — eval-ready output (default final file to use for evals)
+
+You can override the eval-ready output filename with `--eval-output`.
 
 ## Recommended NERSC Doc Sources
 

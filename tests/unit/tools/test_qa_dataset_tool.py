@@ -14,6 +14,7 @@ def test_build_command_rejects_multiple_sources():
             url=None,
             validate=None,
             output="out.jsonl",
+            eval_output=None,
             max_chunks=None,
             backend="auto",
             model=None,
@@ -47,3 +48,20 @@ def test_generate_tool_returns_output_paths(monkeypatch, tmp_path):
     assert result["status"] == "success"
     assert result["output_path"] == str(repo / "athos_qa" / "generated.jsonl")
     assert result["deduped_output_path"] == str(repo / "athos_qa" / "generated.deduped.jsonl")
+    assert result["eval_ready_output_path"] == str(repo / "athos_qa" / "qa_eval_ready_generated.jsonl")
+
+
+def test_build_command_accepts_local_backend():
+    cmd = _build_command(
+        input_dir="docs",
+        input_file=None,
+        url=None,
+        validate=None,
+        output="out.jsonl",
+        eval_output=None,
+        max_chunks=2,
+        backend="local",
+        model=None,
+    )
+    assert "--backend" in cmd
+    assert "local" in cmd
