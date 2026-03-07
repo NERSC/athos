@@ -6,7 +6,7 @@ set -euo pipefail
 #   scripts/run_ticket_ingest_from_manifest.sh <selected_manifest> [persist_root] [run_tag]
 
 SELECTED_MANIFEST="${1:?selected manifest path is required}"
-PERSIST_ROOT="${2:-./data}"
+PERSIST_ROOT="${2:-./data/chroma}"
 RUN_TAG="${3:-$(date -u +%Y%m%d)}"
 
 PERSIST_DIR="${PERSIST_ROOT}/servicenow_tickets_balanced_v0_${RUN_TAG}"

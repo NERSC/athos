@@ -9,11 +9,11 @@ set -euo pipefail
 #   scripts/run_ticket_split_by_date.sh \
 #     ./data/manifests/servicenow_tickets_balanced_v0_20260305_filter.json \
 #     ./data \
-#     2026-01-01 \
+#     2025-09-01 \
 #     20260305
 
 PERSIST_ROOT="${2:-./data}"
-CUTOFF_DATE="${3:-2026-01-01}"
+CUTOFF_DATE="${3:-2025-09-01}"
 RUN_TAG="${4:-$(date -u +%Y%m%d)}"
 SELECTED_MANIFEST="${1:-${PERSIST_ROOT}/manifests/servicenow_tickets_balanced_v0_${RUN_TAG}_filter.json}"
 
