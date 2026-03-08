@@ -65,7 +65,12 @@ def _looks_like_error_output(text: str | None) -> bool:
         return True
     if lowered.startswith("traceback"):
         return True
-    if "'error':" in lowered or '"error":' in lowered:
+    if "<html" in lowered and (
+        "gateway time-out" in lowered
+        or "gateway timeout" in lowered
+        or "bad gateway" in lowered
+        or "service unavailable" in lowered
+    ):
         return True
     return False
 
