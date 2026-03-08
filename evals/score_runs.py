@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable
@@ -16,6 +17,62 @@ from athos.frameworks.smolagents import factories as smolagents_factories
 
 from eval_core import evaluate_response
 from eval_io import load_qa_cases, load_test_cases
+
+
+UPSTREAM_ERROR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bbad gateway\b|\b502\b"), "http_502"),
+    (re.compile(r"\bservice unavailable\b|\b503\b"), "http_503"),
+    (
+        re.compile(
+            r"\b504\b|\bgateway(?:\s+time(?:\s*out|-out)?|\s+timeout)\b|"
+            r"\berror code\s*:?[\s'\"]*504\b"
+        ),
+        "http_504",
+    ),
+    (re.compile(r"\bupstream connect error\b"), "upstream_connect_error"),
+    (re.compile(r"\btemporarily unavailable\b"), "upstream_unavailable"),
+)
+UPSTREAM_ERROR_CODES = {
+    error_code for _, error_code in UPSTREAM_ERROR_PATTERNS
+}
+
+
+def _normalize_error_text(text: str | None) -> str:
+    if not isinstance(text, str):
+        return ""
+    lowered = text.lower()
+    lowered = re.sub(r"[^a-z0-9]+", " ", lowered)
+    return lowered.strip()
+
+
+def _detect_upstream_error_code(text: str | None) -> str | None:
+    normalized = _normalize_error_text(text)
+    if not normalized:
+        return None
+    for pattern, error_code in UPSTREAM_ERROR_PATTERNS:
+        if pattern.search(normalized):
+            return error_code
+    return None
+
+
+def _looks_like_error_output(text: str | None) -> bool:
+    if not isinstance(text, str):
+        return False
+    lowered = text.lower().strip()
+    if lowered.startswith("error:"):
+        return True
+    if lowered.startswith("exception:"):
+        return True
+    if lowered.startswith("traceback"):
+        return True
+    if "<html" in lowered and (
+        "gateway time-out" in lowered
+        or "gateway timeout" in lowered
+        or "bad gateway" in lowered
+        or "service unavailable" in lowered
+    ):
+        return True
+    return False
 
 
 def _discover_run_paths(runs_dir: str | None, runs_manifest: str | None) -> list[Path]:
@@ -214,10 +271,38 @@ def main() -> None:
             reference = _resolve_reference(run_payload, reference_map, fallback_case_map)
             execution_payload = run_payload.get("execution")
             execution_status = "success"
+            execution_error_type = None
+            execution_error_message = None
             if isinstance(execution_payload, dict):
                 status_value = execution_payload.get("status")
                 if isinstance(status_value, str) and status_value:
                     execution_status = status_value
+                error_type_value = execution_payload.get("error_type")
+                if isinstance(error_type_value, str) and error_type_value:
+                    execution_error_type = error_type_value
+                error_message_value = execution_payload.get("error_message")
+                if isinstance(error_message_value, str) and error_message_value:
+                    execution_error_message = error_message_value
+
+            # Legacy fallback: older run records may be incorrectly marked success
+            # even when they contain explicit upstream provider errors.
+            if execution_status == "success":
+                status_from_error_type = (
+                    execution_error_type
+                    if execution_error_type in UPSTREAM_ERROR_CODES
+                    else None
+                )
+                status_from_error_message = _detect_upstream_error_code(execution_error_message)
+                status_from_output = None
+                if _looks_like_error_output(output_text):
+                    status_from_output = _detect_upstream_error_code(output_text)
+                upstream_code = (
+                    status_from_error_type
+                    or status_from_error_message
+                    or status_from_output
+                )
+                if upstream_code:
+                    execution_status = "upstream_error"
 
             score = None
             feedback = None
@@ -226,6 +311,19 @@ def main() -> None:
             if not (isinstance(run_id, str) and run_id):
                 judgment_status = "skipped_invalid_run"
                 feedback = "Skipped: missing required run_id."
+                score = 0.0
+                passed = False
+                zero_scored_failure_count += 1
+                _record_skip(
+                    run_path=run_path,
+                    run_id=run_id_for_judgment,
+                    case_id=case_id,
+                    reason=judgment_status,
+                    detail=feedback,
+                )
+            elif execution_status == "upstream_error":
+                judgment_status = "skipped_upstream_error"
+                feedback = "Skipped: upstream gateway/provider failure (retryable)."
                 score = 0.0
                 passed = False
                 zero_scored_failure_count += 1

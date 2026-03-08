@@ -78,6 +78,49 @@ def _status_from_exception(error: Exception) -> str:
     return "execution_error"
 
 
+UPSTREAM_ERROR_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"\bbad gateway\b|\b502\b"), "http_502"),
+    (re.compile(r"\bservice unavailable\b|\b503\b"), "http_503"),
+    (
+        re.compile(
+            r"\b504\b|\bgateway(?:\s+time(?:\s*out|-out)?|\s+timeout)\b|"
+            r"\berror code\s*:?[\s'\"]*504\b"
+        ),
+        "http_504",
+    ),
+    (re.compile(r"\bupstream connect error\b"), "upstream_connect_error"),
+    (re.compile(r"\btemporarily unavailable\b"), "upstream_unavailable"),
+)
+
+
+def _normalize_error_text(text: str | None) -> str:
+    if not isinstance(text, str):
+        return ""
+    lowered = text.lower()
+    lowered = re.sub(r"[^a-z0-9]+", " ", lowered)
+    return lowered.strip()
+
+
+def _detect_upstream_error_code(text: str | None) -> str | None:
+    normalized = _normalize_error_text(text)
+    if not normalized:
+        return None
+    for pattern, error_code in UPSTREAM_ERROR_PATTERNS:
+        if pattern.search(normalized):
+            return error_code
+    return None
+
+
+def _failure_class_for_status(status: str) -> str | None:
+    if status == "upstream_error":
+        return "upstream"
+    if status == "invalid_output":
+        return "agent_output"
+    if status in {"execution_error", "timeout"}:
+        return "execution"
+    return None
+
+
 def _load_json(path: Path) -> dict:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
@@ -324,6 +367,7 @@ async def main():
             execution_status = "success"
             error_type = None
             error_message = None
+            retryable = False
             response = None
             metrics_payload = {}
             try:
@@ -341,6 +385,13 @@ async def main():
                 )
                 if result.success and result.output:
                     response = result.output.content
+                    output_metadata = (
+                        result.output.metadata
+                        if isinstance(result.output.metadata, dict)
+                        else {}
+                    )
+                    output_error = bool(output_metadata.get("error"))
+                    output_exception_type = output_metadata.get("exception_type")
                     if not isinstance(response, str):
                         execution_status = "invalid_output"
                         error_type = "invalid_output_type"
@@ -354,6 +405,25 @@ async def main():
                         error_message = (
                             "Flow returned empty response content"
                         )
+                    elif output_error:
+                        execution_status = "execution_error"
+                        error_type = (
+                            output_exception_type
+                            if isinstance(output_exception_type, str)
+                            and output_exception_type
+                            else "flow_output_error"
+                        )
+                        error_message = (
+                            "Flow returned structured error output."
+                        )
+                        upstream_code = _detect_upstream_error_code(response)
+                        if upstream_code:
+                            execution_status = "upstream_error"
+                            error_type = upstream_code
+                            error_message = (
+                                "Upstream gateway/provider failure in flow output."
+                            )
+                            retryable = True
                 elif result.success and not result.output:
                     execution_status = "invalid_output"
                     error_type = "missing_output"
@@ -362,6 +432,14 @@ async def main():
                     execution_status = "execution_error"
                     error_type = "flow_execution_error"
                     error_message = str(result.error or "Unknown error")
+                    upstream_code = _detect_upstream_error_code(error_message)
+                    if upstream_code:
+                        execution_status = "upstream_error"
+                        error_type = upstream_code
+                        error_message = (
+                            "Upstream gateway/provider failure reported by runner."
+                        )
+                        retryable = True
                 metrics = ExecutionMetrics.from_output_metadata(result.metadata)
                 metrics_payload = metrics.to_metadata() if metrics else {}
                 if not metrics_payload and isinstance(result.metadata, dict):
@@ -372,6 +450,14 @@ async def main():
                 execution_status = _status_from_exception(e)
                 error_type = e.__class__.__name__
                 error_message = str(e)
+                upstream_code = _detect_upstream_error_code(error_message)
+                if upstream_code:
+                    execution_status = "upstream_error"
+                    error_type = upstream_code
+                    error_message = (
+                        "Upstream gateway/provider failure raised as exception."
+                    )
+                    retryable = True
             finished_at = now_utc_iso()
             planned["run_dir"].mkdir(parents=True, exist_ok=True)
             run_record = build_run_record(
@@ -391,6 +477,8 @@ async def main():
                     "status": execution_status,
                     "error_type": error_type,
                     "error_message": error_message,
+                    "failure_class": _failure_class_for_status(execution_status),
+                    "retryable": retryable,
                 },
                 request={
                     "input_text": planned["input_data"],

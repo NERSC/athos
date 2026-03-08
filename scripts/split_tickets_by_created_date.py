@@ -64,11 +64,6 @@ def parse_args() -> argparse.Namespace:
         help="Exit successfully even when some ticket files fail to parse/process",
     )
     parser.add_argument(
-        "--allow-missing-attachments",
-        action="store_true",
-        help="Exit successfully even when attachment references cannot be resolved",
-    )
-    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Evaluate and write manifests only; do not copy files",

@@ -1,0 +1,47 @@
+flowchart TB
+  subgraph U["User Interfaces"]
+    CLI["CLI"]
+    OWUI["OpenWebUI Manifold"]
+  end
+
+  subgraph R["ATHOS Runtime"]
+    FR["FlowRunner"]
+    SS["SessionStore"]
+    RB["Flow Registry + Builder"]
+  end
+
+  subgraph F["Configured Flows"]
+    FLOWS["Flow Implementations<br/>(SmolAgents / LangGraph)"]
+  end
+
+  subgraph I["Integration Layer"]
+    LLM["LLM Backends"]
+    TOOLS["Python Tools"]
+    MCP["MCP Servers"]
+  end
+
+  subgraph H["HPC Systems & Data Sources"]
+    SN["ServiceNow"]
+    SF["SFAPI"]
+    DOCS["Docs / KB"]
+  end
+
+  CFG["Config (YAML + Pydantic Validation)"]
+
+  CLI --> FR
+  OWUI --> FR
+  FR <--> SS
+  FR --> RB
+  RB --> FLOWS
+
+  FLOWS --> LLM
+  FLOWS --> TOOLS
+  FLOWS --> MCP
+
+  MCP --> SN
+  MCP --> SF
+  MCP --> DOCS
+
+  CFG --> RB
+  CFG --> FLOWS
+  CFG --> I

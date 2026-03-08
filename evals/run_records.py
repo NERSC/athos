@@ -91,6 +91,8 @@ def build_run_record(
             "status": execution.get("status", "success"),
             "error_type": execution.get("error_type"),
             "error_message": execution.get("error_message"),
+            "failure_class": execution.get("failure_class"),
+            "retryable": execution.get("retryable"),
         },
         "request": {
             "input_text": request.get("input_text"),

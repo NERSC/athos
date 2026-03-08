@@ -1,0 +1,21 @@
+sequenceDiagram
+  participant UI as UI (CLI/OpenWebUI)
+  participant FR as FlowRunner
+  participant SS as SessionStore
+  participant RB as Registry+Builder
+  participant FL as Flow
+  participant IN as Tools/MCP/LLM
+  participant HPC as HPC Systems
+
+  UI->>FR: User request
+  FR->>SS: get_or_create(session)
+  FR->>RB: Resolve/build flow
+  RB-->>FR: Flow instance
+  FR->>FL: execute(input)
+  FL->>IN: model/tool/MCP calls
+  IN->>HPC: Query/update (as needed)
+  HPC-->>IN: Results
+  IN-->>FL: Grounded context
+  FL-->>FR: FlowOutput(content, metadata)
+  FR->>SS: Persist interaction
+  FR-->>UI: Response (sync/stream)

@@ -545,6 +545,150 @@ async def test_empty_response_marked_invalid_and_not_judged(tmp_path, monkeypatc
     assert payload["execution"]["error_type"] == "empty_response"
 
 
+async def test_structured_error_output_marked_upstream_retryable(tmp_path, monkeypatch):
+    """Structured flow errors with 50x gateway signatures should be retryable upstream failures."""
+
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(
+                    content=(
+                        "Error: Error code: 504 - <html><h1>504 Gateway Time-out</h1></html>"
+                    ),
+                    metadata={"error": True, "exception_type": "TimeoutError"},
+                ),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    output_root = tmp_path / "results"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(output_root),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+
+    await revals.main()
+
+    run_path = next((output_root / "exp1" / "athos").glob("*/*/*/*/run.json"))
+    payload = json.loads(run_path.read_text())
+    assert payload["execution"]["status"] == "upstream_error"
+    assert payload["execution"]["error_type"] == "http_504"
+    assert payload["execution"]["failure_class"] == "upstream"
+    assert payload["execution"]["retryable"] is True
+
+
+async def test_structured_error_output_marked_execution_error_when_not_upstream(tmp_path, monkeypatch):
+    """Structured flow errors without upstream signatures remain execution_error."""
+
+    case_dir = tmp_path / "cases" / "case_one"
+    case_dir.mkdir(parents=True)
+    (case_dir / "user_description.txt").write_text("desc")
+    (case_dir / "solution.md").write_text("sol")
+
+    class DummyFlowCfg:
+        def __init__(self, model):
+            self.model = model
+
+        def model_dump(self):
+            return {"model": self.model}
+
+    dummy_cfg = SimpleNamespace(
+        flows={"f1": DummyFlowCfg("m1")},
+        models={"m1": SimpleNamespace(model_id="m1")},
+        workspace_path=str(tmp_path / "workspace"),
+    )
+    monkeypatch.setattr(revals, "build_config", Mock(return_value=dummy_cfg))
+
+    class DummyRunner:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        async def execute(self, *args, **kwargs):
+            return SimpleNamespace(
+                success=True,
+                output=FlowOutput(
+                    content="Error: parser crashed while rendering output",
+                    metadata={"error": True, "exception_type": "ValueError"},
+                ),
+                error=None,
+                metadata={"latency_ms": 10.0},
+            )
+
+        async def cleanup(self):
+            return None
+
+    monkeypatch.setattr(revals, "FlowRunner", DummyRunner)
+    output_root = tmp_path / "results"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "revals",
+            "--config",
+            "cfg.yaml",
+            "--flow",
+            "f1",
+            "--cases-dir",
+            str(tmp_path / "cases"),
+            "--output-dir",
+            str(output_root),
+            "--experiment-id",
+            "exp1",
+        ],
+    )
+
+    await revals.main()
+
+    run_path = next((output_root / "exp1" / "athos").glob("*/*/*/*/run.json"))
+    payload = json.loads(run_path.read_text())
+    assert payload["execution"]["status"] == "execution_error"
+    assert payload["execution"]["error_type"] == "ValueError"
+    assert payload["execution"]["failure_class"] == "execution"
+    assert payload["execution"]["retryable"] is False
+
+
 async def test_inline_scoring_fields_removed(tmp_path, monkeypatch):
     """Results should not include inline scoring fields."""
 
