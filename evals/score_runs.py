@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable
@@ -173,6 +174,18 @@ def main() -> None:
     parser.add_argument("--judge-id", default=None)
     parser.add_argument("--passing-score", type=float, default=80.0)
     parser.add_argument(
+        "--judge-max-attempts",
+        type=int,
+        default=3,
+        help="Maximum attempts per run when judge output is non-numeric or judge call fails.",
+    )
+    parser.add_argument(
+        "--judge-retry-delay-ms",
+        type=int,
+        default=0,
+        help="Delay between judge retry attempts in milliseconds.",
+    )
+    parser.add_argument(
         "--fail-on-skip",
         action="store_true",
         help="Exit non-zero if any run cannot be scored",
@@ -199,6 +212,10 @@ def main() -> None:
 
     if not args.runs_dir and not args.runs_manifest:
         raise ValueError("One of --runs-dir or --runs-manifest is required")
+    if args.judge_max_attempts < 1:
+        raise ValueError("--judge-max-attempts must be >= 1")
+    if args.judge_retry_delay_ms < 0:
+        raise ValueError("--judge-retry-delay-ms must be >= 0")
 
     if not args.cases_dir and not args.qa_file:
         args.cases_dir = ["evals/test_cases"]
@@ -348,22 +365,57 @@ def main() -> None:
                     detail=feedback,
                 )
             elif isinstance(reference, str) and reference and output_text_present:
-                try:
-                    score, feedback = evaluate_response(
-                        judge_model_instance, reference, output_text
-                    )
-                except Exception as exc:  # pragma: no cover - passthrough safety
-                    raise RuntimeError(
-                        f"Judge evaluation failed for run_id={run_id_for_judgment} "
-                        f"path={run_path_str}"
-                    ) from exc
-                if isinstance(score, (int, float)):
+                final_score = None
+                final_feedback = None
+                last_error_detail = None
+                for attempt in range(1, args.judge_max_attempts + 1):
+                    try:
+                        score, feedback = evaluate_response(
+                            judge_model_instance, reference, output_text
+                        )
+                    except Exception as exc:  # pragma: no cover - passthrough safety
+                        score = None
+                        feedback = None
+                        last_error_detail = (
+                            f"attempt={attempt}/{args.judge_max_attempts} "
+                            f"judge_exception={type(exc).__name__}: {exc}"
+                        )
+                    else:
+                        final_feedback = feedback
+                        if isinstance(score, (int, float)) and not isinstance(score, bool):
+                            final_score = float(score)
+                            break
+                        last_error_detail = (
+                            f"attempt={attempt}/{args.judge_max_attempts} "
+                            f"non_numeric_score={score!r}"
+                        )
+
+                    if (
+                        attempt < args.judge_max_attempts
+                        and args.judge_retry_delay_ms > 0
+                    ):
+                        time.sleep(args.judge_retry_delay_ms / 1000)
+
+                if final_score is not None:
+                    score = final_score
+                    feedback = final_feedback
                     passed = score >= args.passing_score
                     scored_count += 1
                 else:
-                    raise RuntimeError(
-                        "Judge returned non-numeric score "
-                        f"for run_id={run_id_for_judgment} path={run_path_str}"
+                    judgment_status = "skipped_judge_error"
+                    feedback = (
+                        "Skipped: judge output invalid after retries. "
+                        f"{last_error_detail}"
+                    )
+                    score = 0.0
+                    passed = False
+                    zero_scored_failure_count += 1
+                    _record_skip(
+                        run_path=run_path,
+                        run_id=run_id_for_judgment,
+                        case_id=case_id,
+                        reason=judgment_status,
+                        detail=feedback,
                     )
             else:
                 if not (isinstance(reference, str) and reference):
