@@ -1,6 +1,13 @@
-# CUG Paper Action Plan (Draft v0.1)
+# CUG Paper Action Plan (Draft v0.2)
 
 This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) and iterative milestones.
+
+## Status Snapshot (2026-03-09)
+
+- Eval pipeline v1 is implemented and in active use (`run_evaluations.py` + `score_runs.py` + `summarize_results.py`).
+- M1 baseline runs have been executed and judged in `results/cug_m1_*`.
+- M1 closeout is not complete: at least one strict-score run exited with a skip, and retrieval-backed runs need final validation of Chroma collection wiring before final M1 summary freeze.
+- M2 should now be treated as an execution planning task (expanded datasets + variance), not a future placeholder.
 
 ## 0. Scope and Configuration Working Points
 
@@ -70,6 +77,10 @@ Status update (2026-02-27):
 - Remaining known limitation: `score_runs.py` currently treats `(dataset_id, case_id)` lookup misses as missing reference, so imported runs with mismatched dataset naming can be skipped (`skipped_missing_reference`).
 - Focus has shifted from pipeline buildout to M1 execution hardening and experiment completion.
 
+Status update (2026-03-09):
+- Pipeline enabler work is complete for M1/M2 execution needs.
+- Remaining work is process/documentation hardening (milestone manifests, closeout checklists, and updated experiment pointers).
+
 ## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
 
 Purpose:
@@ -95,6 +106,10 @@ Status update (2026-02-27):
 - Unit and integration coverage exists for ingestion and aggregate builds, including semantic smoke checks.
 - Remaining work is M1 operational execution: produce/freeze versioned corpus manifests and ensure those manifests are attached to run artifacts.
 
+Status update (2026-03-09):
+- Aggregate metadata capture in run artifacts is functioning.
+- Remaining M1 closeout risk: confirm retrieval collections expected by Chroma-enabled flows are present and consistently named in the selected aggregate DB before freezing retrieval comparisons.
+
 ## 2. Dataset Curation (Parallel Workstream)
 
 Purpose:
@@ -116,6 +131,10 @@ Deliverables:
 - `QA Dataset v0`: expanded question set with tags/metadata.
 - `QA Dataset v1`: quality-reviewed revision after pilot runs.
 
+Status update (2026-03-09):
+- Versioned QA files now include `evals/simple_qa.v2.jsonl` and `evals/nersc_qa.v2.jsonl`.
+- M2 should explicitly adopt expanded QA coverage centered on `evals/nersc_qa.v2.jsonl`.
+
 ### 2.2 User Ticket Dataset Expansion (Single-Turn Scope)
 
 Plan:
@@ -131,6 +150,10 @@ Requirements:
 Deliverables:
 - `Ticket Dataset v0`: synthetic benchmark-ready single-turn set.
 - `Ticket Dataset v1`: post-error-analysis revision.
+
+Status update (2026-03-09):
+- Single-turn ticket-case datasets are now being exercised in smoke/eval workflows and should be promoted to explicit M2 dataset pointers.
+- M2 should use ticket-case datasets as primary ticket-style evaluation input.
 
 ### 2.3 Additional Benchmark Categories (Candidate Track)
 
@@ -173,6 +196,14 @@ Outputs:
 - `Summary Tables v0`
 - `Failure Analysis Notes v0`
 
+Status (2026-03-09):
+- In progress, near closeout.
+- Baseline matrix execution artifacts exist, but final closeout must include:
+  - retrieval collection validation for Chroma-enabled runs,
+  - rerun/repair of invalid retrieval-backed cases if needed,
+  - finalized summary artifacts for the selected canonical M1 experiment ID,
+  - frozen M1 manifest recording aggregate manifest path/version, dataset pointers, config refs, judge config, and git SHA.
+
 ### Milestone M2: Expanded Study v1
 
 Goal:
@@ -183,6 +214,14 @@ Outputs:
 - `Judgments v1`
 - `Summary Tables v1` (with variance where applicable)
 - `Delta Analysis v1` versus M1
+
+Initial experiment definition (v0, 2026-03-09):
+- M2-E1..E4: Repeat M1 flow matrix on expanded datasets:
+  - use ticket-case dataset pointer(s),
+  - use expanded QA set (`evals/nersc_qa.v2.jsonl`).
+- M2-E5 (variance): run top two M1 configurations with `--run-count 3` (or higher as budget allows) on expanded datasets.
+- M2-E6 (external baseline carry-forward): import and score external coding-agent runs with dataset IDs aligned to local references.
+- Retrieval gate for any Chroma-enabled M2 run: require a preflight smoke check that verifies expected collection names exist in the selected aggregate DB.
 
 ### Milestone M3: Pre-Write Freeze v1.x
 
@@ -214,9 +253,10 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps
+## Immediate Next Steps (Updated 2026-03-09)
 
-1. Write `Scope Memo v0` and `Experiment Matrix v0` from current configs.
-2. Build/freeze the M1 versioned retrieval aggregate DB and manifest, then run M1 baseline experiments using `--aggregate-manifest` and pipeline v1 artifacts (canonical runs + decoupled judgments).
-3. Start `QA Dataset v0` and `Ticket Dataset v0` curation in parallel.
-4. Define M1 checklist and target date, including explicit tracking for `skipped_missing_reference` rates on imported runs.
+1. Finalize M1 closeout checklist and freeze one canonical M1 experiment ID (runs + judgments + summary + manifest metadata).
+2. Resolve retrieval collection-name mismatches for Chroma-enabled runs and rerun affected cases before freezing M1 retrieval conclusions.
+3. Publish explicit M2 dataset pointers (paths + versions), including expanded QA and ticket-case datasets.
+4. Create M2 execution wrappers/docs (run + score) that default to the new dataset pointers while preserving M1 reproducibility.
+5. Run M2-E1..E4 once (run_count=1), then execute M2-E5 variance runs for selected top configurations.
