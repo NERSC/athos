@@ -20,7 +20,14 @@ summarize_results_mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(summarize_results_mod)
 
 
-def _write_run(path: Path, run_id: str, case_id: str, run_index: int) -> None:
+def _write_run(
+    path: Path,
+    run_id: str,
+    case_id: str,
+    run_index: int,
+    *,
+    metrics: dict | None = None,
+) -> None:
     payload = {
         "schema_version": "athos.run.v1",
         "run_id": run_id,
@@ -42,7 +49,7 @@ def _write_run(path: Path, run_id: str, case_id: str, run_index: int) -> None:
         },
         "request": {"input_text": "input", "input_artifacts": []},
         "response": {"output_text": "response text", "output_artifacts": []},
-        "metrics": {},
+        "metrics": metrics or {},
         "provenance": {},
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -145,6 +152,71 @@ def test_summarize_results_counts_skips(tmp_path, monkeypatch):
     assert agg["skipped_count"] == 1
     assert agg["skipped_by_reason"] == {"skipped_missing_output": 1}
     assert agg["score_mean"] == 80.0
+
+
+def test_summarize_results_computes_latency_and_token_stats(tmp_path, monkeypatch):
+    runs_dir = tmp_path / "runs"
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "case_one" / "0" / "run.json",
+        "run-1",
+        "case_one",
+        0,
+        metrics={"latency_ms": 1000, "token_usage": {"input_tokens": 10, "output_tokens": 5}},
+    )
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "case_two" / "0" / "run.json",
+        "run-2",
+        "case_two",
+        0,
+        metrics={"latency_ms": 2000, "token_usage": {"input_tokens": 20, "output_tokens": 10}},
+    )
+    _write_run(
+        runs_dir / "exp1" / "athos" / "cfg" / "case_three" / "0" / "run.json",
+        "run-3",
+        "case_three",
+        0,
+        metrics={"latency_ms": 3000, "token_usage": {"input_tokens": 30, "output_tokens": 15}},
+    )
+
+    judgments_dir = tmp_path / "judgments"
+    judgments_dir.mkdir(parents=True)
+    (judgments_dir / "judge.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps({"run_id": "run-1", "judgment_status": "scored", "score": 70, "pass": False}),
+                json.dumps({"run_id": "run-2", "judgment_status": "scored", "score": 80, "pass": True}),
+                json.dumps({"run_id": "run-3", "judgment_status": "scored", "score": 90, "pass": True}),
+            ]
+        )
+    )
+
+    output_path = tmp_path / "summary.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "summarize_results",
+            "--runs-dir",
+            str(runs_dir),
+            "--judgments-dir",
+            str(judgments_dir),
+            "--output",
+            str(output_path),
+        ],
+    )
+    summarize_results_mod.main()
+
+    payload = json.loads(output_path.read_text())
+    agg = payload["aggregates"][0]
+    assert agg["latency_ms_count"] == 3
+    assert agg["latency_ms_mean"] == 2000.0
+    assert agg["latency_ms_p50"] == 2000.0
+    assert agg["latency_ms_p95"] == 3000.0
+    assert agg["token_usage_count"] == 3
+    assert agg["tokens_input_mean"] == 20.0
+    assert agg["tokens_output_mean"] == 10.0
+    assert agg["tokens_total_mean"] == 30.0
+    assert agg["tokens_total_p50"] == 30.0
 
 
 def test_summarize_results_ignores_skips_sidecar_file(tmp_path, monkeypatch):

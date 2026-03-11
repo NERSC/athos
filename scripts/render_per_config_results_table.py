@@ -69,7 +69,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--caption",
-        default="CUG Results by Configuration",
+        default=(
+            "Per-Configuration Results on NERSC QA and Ticket Datasets "
+            "(Tokens I/O/T = mean input/output/total tokens per run; "
+            "Lat = median end-to-end latency)"
+        ),
     )
     parser.add_argument(
         "--label",
@@ -134,7 +138,9 @@ def _short_config_id(config_id: str) -> str:
         model = "gptoss"
     else:
         model = "unknown"
-    if "chroma" in config_id:
+    if "chroma" in config_id and "opt" in config_id:
+        tools = "chroma_opt"
+    elif "chroma" in config_id:
         tools = "chroma"
     elif "base" in config_id:
         tools = "base"
@@ -147,10 +153,29 @@ def _fmt_pass_score(pass_rate: Any, score_mean: Any) -> str:
     return f"{_fmt_pct(pass_rate)} / {_fmt_score(score_mean)}"
 
 
-def _fmt_eval_skip(run_count: Any, skipped_count: Any) -> str:
-    if isinstance(run_count, int) and isinstance(skipped_count, int):
-        return f"{run_count - skipped_count} / {skipped_count}"
+def _fmt_fail_count(skipped_count: Any) -> str:
+    if isinstance(skipped_count, int):
+        return str(skipped_count)
     return "N/A"
+
+
+def _fmt_tokens_k(value: Any) -> str:
+    if isinstance(value, (int, float)):
+        return f"{float(value) / 1000.0:.1f}k"
+    return "N/A"
+
+
+def _fmt_latency_s(value: Any) -> str:
+    if isinstance(value, (int, float)):
+        return f"{float(value) / 1000.0:.1f}s"
+    return "N/A"
+
+
+def _fmt_tokens_iot(ds: dict[str, Any]) -> str:
+    tok_in = _fmt_tokens_k(ds.get("tokens_input_mean"))
+    tok_out = _fmt_tokens_k(ds.get("tokens_output_mean"))
+    tok_tot = _fmt_tokens_k(ds.get("tokens_total_mean"))
+    return f"{tok_in}/{tok_out}/{tok_tot}"
 
 
 def main() -> None:
@@ -226,14 +251,27 @@ def main() -> None:
     lines.append("\\caption{" + _escape_tex(args.caption) + "}")
     lines.append("\\label{" + _escape_tex(args.label) + "}")
     lines.append("\\centering")
-    lines.append("\\begin{tabular}{l" + "rr" * len(dataset_order) + "}")
+    lines.append("\\begin{tabular}{l" + "rrrr" * len(dataset_order) + "}")
     lines.append("\\toprule")
     header = ["Config"]
     for dataset_id in dataset_order:
         dataset_label = dataset_label_map.get(dataset_id, dataset_id)
-        header.append(_escape_tex(f"{dataset_label} Pass/Score"))
-        header.append(_escape_tex(f"{dataset_label} Eval/Skip"))
+        header.append(f"\\multicolumn{{4}}{{c}}{{{_escape_tex(dataset_label)}}}")
     lines.append(" & ".join(header) + " \\\\")
+    if dataset_order:
+        cmidrules = []
+        for idx in range(len(dataset_order)):
+            start_col = 2 + (idx * 4)
+            end_col = start_col + 3
+            cmidrules.append(f"\\cmidrule(lr){{{start_col}-{end_col}}}")
+        lines.append(" ".join(cmidrules))
+    subheader = [""]
+    for _ in dataset_order:
+        subheader.append("Pass/Score")
+        subheader.append("Fail")
+        subheader.append("Tokens I/O/T")
+        subheader.append("Lat")
+    lines.append(" & ".join(subheader) + " \\\\")
     lines.append("\\midrule")
     for cfg in wide_rows:
         row_cells = [
@@ -242,7 +280,9 @@ def main() -> None:
         for dataset_id in dataset_order:
             ds = cfg["datasets"].get(dataset_id, {})
             row_cells.append(_fmt_pass_score(ds.get("pass_rate"), ds.get("score_mean")))
-            row_cells.append(_fmt_eval_skip(ds.get("run_count"), ds.get("skipped_count")))
+            row_cells.append(_fmt_fail_count(ds.get("skipped_count")))
+            row_cells.append(_fmt_tokens_iot(ds))
+            row_cells.append(_fmt_latency_s(ds.get("latency_ms_p50")))
         lines.append(" & ".join(row_cells) + " \\\\")
     lines.append("\\bottomrule")
     lines.append("\\end{tabular}")
