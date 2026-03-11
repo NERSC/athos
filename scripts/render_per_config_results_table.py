@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a per-config LaTeX table by merging multiple summary JSON files."""
+"""Render a wide per-config LaTeX table by merging multiple summary JSON files."""
 
 from __future__ import annotations
 
@@ -75,6 +75,12 @@ def parse_args() -> argparse.Namespace:
         "--label",
         default="tab:cug-results-per-config",
     )
+    parser.add_argument(
+        "--dataset-order",
+        action="append",
+        default=["nersc_qa.v2", "ticket_cases"],
+        help="Dataset column order for wide table (repeatable).",
+    )
     return parser.parse_args()
 
 
@@ -120,6 +126,33 @@ def _pick_better(existing: dict[str, Any], candidate: dict[str, Any]) -> dict[st
     return candidate if ca_ts >= ex_ts else existing
 
 
+def _short_config_id(config_id: str) -> str:
+    harness = "lang" if "_lang_" in config_id or config_id.startswith("cug_lang_") else "unknown"
+    if "sonnet" in config_id:
+        model = "sonnet"
+    elif "gptoss" in config_id:
+        model = "gptoss"
+    else:
+        model = "unknown"
+    if "chroma" in config_id:
+        tools = "chroma"
+    elif "base" in config_id:
+        tools = "base"
+    else:
+        tools = "unknown"
+    return f"{harness}_{model}_{tools}"
+
+
+def _fmt_pass_score(pass_rate: Any, score_mean: Any) -> str:
+    return f"{_fmt_pct(pass_rate)} / {_fmt_score(score_mean)}"
+
+
+def _fmt_eval_skip(run_count: Any, skipped_count: Any) -> str:
+    if isinstance(run_count, int) and isinstance(skipped_count, int):
+        return f"{run_count - skipped_count} / {skipped_count}"
+    return "N/A"
+
+
 def main() -> None:
     args = parse_args()
     include_dataset = set(args.include_dataset)
@@ -158,30 +191,59 @@ def main() -> None:
         key=lambda r: (str(r.get("config_id", "")), str(r.get("dataset_id", ""))),
     )
 
+    dataset_order = args.dataset_order
+    if include_dataset:
+        dataset_order = [d for d in dataset_order if d in include_dataset]
+    if not dataset_order:
+        dataset_order = sorted({str(r.get("dataset_id", "")) for r in rows})
+
+    by_config: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        config_id = str(row.get("config_id", ""))
+        dataset_id = str(row.get("dataset_id", ""))
+        cfg_bucket = by_config.setdefault(
+            config_id,
+            {
+                "config_id": config_id,
+                "short_config_id": _short_config_id(config_id),
+                "datasets": {},
+            },
+        )
+        cfg_bucket["datasets"][dataset_id] = row
+
+    wide_rows = sorted(
+        by_config.values(),
+        key=lambda r: str(r["short_config_id"]),
+    )
+
+    dataset_label_map = {
+        "nersc_qa.v2": "QA",
+        "ticket_cases": "Tickets",
+    }
+
     lines: list[str] = []
     lines.append("\\begin{table*}[t]")
     lines.append("\\caption{" + _escape_tex(args.caption) + "}")
     lines.append("\\label{" + _escape_tex(args.label) + "}")
     lines.append("\\centering")
-    lines.append("\\begin{tabular}{llrrrrr}")
+    lines.append("\\begin{tabular}{l" + "rr" * len(dataset_order) + "}")
     lines.append("\\toprule")
-    lines.append("Config ID & Dataset & Runs & Scored & Skipped & Mean Score & Pass Rate \\\\")
+    header = ["Config"]
+    for dataset_id in dataset_order:
+        dataset_label = dataset_label_map.get(dataset_id, dataset_id)
+        header.append(_escape_tex(f"{dataset_label} Pass/Score"))
+        header.append(_escape_tex(f"{dataset_label} Eval/Skip"))
+    lines.append(" & ".join(header) + " \\\\")
     lines.append("\\midrule")
-    for r in rows:
-        lines.append(
-            " & ".join(
-                [
-                    _escape_tex(str(r.get("config_id", ""))),
-                    _escape_tex(str(r.get("dataset_id", ""))),
-                    str(r.get("run_count", 0)),
-                    str(r.get("scored_count", 0)),
-                    str(r.get("skipped_count", 0)),
-                    _fmt_score(r.get("score_mean")),
-                    _fmt_pct(r.get("pass_rate")),
-                ]
-            )
-            + " \\\\"
-        )
+    for cfg in wide_rows:
+        row_cells = [
+            _escape_tex(str(cfg["short_config_id"])),
+        ]
+        for dataset_id in dataset_order:
+            ds = cfg["datasets"].get(dataset_id, {})
+            row_cells.append(_fmt_pass_score(ds.get("pass_rate"), ds.get("score_mean")))
+            row_cells.append(_fmt_eval_skip(ds.get("run_count"), ds.get("skipped_count")))
+        lines.append(" & ".join(row_cells) + " \\\\")
     lines.append("\\bottomrule")
     lines.append("\\end{tabular}")
     lines.append("\\end{table*}")
