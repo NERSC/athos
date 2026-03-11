@@ -33,6 +33,22 @@ mcp_servers:
       "--client-type", "persistent",
       "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
+  chroma_ro_mcp:
+    description: "Read-only ChromaDB MCP server for paper eval retrieval"
+    mcp_type: "mcp_stdio"
+    command: "chroma-mcp"
+    args: [
+      "--client-type", "persistent",
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma"
+    ]
+    allowed_tools: [
+      "chroma_list_collections",
+      "chroma_peek_collection",
+      "chroma_get_collection_info",
+      "chroma_get_collection_count",
+      "chroma_query_documents",
+      "chroma_get_documents"
+    ]
 
 tools:
   chroma_list_collections:
@@ -97,6 +113,22 @@ flows:
       You are an HPC operations assistant.
       Use available Chroma retrieval tools to gather evidence before answering.
       Cite the retrieved evidence clearly in your final response.
+
+  cug_lang_chroma_gptoss_opt:
+    description: "LangChain Chroma-retrieval optimized prompt on GPT-OSS"
+    type: "langchain_agent"
+    model: "gptoss"
+    mcp_servers: ["chroma_ro_mcp"]
+    max_iterations: 24
+    system_prompt_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
+
+  cug_lang_chroma_sonnet_opt:
+    description: "LangChain Chroma-retrieval optimized prompt on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["chroma_ro_mcp"]
+    max_iterations: 24
+    system_prompt_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
 
 logging_config:
   level: "INFO"

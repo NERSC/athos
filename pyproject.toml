@@ -35,6 +35,7 @@ dependencies = [
     "langgraph~=1.0.0",
     "langchain-tavily",
     "chromadb~=1.5.0",
+    "chroma-mcp",
   ]
 
 [project.optional-dependencies]
