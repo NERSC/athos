@@ -72,3 +72,10 @@ Before freezing retrieval comparisons:
 - `lang_sonnet_chroma` exhausted CBorg quota mid-run; remaining work switched to AmSC I2 API and results were stitched using `scripts/materialize_stitched_sonnet_runs.py`.
 - Many Chroma flow eval failures were due to collection retrieval errors; current LangChain flow behavior can abort when a wrong collection name is retrieved.
 - Runtime overhead was amplified by repeated chroma-mcp `uvx` environment creation; M3 should use a local `chroma-mcp` install in the ATHOS environment.
+
+## M3 Carry-Forward Note (2026-03-11)
+
+- M3 smoke identified an additional retrieval stability issue in the MCP/LangChain path:
+  - `chroma_peek_collection` intermittently returned non-JSON-serializable content (`numpy.ndarray`) and caused execution failures.
+- For current paper-facing M3 runs, `chroma_peek_collection` is excluded from active retrieval toolsets.
+- Active retrieval subset for these runs is: `chroma_list_collections`, `chroma_get_collection_info`, `chroma_get_collection_count`, `chroma_query_documents`, `chroma_get_documents`.

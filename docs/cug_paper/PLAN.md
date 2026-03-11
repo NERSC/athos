@@ -248,6 +248,21 @@ Outputs:
 - `Result Freeze Manifest`
 - `Figure/Table Pack v1.x`
 
+Execution scope update (2026-03-11):
+- Variance study scope is explicitly small-dataset (M1 datasets) for faster repeated runs:
+  - datasets: `evals/test_cases` + `evals/simple_qa.jsonl`
+  - flows: `cug_lang_chroma_gptoss_opt`, `cug_lang_chroma_sonnet_opt`
+  - run policy target: `run_count=10` (adjust downward only for quota/runtime constraints).
+- Full expanded-dataset (`evals/nersc_qa.v2.jsonl` + ticket cases) runs are still required for current paper-facing configs:
+  - `cug_lang_chroma_gptoss_opt`
+  - `cug_lang_chroma_sonnet_opt`
+  - `cug_smol_chroma_gptoss`
+  - `cug_lang_filesystem_gptoss`
+- Paper-eval guardrail: filesystem MCP usage for `cug_lang_filesystem_gptoss` is restricted via MCP tool filtering (`allowed_tools` + `blocked_tools`) to read-only operations.
+- Paper-eval guardrail (Chroma): for current M3 paper runs, do not expose `chroma_peek_collection` in active retrieval toolsets.
+  - Finding from M3 smoke: in MCP/LangChain path, `chroma_peek_collection` intermittently failed with serialization errors (`numpy.ndarray` in tool result).
+  - Mitigation applied in current configs: retrieval runs use `list/query/get/info/count` subset and exclude `peek`.
+
 ## 4. Analysis and Writing
 
 Purpose:
@@ -269,10 +284,11 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-10)
+## Immediate Next Steps (Updated 2026-03-11)
 
-1. Define M3 experiment scope with explicit separation between paper-facing analyses and internal operational validation outputs.
-2. Optimize Chroma configs and patch LangChain retrieval handling so wrong/missing collection names do not hard-abort entire cases.
-3. Move Chroma MCP usage from repeated `uvx` setup to a local `chroma-mcp` install inside the ATHOS runtime environment.
-4. Plan/run the variability study (likely on small datasets first, potentially reusing M1 datasets for fast iteration).
-5. Add a small smol-flow comparison track (potentially on M1 datasets) as a targeted M3 extension.
+1. Run M3 variance study on M1 datasets with `cug_lang_chroma_gptoss_opt` and `cug_lang_chroma_sonnet_opt` (`run_count=10` target).
+2. Run full expanded-dataset sweeps for `cug_lang_chroma_gptoss_opt`, `cug_lang_chroma_sonnet_opt`, `cug_smol_chroma_gptoss`, and `cug_lang_filesystem_gptoss`.
+3. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
+4. Compare LangChain vs SmolAgents retrieval behavior (`cug_lang_chroma_gptoss_opt` vs `cug_smol_chroma_gptoss`) and carry results forward alongside external coding-agent baselines.
+5. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
+6. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization.
