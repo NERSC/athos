@@ -79,3 +79,14 @@ Before freezing retrieval comparisons:
   - `chroma_peek_collection` intermittently returned non-JSON-serializable content (`numpy.ndarray`) and caused execution failures.
 - For current paper-facing M3 runs, `chroma_peek_collection` is excluded from active retrieval toolsets.
 - Active retrieval subset for these runs is: `chroma_list_collections`, `chroma_get_collection_info`, `chroma_get_collection_count`, `chroma_query_documents`, `chroma_get_documents`.
+
+## Main Table Assembly Note (2026-03-11)
+
+For manuscript main-results table assembly, combine:
+- M2 baseline/no-tool + M2 Chroma rows (4 configs total), and
+- M3 Chroma-optimized full expanded-set rows (2 configs):
+  - `cug_m3_full_gptoss_opt_20260311_013848`
+  - `cug_m3_full_sonnet_opt_20260311_081645`
+
+This yields the intended six-config LangChain main table.
+Filesystem-tool rows are optional and should be included only if run stability is acceptable.

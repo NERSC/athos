@@ -292,3 +292,54 @@ Policy:
 4. Compare LangChain vs SmolAgents retrieval behavior (`cug_lang_chroma_gptoss_opt` vs `cug_smol_chroma_gptoss`) and carry results forward alongside external coding-agent baselines.
 5. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
 6. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization.
+
+## M3 Execution Log (2026-03-11)
+
+- Sonnet QA smoke (simple_qa only):
+  - experiment: `cug_m3_smoke_20260311_013258`
+  - runs path: `results/cug_m3_smoke_20260311_013258`
+  - flow: `cug_lang_chroma_sonnet_opt`
+- GPTOSS full expanded-set run:
+  - experiment: `cug_m3_full_gptoss_opt_20260311_013848`
+  - runs path: `results/cug_m3_full_gptoss_opt_20260311_013848`
+  - flow: `cug_lang_chroma_gptoss_opt`
+  - datasets: `evals/nersc_qa.v2.jsonl` + `ticket_cases`
+  - summary:
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=7` (`5.7%`), `pass_rate=0.7317`, `score_mean=78.47`
+    - `ticket_cases`: `run_count=156`, `skipped_count=7` (`4.5%`), `pass_rate=0.7308`, `score_mean=76.43`
+  - notable failure classes seen in run logs: `GraphRecursionError`, invalid tool-argument schema for `chroma_get_documents`, invalid/nonexistent collection names.
+  - artifact pointers:
+    - `results/cug_m3_full_gptoss_opt_20260311_013848/aggregates/summary.json`
+    - `results/cug_m3_full_gptoss_opt_20260311_013848/judgments/gptoss_rubric_v1.skips.jsonl`
+- Sonnet full expanded-set run:
+  - experiment: `cug_m3_full_sonnet_opt_20260311_081645`
+  - runs path: `results/cug_m3_full_sonnet_opt_20260311_081645`
+  - flow: `cug_lang_chroma_sonnet_opt`
+  - datasets: `evals/nersc_qa.v2.jsonl` + `ticket_cases`
+  - summary:
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=0` (`0.0%`), `pass_rate=0.7967`, `score_mean=84.34`
+    - `ticket_cases`: `run_count=156`, `skipped_count=1` (`0.6%`), `pass_rate=0.8333`, `score_mean=84.11`
+  - skip detail:
+    - single skipped case: `INC0241968_spin_filesystem_postgres_mismatch` (`execution_error`, provider `400`).
+  - artifact pointers:
+    - `results/cug_m3_full_sonnet_opt_20260311_081645/aggregates/summary.json`
+    - `results/cug_m3_full_sonnet_opt_20260311_081645/judgments/gptoss_rubric_v1.skips.jsonl`
+
+## Main Table Scope Decision (2026-03-11)
+
+Primary manuscript results table should include six LangChain configurations:
+- M2 baseline/no-tool rows:
+  - `lang_gptoss_base`
+  - `lang_sonnet_base`
+- M2 Chroma rows:
+  - `lang_gptoss_chroma`
+  - `lang_sonnet_chroma`
+- M3 Chroma-optimized rows:
+  - `lang_gptoss_chroma_opt` (from `cug_m3_full_gptoss_opt_20260311_013848`)
+  - `lang_sonnet_chroma_opt` (from `cug_m3_full_sonnet_opt_20260311_081645`)
+
+Optional rows:
+- `lang_gptoss_filesystem` may be included only if execution stability is brought to an acceptable level on expanded datasets.
+
+Reporting note:
+- Keep `Eval/Skip` (or equivalent execution-success visibility) in the table so M2 vs M3 robustness differences are explicit.
