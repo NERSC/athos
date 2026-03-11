@@ -112,6 +112,14 @@ class MCPServerConfig(BaseModel):
         default=None,
         description="Additional instructions to include for tools from this MCP server",
     )
+    allowed_tools: List[str] = Field(
+        default_factory=list,
+        description="Optional allowlist of MCP tool names to expose. Empty means allow all.",
+    )
+    blocked_tools: List[str] = Field(
+        default_factory=list,
+        description="Optional denylist of MCP tool names to hide after allowlist filtering.",
+    )
 
     @field_validator('url', mode='before')
     @classmethod

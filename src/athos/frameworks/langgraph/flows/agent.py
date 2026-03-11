@@ -78,6 +78,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         model: "BaseLanguageModel",
         tools: List["BaseTool"],
         mcp_clients: List["MultiServerMCPClient"],
+        mcp_server_names: List[str],
         system_prompt: Optional[str],
         max_iterations: int,
         verbosity_level: int,
@@ -89,6 +90,9 @@ class LangChainAgentFlow(BaseLangGraphFlow):
         self.model = model
         self.tools = tools
         self._mcp_clients = mcp_clients
+        self._mcp_server_names = list(mcp_server_names)
+        if len(self._mcp_server_names) != len(self._mcp_clients):
+            raise ValueError("mcp_server_names and mcp_clients must have the same length")
         self.system_prompt = system_prompt
         self.max_iterations = max_iterations
         self._verbosity_level = 1 if verbosity_level is None else int(verbosity_level)
@@ -126,6 +130,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             tools.append(tool_instance)
 
         mcp_clients: List["MultiServerMCPClient"] = []
+        mcp_server_names: List[str] = []
         prompt_sections: List[str] = []
         if flow_config.system_prompt:
             prompt_sections.append(flow_config.system_prompt)
@@ -138,6 +143,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             mcp_cfg = athos_config.mcp_servers[mcp_name]
             client = build_mcp_client(mcp_name, mcp_cfg)
             mcp_clients.append(client)
+            mcp_server_names.append(mcp_name)
             if mcp_cfg.instructions:
                 prompt_sections.append(mcp_cfg.instructions)
 
@@ -157,6 +163,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             model=model,
             tools=tools,
             mcp_clients=mcp_clients,
+            mcp_server_names=mcp_server_names,
             system_prompt=system_prompt,
             max_iterations=flow_config.max_iterations,
             verbosity_level=flow_config.verbosity_level,
@@ -614,7 +621,7 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 return
 
             new_tools_loaded = False
-            for client in self._mcp_clients:
+            for server_name, client in zip(self._mcp_server_names, self._mcp_clients):
                 try:
                     tools = await client.get_tools()
                 except Exception as exc:  # pragma: no cover - defensive logging
@@ -623,13 +630,64 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                     )
                     continue
                 if tools:
-                    self.tools.extend(tools)
-                    new_tools_loaded = True
+                    cfg = self._get_mcp_server_config(server_name)
+                    filtered_tools = self._filter_mcp_tools(
+                        tools=tools,
+                        server_name=server_name,
+                        allowed_tools=cfg.allowed_tools,
+                        blocked_tools=cfg.blocked_tools,
+                    )
+                    if filtered_tools:
+                        self.tools.extend(filtered_tools)
+                        new_tools_loaded = True
 
             if new_tools_loaded:
                 self._graph_needs_rebuild = True
 
             self._mcp_tools_loaded = True
+
+    def _filter_mcp_tools(
+        self,
+        tools: List["BaseTool"],
+        server_name: str,
+        allowed_tools: List[str],
+        blocked_tools: List[str],
+    ) -> List["BaseTool"]:
+        """Apply allowlist/denylist filtering to MCP tools."""
+
+        allowset = set(allowed_tools or [])
+        blockset = set(blocked_tools or [])
+
+        filtered: List["BaseTool"] = []
+        for tool in tools:
+            name = getattr(tool, "name", None)
+            if not name:
+                if allowset:
+                    logger.warning(
+                        "Skipping unnamed MCP tool from '%s' because allowed_tools is configured",
+                        server_name,
+                    )
+                    continue
+                filtered.append(tool)
+                continue
+
+            if allowset and name not in allowset:
+                continue
+            if name in blockset:
+                continue
+            filtered.append(tool)
+
+        if allowset or blockset:
+            logger.info(
+                "MCP tool filtering applied for '%s': before=%d after=%d allow=%s block=%s",
+                server_name,
+                len(tools),
+                len(filtered),
+                sorted(allowset),
+                sorted(blockset),
+            )
+
+        return filtered
 
     async def _ensure_graph_built(self) -> None:
         """Ensure the underlying agent graph is constructed."""
