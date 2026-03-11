@@ -1,13 +1,13 @@
-# CUG Paper Action Plan (Draft v0.2)
+# CUG Paper Action Plan (Draft v0.3)
 
 This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) and iterative milestones.
 
-## Status Snapshot (2026-03-09)
+## Status Snapshot (2026-03-10)
 
 - Eval pipeline v1 is implemented and in active use (`run_evaluations.py` + `score_runs.py` + `summarize_results.py`).
-- M1 baseline runs have been executed and judged in `results/cug_m1_*`.
-- M1 closeout is not complete: at least one strict-score run exited with a skip, and retrieval-backed runs need final validation of Chroma collection wiring before final M1 summary freeze.
-- M2 should now be treated as an execution planning task (expanded datasets + variance), not a future placeholder.
+- M1 baseline study is complete and remains useful as a small-dataset validation track.
+- M2 expanded study is complete for current paper results (`lang_gptoss_base`, `lang_gptoss_chroma`, `lang_sonnet_base`, `lang_sonnet_chroma`).
+- M2 execution required operational patches/reruns (judge retries, provider switch + stitched runs, and Chroma retrieval failure triage), which are recorded below as takeaways for M3 hardening.
 
 ## 0. Scope and Configuration Working Points
 
@@ -196,13 +196,9 @@ Outputs:
 - `Summary Tables v0`
 - `Failure Analysis Notes v0`
 
-Status (2026-03-09):
-- In progress, near closeout.
-- Baseline matrix execution artifacts exist, but final closeout must include:
-  - retrieval collection validation for Chroma-enabled runs,
-  - rerun/repair of invalid retrieval-backed cases if needed,
-  - finalized summary artifacts for the selected canonical M1 experiment ID,
-  - frozen M1 manifest recording aggregate manifest path/version, dataset pointers, config refs, judge config, and git SHA.
+Status (2026-03-10):
+- Complete.
+- M1 remains a useful small-dataset validation baseline and may be reused for focused follow-on analyses.
 
 ### Milestone M2: Expanded Study v1
 
@@ -212,8 +208,8 @@ Goal:
 Outputs:
 - `Run Artifacts v1`
 - `Judgments v1`
-- `Summary Tables v1` (with variance where applicable)
-- `Delta Analysis v1` versus M1
+- `Summary Tables v1`
+- `Execution Takeaways v1` (internal operational notes, not a paper analysis section)
 
 Initial experiment definition (v0, 2026-03-09):
 - M2-E1..E4: Repeat M1 flow matrix on expanded datasets:
@@ -222,6 +218,26 @@ Initial experiment definition (v0, 2026-03-09):
 - M2-E5 (variance): run top two M1 configurations with `--run-count 3` (or higher as budget allows) on expanded datasets.
 - M2-E6 (external baseline carry-forward): import and score external coding-agent runs with dataset IDs aligned to local references.
 - Retrieval gate for any Chroma-enabled M2 run: require a preflight smoke check that verifies expected collection names exist in the selected aggregate DB.
+
+Status (2026-03-10):
+- Complete for current paper result set:
+  - `lang_gptoss_base`
+  - `lang_gptoss_chroma`
+  - `lang_sonnet_base`
+  - `lang_sonnet_chroma`
+- Canonical analysis artifact is materialized at `results/cug_m2_canonical` (copy-based snapshot) with:
+  - selected run trees under `athos/<config_id>/.../run.json` for the four paper configs,
+  - centralized judgment files under `results/cug_m2_canonical/judgments/`,
+  - provenance manifests under `results/cug_m2_canonical/manifests/`:
+    - `canonical_manifest.json`
+    - `all_runs.manifest.txt`
+    - `judgments_manifest.json`
+
+M2 execution takeaways (to inform M3):
+- Scoring failures required patching by enabling judge retries.
+- `lang_sonnet_chroma` hit CBorg quota mid-run; remaining runs used AmSC I2 API and were materialized into stitched outputs via `scripts/materialize_stitched_sonnet_runs.py`.
+- A large number of Chroma flow evals failed on collection retrieval; LangChain flow behavior currently aborts if a wrong collection name is retrieved.
+- Evals were slowed because chroma-mcp `uvx` environments were created repeatedly; move to a local `chroma-mcp` install in the ATHOS environment for M3.
 
 ### Milestone M3: Pre-Write Freeze v1.x
 
@@ -238,7 +254,7 @@ Purpose:
 - Convert milestone outputs into manuscript-ready evidence and narrative.
 
 Deliverables:
-- `Analysis Narrative v0`: takeaways, limitations, and open risks.
+- `Analysis Narrative v0`: takeaways, limitations, and key caveats.
 - `Paper Draft v0`: complete section draft aligned with milestone evidence.
 - `Paper Draft v1`: revised draft with updated milestone outputs.
 
@@ -253,10 +269,10 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-09)
+## Immediate Next Steps (Updated 2026-03-10)
 
-1. Finalize M1 closeout checklist and freeze one canonical M1 experiment ID (runs + judgments + summary + manifest metadata).
-2. Resolve retrieval collection-name mismatches for Chroma-enabled runs and rerun affected cases before freezing M1 retrieval conclusions.
-3. Publish explicit M2 dataset pointers (paths + versions), including expanded QA and ticket-case datasets.
-4. Create M2 execution wrappers/docs (run + score) that default to the new dataset pointers while preserving M1 reproducibility.
-5. Run M2-E1..E4 once (run_count=1), then execute M2-E5 variance runs for selected top configurations.
+1. Define M3 experiment scope with explicit separation between paper-facing analyses and internal operational validation outputs.
+2. Optimize Chroma configs and patch LangChain retrieval handling so wrong/missing collection names do not hard-abort entire cases.
+3. Move Chroma MCP usage from repeated `uvx` setup to a local `chroma-mcp` install inside the ATHOS runtime environment.
+4. Plan/run the variability study (likely on small datasets first, potentially reusing M1 datasets for fast iteration).
+5. Add a small smol-flow comparison track (potentially on M1 datasets) as a targeted M3 extension.
