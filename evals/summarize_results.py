@@ -61,6 +61,19 @@ def _ci95(values: list[float]) -> float | None:
     return 1.96 * sigma / math.sqrt(len(values))
 
 
+def _percentile(values: list[float], percentile: float) -> float | None:
+    if not values:
+        return None
+    if percentile <= 0:
+        return min(values)
+    if percentile >= 100:
+        return max(values)
+    sorted_values = sorted(values)
+    rank = int(round((percentile / 100.0) * (len(sorted_values) - 1)))
+    rank = max(0, min(rank, len(sorted_values) - 1))
+    return sorted_values[rank]
+
+
 def _parse_datetime(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
@@ -204,6 +217,10 @@ def main() -> None:
             "skipped_count": 0,
             "pass_count": 0,
             "scores": [],
+            "latency_ms": [],
+            "token_input": [],
+            "token_output": [],
+            "token_total": [],
             "skipped_by_reason": defaultdict(int),
         }
     )
@@ -219,6 +236,25 @@ def main() -> None:
         )
         group = groups[key]
         group["run_count"] += 1
+
+        metrics = run_payload.get("metrics")
+        if isinstance(metrics, dict):
+            latency_ms = metrics.get("latency_ms")
+            if isinstance(latency_ms, (int, float)):
+                group["latency_ms"].append(float(latency_ms))
+
+            token_usage = metrics.get("token_usage")
+            if isinstance(token_usage, dict):
+                input_tokens = token_usage.get("input_tokens")
+                output_tokens = token_usage.get("output_tokens")
+                has_input = isinstance(input_tokens, (int, float))
+                has_output = isinstance(output_tokens, (int, float))
+                if has_input:
+                    group["token_input"].append(float(input_tokens))
+                if has_output:
+                    group["token_output"].append(float(output_tokens))
+                if has_input and has_output:
+                    group["token_total"].append(float(input_tokens) + float(output_tokens))
 
         judgment = None
         if isinstance(run_id, str) and run_id:
@@ -242,6 +278,10 @@ def main() -> None:
     aggregates: list[dict[str, Any]] = []
     for (experiment_id, agent_system, config_id, dataset_id), group in sorted(groups.items()):
         scores = group["scores"]
+        latencies = group["latency_ms"]
+        token_input = group["token_input"]
+        token_output = group["token_output"]
+        token_total = group["token_total"]
         scored_count = group["scored_count"]
         pass_count = group["pass_count"]
         aggregates.append(
@@ -258,6 +298,15 @@ def main() -> None:
                 "score_stddev": _stddev(scores),
                 "score_ci95": _ci95(scores),
                 "pass_rate": (pass_count / scored_count) if scored_count else None,
+                "latency_ms_count": len(latencies),
+                "latency_ms_mean": _mean(latencies),
+                "latency_ms_p50": _percentile(latencies, 50),
+                "latency_ms_p95": _percentile(latencies, 95),
+                "token_usage_count": len(token_total),
+                "tokens_input_mean": _mean(token_input),
+                "tokens_output_mean": _mean(token_output),
+                "tokens_total_mean": _mean(token_total),
+                "tokens_total_p50": _percentile(token_total, 50),
             }
         )
 

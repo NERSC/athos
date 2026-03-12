@@ -122,9 +122,8 @@ mcp_servers:
   chroma_mcp:
     description: "ChromaDB MCP server for persistent vector database operations"
     mcp_type: "mcp_stdio"
-    command: "uvx"
+    command: "chroma-mcp"
     args: [
-      "chroma-mcp",
       "--client-type", "persistent",
       "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]

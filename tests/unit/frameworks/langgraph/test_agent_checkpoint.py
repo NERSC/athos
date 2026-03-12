@@ -3,7 +3,7 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from athos.config.models import AthosConfig, ModelConfig
+from athos.config.models import AthosConfig, MCPServerConfig, ModelConfig
 from athos.frameworks.langgraph.flows.agent import LangChainAgentFlow, LangChainAgentFlowConfig
 from athos.models.flow import FlowInput, FlowSession
 from athos.models.enums import ExecutionMode
@@ -443,6 +443,86 @@ async def test_different_thread_ids_have_separate_checkpoints(flow):
     contents_2 = [msg.content for msg in messages_2]
     assert "Message 1 to thread 2" in contents_2
     assert "Message 1 to thread 1" not in contents_2  # No leakage
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_filtering_allowlist_and_blocklist(mock_model, athos_config):
+    """MCP allowlist/denylist filters should control exposed MCP tools."""
+
+    athos_config.mcp_servers["chroma_mcp"] = MCPServerConfig(
+        mcp_type="mcp_stdio",
+        command="chroma-mcp",
+        allowed_tools=["chroma_list_collections", "chroma_query_documents", "chroma_add_documents"],
+        blocked_tools=["chroma_add_documents"],
+    )
+
+    tool_read_a = MagicMock()
+    tool_read_a.name = "chroma_list_collections"
+    tool_read_b = MagicMock()
+    tool_read_b.name = "chroma_query_documents"
+    tool_write = MagicMock()
+    tool_write.name = "chroma_add_documents"
+    tool_other = MagicMock()
+    tool_other.name = "chroma_delete_collection"
+
+    mock_client = MagicMock()
+    mock_client.get_tools = AsyncMock(
+        return_value=[tool_read_a, tool_read_b, tool_write, tool_other]
+    )
+
+    flow = LangChainAgentFlow(
+        model=mock_model,
+        tools=[],
+        mcp_clients=[mock_client],
+        mcp_server_names=["chroma_mcp"],
+        system_prompt=None,
+        max_iterations=10,
+        verbosity_level=1,
+        full_config=athos_config,
+    )
+
+    await flow._ensure_mcp_tools_loaded()
+
+    assert [t.name for t in flow.tools] == [
+        "chroma_list_collections",
+        "chroma_query_documents",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_filtering_defaults_to_all_tools(mock_model, athos_config):
+    """Without filters configured, all MCP tools should remain available."""
+
+    athos_config.mcp_servers["chroma_mcp"] = MCPServerConfig(
+        mcp_type="mcp_stdio",
+        command="chroma-mcp",
+    )
+
+    tool_a = MagicMock()
+    tool_a.name = "chroma_list_collections"
+    tool_b = MagicMock()
+    tool_b.name = "chroma_add_documents"
+
+    mock_client = MagicMock()
+    mock_client.get_tools = AsyncMock(return_value=[tool_a, tool_b])
+
+    flow = LangChainAgentFlow(
+        model=mock_model,
+        tools=[],
+        mcp_clients=[mock_client],
+        mcp_server_names=["chroma_mcp"],
+        system_prompt=None,
+        max_iterations=10,
+        verbosity_level=1,
+        full_config=athos_config,
+    )
+
+    await flow._ensure_mcp_tools_loaded()
+
+    assert [t.name for t in flow.tools] == [
+        "chroma_list_collections",
+        "chroma_add_documents",
+    ]
 
 
 if __name__ == "__main__":

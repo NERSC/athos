@@ -12,7 +12,7 @@ set -euo pipefail
 #     20260303 \
 #     "Solved (Permanently)" \
 #     2025-09-01 \
-#     /pscratch/sd/s/sfarrell/athos/chroma
+#     /pscratch/sd/s/sfarrell/athos/data/chroma
 
 SOURCE_ROOT="${1:-./data/servicenow_incidents}"
 PERSIST_ROOT="${2:-./data}"

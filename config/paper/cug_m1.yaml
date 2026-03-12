@@ -4,16 +4,20 @@
 workspace_dir: "${ATHOS_WORKSPACE}"
 
 models:
+  # Temporarily switching to amsc i2 api
   gptoss:
     description: "Open-weight GPT-OSS-120B via CBORG"
-    model_id: "lbl/cborg-coder"
+    model_id: "gpt-oss-120b"
+    #model_id: "lbl/cborg-coder"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
     temperature: 0.3
     max_tokens: 16384
+
   claude_sonnet:
     description: "Anthropic Claude Sonnet via CBORG"
-    model_id: "anthropic/claude-sonnet"
+    model_id: "claude-sonnet"
+    #model_id: "anthropic/claude-sonnet"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
     temperature: 0.7
@@ -29,6 +33,44 @@ mcp_servers:
       "--client-type", "persistent",
       "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
+  chroma_ro_mcp:
+    description: "Read-only ChromaDB MCP server for paper eval retrieval"
+    mcp_type: "mcp_stdio"
+    command: "chroma-mcp"
+    args: [
+      "--client-type", "persistent",
+      "--data-dir", "${ATHOS_WORKSPACE}/chroma"
+    ]
+    allowed_tools: [
+      "chroma_list_collections",
+      "chroma_get_collection_info",
+      "chroma_get_collection_count",
+      "chroma_query_documents",
+      "chroma_get_documents"
+    ]
+  filesystem_mcp:
+    description: "Local filesystem MCP server with read/write access to ATHOS workspace"
+    mcp_type: "mcp_stdio"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
+    allowed_tools: [
+      "list_allowed_directories",
+      "list_directory",
+      "directory_tree",
+      "read_file",
+      "read_multiple_files",
+      "search_files",
+      "get_file_info"
+    ]
+    blocked_tools: [
+      "write_file",
+      "edit_file",
+      "create_directory",
+      "move_file"
+    ]
+    instructions: |
+      Always use keyword arguments when invoking filesystem tools.
+      Filesystem tools return strings only.
 
 tools:
   chroma_list_collections:
@@ -44,6 +86,11 @@ tools:
   chroma_get_collection_info:
     description: "Get ChromaDB collection info"
     callable_name: "chroma_get_collection_info"
+    module_path: "athos.tools.chroma"
+    is_class: false
+  chroma_get_collection_count:
+    description: "Get document count for a ChromaDB collection"
+    callable_name: "chroma_get_collection_count"
     module_path: "athos.tools.chroma"
     is_class: false
   chroma_query_documents:
@@ -93,6 +140,50 @@ flows:
       You are an HPC operations assistant.
       Use available Chroma retrieval tools to gather evidence before answering.
       Cite the retrieved evidence clearly in your final response.
+
+  cug_lang_chroma_gptoss_opt:
+    description: "LangChain Chroma-retrieval optimized prompt on GPT-OSS"
+    type: "langchain_agent"
+    model: "gptoss"
+    mcp_servers: ["chroma_ro_mcp"]
+    max_iterations: 24
+    system_prompt_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
+
+  cug_lang_chroma_sonnet_opt:
+    description: "LangChain Chroma-retrieval optimized prompt on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["chroma_ro_mcp"]
+    max_iterations: 24
+    system_prompt_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
+
+  cug_smol_chroma_gptoss:
+    description: "SmolAgents retrieval baseline with Chroma tools on GPT-OSS"
+    type: "smol_agent"
+    agent_type: "tool_calling"
+    model: "gptoss"
+    max_steps: 24
+    additional_authorized_imports: ["json"]
+    tools:
+      - chroma_list_collections
+      - chroma_get_collection_info
+      - chroma_get_collection_count
+      - chroma_query_documents
+      - chroma_get_documents
+    instructions: |
+      You are an HPC operations assistant.
+      Use Chroma retrieval tools to gather evidence before answering.
+      Always verify collection names before querying.
+      Prefer these collections when relevant: docs, consulting_docs, tickets.
+      Cite retrieved evidence clearly in the final response.
+
+  cug_lang_filesystem_gptoss:
+    description: "LangChain filesystem-tool baseline on GPT-OSS"
+    type: "langchain_agent"
+    model: "gptoss"
+    mcp_servers: ["filesystem_mcp"]
+    max_iterations: 12
+    system_prompt_path: "../prompts/cug_lang_filesystem_system_prompt.txt"
 
 logging_config:
   level: "INFO"

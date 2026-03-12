@@ -1,6 +1,9 @@
-# CUG Experiments v0
+# CUG Experiments v0 (M1)
 
-Status: Draft v0.5
+Status: Draft v0.6 (M1 reference)
+
+This document is the M1 baseline reference.
+For expanded-study planning and execution, see `docs/cug_paper/EXPERIMENTS_M2.md`.
 
 ## Axes
 
@@ -17,7 +20,7 @@ Status: Draft v0.5
 - Open-weight models: `gptoss` (`lbl/cborg-coder`, GPT-OSS-120B)
 - Proprietary models: `claude_sonnet` (`anthropic/claude-sonnet`)
 
-### Datasets
+### Datasets (M1)
 - `evals/test_cases`
 - `evals/simple_qa.jsonl`
 - Additional dataset expansion remains in the M2+ track.
@@ -25,7 +28,7 @@ Status: Draft v0.5
 ### Variance
 - Incremental runs via `--run-count` and `--run-start`
 
-## Selected Experiments
+## Selected Experiments (M1)
 
 | ID | Purpose | Config Pointer | Dataset Pointer | Status |
 |---|---|---|---|---|
@@ -39,8 +42,13 @@ Status: Draft v0.5
 Notes:
 - M1 ATHOS-run experiments cover both open-weight (`gptoss`) and proprietary (`claude_sonnet`) model baselines through LangChain flows in `config/paper/cug_m1.yaml`.
 - For retrieval experiments, run generation should include `--aggregate-manifest <path>` to capture retrieval corpus provenance in canonical run artifacts.
+- M1 closeout checklist and current status are tracked in `docs/cug_paper/PLAN.md`.
 
 ## Changelog
+
+### v0.6
+- Relabeled this doc as M1 reference scope.
+- Added pointer to `EXPERIMENTS_M2.md` for expanded-study planning and execution.
 
 ### v0.5
 - Replaced SmolAgents M1 matrix rows with LangChain Claude Sonnet baselines (no-tool + Chroma retrieval).
