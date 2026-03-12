@@ -279,8 +279,7 @@ Status update (2026-03-11):
   - `cug_m3_full_gptoss_opt_20260311_013848`
   - `cug_m3_full_sonnet_opt_20260311_081645`
 - Remaining execution work for M3 is:
-  - variance runs on M1 datasets for `cug_lang_chroma_gptoss_opt` and `cug_lang_chroma_sonnet_opt`,
-  - expanded-set comparison runs for `cug_smol_chroma_gptoss`,
+  - full expanded-dataset comparison runs for SmolAgents rows (`cug_smol_chroma_gptoss`, optional `cug_smol_chroma_sonnet`),
   - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
 
 ## 4. Analysis and Writing
@@ -344,12 +343,14 @@ Policy:
 ## Immediate Next Steps (Updated 2026-03-11)
 
 Execution track:
-1. Run M3 variance study on M1 datasets with `cug_lang_chroma_gptoss_opt` and `cug_lang_chroma_sonnet_opt` (`run_count=10` target).
-2. Run the remaining full expanded-dataset comparison sweeps for `cug_smol_chroma_gptoss` and `cug_lang_filesystem_gptoss`.
-3. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
-4. Compare LangChain vs SmolAgents retrieval behavior (`cug_lang_chroma_gptoss_opt` vs `cug_smol_chroma_gptoss`) and carry results forward alongside external coding-agent baselines.
-5. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
-6. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization.
+1. Run the remaining full expanded-dataset comparison sweeps for SmolAgents rows and `cug_lang_filesystem_gptoss`.
+2. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
+3. Carry forward the completed M1 harness comparison:
+   - `langchain + claude_sonnet` was strongest,
+   - `smolagents + claude_sonnet` was competitive but weaker and more token-expensive,
+   - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
+4. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
+5. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization when adding new optional comparison rows.
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
@@ -364,6 +365,45 @@ Writing track:
   - experiment: `cug_m3_smoke_20260311_013258`
   - runs path: `results/cug_m3_smoke_20260311_013258`
   - flow: `cug_lang_chroma_sonnet_opt`
+- SmolAgents GPTOSS QA smoke (simple_qa only):
+  - experiment: `cug_m3_smoke_20260311_204913`
+  - runs path: `results/cug_m3_smoke_20260311_204913`
+  - flow: `cug_smol_chroma_gptoss`
+  - summary:
+    - `simple_qa`: `run_count=5`, `skipped_count=0`, `pass_rate=0.4`, `score_mean=49.0`
+  - takeaway:
+    - run stability was acceptable, but answer quality was poor and token use was high; do not treat this row alone as harness-conclusive.
+- SmolAgents Sonnet QA smoke (simple_qa only):
+  - experiment: `cug_m3_smoke_20260311_205923`
+  - runs path: `results/cug_m3_smoke_20260311_205923`
+  - flow: `cug_smol_chroma_sonnet`
+  - summary:
+    - `simple_qa`: `run_count=5`, `skipped_count=0`, `pass_rate=1.0`, `score_mean=95.0`
+  - takeaway:
+    - strong Sonnet smoke supports interpreting the weak GPTOSS SmolAgents row as a model-fit issue rather than a blanket SmolAgents failure.
+- Four-way M1 harness comparison (LangChain vs SmolAgents; GPTOSS vs Sonnet):
+  - experiment: `cug_m3_var_20260311_231139`
+  - runs path: `results/cug_m3_var_20260311_231139`
+  - datasets: `evals/test_cases` + `evals/simple_qa.jsonl`
+  - flows:
+    - `cug_lang_chroma_gptoss_opt`
+    - `cug_lang_chroma_sonnet_opt`
+    - `cug_smol_chroma_gptoss`
+    - `cug_smol_chroma_sonnet`
+  - overall ranking across 12 M1 cases per config:
+    - `cug_lang_chroma_sonnet_opt`: overall `score_mean=89.33`, `pass_rate=0.917`
+    - `cug_smol_chroma_sonnet`: overall `score_mean=80.67`, `pass_rate=0.750`
+    - `cug_lang_chroma_gptoss_opt`: overall `score_mean=63.17`, `pass_rate=0.583`
+    - `cug_smol_chroma_gptoss`: overall `score_mean=43.50`, `pass_rate=0.333`
+  - dataset-level notes:
+    - `simple_qa`: `lang_sonnet` `96.0/1.0`, `smol_sonnet` `94.0/0.8`, `lang_gptoss` `80.0/0.8`, `smol_gptoss` `66.0/0.6`
+    - `test_cases`: `lang_sonnet` `84.57/0.857`, `smol_sonnet` `71.14/0.714`, `lang_gptoss` `51.14/0.429`, `smol_gptoss` `27.43/0.143`
+  - interpretation:
+    - model choice dominated harness choice on M1 datasets;
+    - LangChain outperformed SmolAgents at both model tiers;
+    - the gap was much smaller with Sonnet than with GPTOSS;
+    - SmolAgents rows were materially more token-expensive, especially on `test_cases`;
+    - repeated hard cases across harnesses included `salloc-account-error` and `pytorch-launch-error-2`.
 - GPTOSS full expanded-set run:
   - experiment: `cug_m3_full_gptoss_opt_20260311_013848`
   - runs path: `results/cug_m3_full_gptoss_opt_20260311_013848`
