@@ -3,6 +3,7 @@ logs/
 .codex/
 workspace/
 data/
+results
 results/
 tmp/
 
