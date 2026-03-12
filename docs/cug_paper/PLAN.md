@@ -263,6 +263,11 @@ Execution scope update (2026-03-11):
   - `cug_lang_chroma_sonnet_opt`
   - `cug_smol_chroma_gptoss`
   - `cug_lang_filesystem_gptoss`
+- SmolAgents comparison-row alignment for M3:
+  - treat the built-in SmolAgents coding prompt/behavior as part of the harness,
+  - align the ATHOS-authored retrieval instructions with the LangChain optimized Chroma prompt,
+  - keep the SmolAgents retrieval tool surface restricted to the same read-only five-tool subset used by paper-facing LangChain Chroma runs.
+  - if `gptoss` underperforms materially in the SmolAgents harness, add a `claude_sonnet` SmolAgents comparison row as a model-fit calibration point rather than treating the GPT-OSS result as harness-conclusive by itself.
 - Paper-eval guardrail: filesystem MCP usage for `cug_lang_filesystem_gptoss` is restricted via MCP tool filtering (`allowed_tools` + `blocked_tools`) to read-only operations.
 - Paper-eval guardrail (Chroma): for current M3 paper runs, do not expose `chroma_peek_collection` in active retrieval toolsets.
   - Finding from M3 smoke: in MCP/LangChain path, `chroma_peek_collection` intermittently failed with serialization errors (`numpy.ndarray` in tool result).
