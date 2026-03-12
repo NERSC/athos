@@ -1,12 +1,17 @@
-# CUG Paper Action Plan (Draft v0.3)
+# CUG Paper Action Plan (Draft v0.4)
 
 This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) and iterative milestones.
 
-## Status Snapshot (2026-03-10)
+## Status Snapshot (2026-03-11)
 
 - Eval pipeline v1 is implemented and in active use (`run_evaluations.py` + `score_runs.py` + `summarize_results.py`).
 - M1 baseline study is complete and remains useful as a small-dataset validation track.
 - M2 expanded study is complete for current paper results (`lang_gptoss_base`, `lang_gptoss_chroma`, `lang_sonnet_base`, `lang_sonnet_chroma`).
+- M3 paper-facing Chroma-optimized expanded-set runs are complete for:
+  - `lang_gptoss_chroma_opt`
+  - `lang_sonnet_chroma_opt`
+- Manuscript drafting is in progress in `../athos_cug_2026_paper`.
+- Current manuscript draft already includes substantial content for introduction, related work, toolkit design, and experimental design; results interpretation and conclusion are still incomplete.
 - M2 execution required operational patches/reruns (judge retries, provider switch + stitched runs, and Chroma retrieval failure triage), which are recorded below as takeaways for M3 hardening.
 
 ## 0. Scope and Configuration Working Points
@@ -263,6 +268,16 @@ Execution scope update (2026-03-11):
   - Finding from M3 smoke: in MCP/LangChain path, `chroma_peek_collection` intermittently failed with serialization errors (`numpy.ndarray` in tool result).
   - Mitigation applied in current configs: retrieval runs use `list/query/get/info/count` subset and exclude `peek`.
 
+Status update (2026-03-11):
+- Partially complete.
+- Full expanded-dataset paper-facing Chroma-optimized LangChain runs are complete:
+  - `cug_m3_full_gptoss_opt_20260311_013848`
+  - `cug_m3_full_sonnet_opt_20260311_081645`
+- Remaining execution work for M3 is:
+  - variance runs on M1 datasets for `cug_lang_chroma_gptoss_opt` and `cug_lang_chroma_sonnet_opt`,
+  - expanded-set comparison runs for `cug_smol_chroma_gptoss`,
+  - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
+
 ## 4. Analysis and Writing
 
 Purpose:
@@ -272,6 +287,43 @@ Deliverables:
 - `Analysis Narrative v0`: takeaways, limitations, and key caveats.
 - `Paper Draft v0`: complete section draft aligned with milestone evidence.
 - `Paper Draft v1`: revised draft with updated milestone outputs.
+
+Status update (2026-03-11):
+- Manuscript drafting is active in `../athos_cug_2026_paper`.
+- `Paper Draft v0` is in progress with substantial draft text already written for:
+  - Introduction
+  - Related Work
+  - ATHOS Toolkit Design
+  - Experimental Design
+- Results section structure and table integration are in place, including `tables/cug_results_per_config.tex`, but narrative interpretation is still incomplete.
+- Conclusion remains placeholder-level and needs to be written.
+- Near-term writing work should focus on:
+  - main results interpretation from the six-row LangChain table,
+  - discussion of robustness/failure modes and retrieval tradeoffs,
+  - conclusion/limitations/future work,
+  - cleanup of ACM metadata/front matter placeholders.
+
+### Manuscript Status Snapshot
+
+Status update (2026-03-11):
+- Manuscript repo: `../athos_cug_2026_paper`
+- Main draft file: `main.tex`
+- Drafted sections with substantial prose:
+  - Introduction
+  - Related Work
+  - ATHOS Toolkit Design
+  - Experimental Design
+- Results assets already wired into manuscript:
+  - per-config results table via `tables/cug_results_per_config.tex`
+  - architecture/execution figures
+- Sections still needing major writing:
+  - Results narrative/interpretation
+  - Conclusion
+  - limitations/future-work refinement
+- Publication polish still pending:
+  - ACM front matter placeholders
+  - final figure/table captions and references
+  - acknowledgments/bibliography cleanup as needed
 
 ## 5. Versioning and Change Control
 
@@ -286,12 +338,20 @@ Policy:
 
 ## Immediate Next Steps (Updated 2026-03-11)
 
+Execution track:
 1. Run M3 variance study on M1 datasets with `cug_lang_chroma_gptoss_opt` and `cug_lang_chroma_sonnet_opt` (`run_count=10` target).
-2. Run full expanded-dataset sweeps for `cug_lang_chroma_gptoss_opt`, `cug_lang_chroma_sonnet_opt`, `cug_smol_chroma_gptoss`, and `cug_lang_filesystem_gptoss`.
+2. Run the remaining full expanded-dataset comparison sweeps for `cug_smol_chroma_gptoss` and `cug_lang_filesystem_gptoss`.
 3. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
 4. Compare LangChain vs SmolAgents retrieval behavior (`cug_lang_chroma_gptoss_opt` vs `cug_smol_chroma_gptoss`) and carry results forward alongside external coding-agent baselines.
 5. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
 6. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization.
+
+Writing track:
+1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
+2. Add explicit discussion of execution robustness and skip-rate differences so M2 vs M3 stability improvements are visible.
+3. Write conclusion, limitations, and future-work sections based on current M1/M2/M3 evidence.
+4. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
+5. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
 
 ## M3 Execution Log (2026-03-11)
 
