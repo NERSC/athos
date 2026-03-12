@@ -88,6 +88,22 @@ Before freezing retrieval comparisons:
   - SmolAgents should not be judged from the GPTOSS row alone,
   - Sonnet-backed SmolAgents is viable as an auxiliary comparison row rather than part of the main six-row LangChain table.
 
+## M3 Variance Status (2026-03-12)
+
+- Collaborator-run variance artifact for `cug_lang_chroma_gptoss_opt` is now available at:
+  - `madan_results/cug_m3_var_20260312_093435`
+- Scope matches the planned small-dataset variance study:
+  - `evals/test_cases`
+  - `evals/simple_qa.jsonl`
+  - `run_count=10`
+- Current interpretation:
+  - keep observed execution/output failures in the variance story rather than cleaning them away with targeted reruns
+  - the GPTOSS artifact includes `3` such failures over `120` total attempts
+- Companion collaborator run for `cug_lang_chroma_sonnet_opt` is now underway on the same small-dataset setup.
+- Bookkeeping caveat:
+  - current summaries use `skipped_count` as the visible failure count while also zero-penalizing those failed attempts in score/pass metrics
+  - follow-up cleanup is tracked separately in GitHub issue `#87`
+
 ## Main Table Assembly Note (2026-03-11)
 
 For manuscript main-results table assembly, combine:

@@ -273,14 +273,28 @@ Execution scope update (2026-03-11):
   - Finding from M3 smoke: in MCP/LangChain path, `chroma_peek_collection` intermittently failed with serialization errors (`numpy.ndarray` in tool result).
   - Mitigation applied in current configs: retrieval runs use `list/query/get/info/count` subset and exclude `peek`.
 
-Status update (2026-03-11):
+Status update (2026-03-12):
 - Partially complete.
 - Full expanded-dataset paper-facing Chroma-optimized LangChain runs are complete:
   - `cug_m3_full_gptoss_opt_20260311_013848`
   - `cug_m3_full_sonnet_opt_20260311_081645`
+- Small-dataset variance run for `cug_lang_chroma_gptoss_opt` completed via collaborator handoff:
+  - artifact root: `madan_results/cug_m3_var_20260312_093435`
+  - complete run tree: `120` run artifacts across `evals/test_cases` + `evals/simple_qa.jsonl`
+  - observed execution/output failures retained in analysis: `3`
+    - `simple_qa/nersc_ai_support_group/2`: provider-side `BadRequestError` (`max_tokens` became negative)
+    - `test_cases/pytorch-launch-error/0`: retrieval tool queried nonexistent collection `perlmutter_ddp_guides`
+    - `test_cases/pytorch-launch-error/1`: empty model response (`invalid_output`)
+- Small-dataset variance companion run for `cug_lang_chroma_sonnet_opt` is now in progress via the same collaborator workflow.
 - Remaining execution work for M3 is:
   - full expanded-dataset comparison runs for SmolAgents rows (`cug_smol_chroma_gptoss`, optional `cug_smol_chroma_sonnet`),
   - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
+
+Variance-run bookkeeping note (2026-03-12):
+- Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
+- Those same records still carry `judgment_status = skipped_execution_status`, so current `summary.json` files can report internally inconsistent `scored_count` / `skipped_count` combinations even when the visible pass/score/fail table values remain aligned with the intended interpretation.
+- For the paper deadline, keep behavior unchanged and interpret current `skipped_count` in variance summaries/tables as execution-failure count.
+- Post-deadline cleanup is tracked in GitHub issue `#87`.
 
 ## 4. Analysis and Writing
 
