@@ -1,8 +1,8 @@
 # Various ATHOS folders
 logs/
 .codex/
-workspace/
-data/
+workspace
+data
 results
 results/
 tmp/
