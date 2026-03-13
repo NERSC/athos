@@ -5,7 +5,6 @@ This guide describes how to run a standalone coding agent on the ATHOS paper eva
 Current recommendation:
 - prioritize the focused small comparison first
 - use the same M1 small datasets already used in the paper's harness comparison
-- keep the standalone agent on a frozen, read-only file bundle rather than exposing the full repo as an open-ended retrieval surface
 
 This is an external baseline path. The agent runs outside ATHOS, and its outputs are captured as raw external-run records for later import by the ATHOS maintainer.
 
@@ -20,38 +19,35 @@ Recommended first study:
 
 Only move on to the expanded datasets after the focused run is stable and produces machine-ingestable outputs.
 
-## Why This Workflow
+## Required Inputs
 
-The main lesson from the ATHOS file-based retrieval experiments is that raw workspace exposure is a poor comparison point, especially for weaker or more open-ended agents. The fairer comparison is:
-- a frozen corpus rooted at `workspace/file_retrieval_corpus`
-- a required `INDEX.md` starting point
-- a read-only troubleshooting workflow
+You do not need a full ATHOS runtime setup for this step.
 
-That keeps the standalone-agent comparison closer to the paper's filesystem-tooling setup and avoids turning the experiment into a repo-navigation contest.
+You need these inputs:
+- a copy of `scripts/run_claude_code_eval.py`
+- the focused Q&A dataset file
+- the focused ticket-style case directory
+- the frozen file retrieval corpus bundle
+- a writable output location for the JSONL results
 
-## Expected Repo Layout
-
-Run from the ATHOS repo root:
-
-```text
-athos/
-  docs/
-  evals/
-  results/
-  workspace/
-```
-
-The required retrieval bundle is:
+Representative layout:
 
 ```text
-workspace/file_retrieval_corpus/
-  INDEX.md
-  docs/
-  consulting_docs/
-  tickets/
+<working_dir>/
+  run_claude_code_eval.py
+  simple_qa.jsonl
+  test_cases/
+  file_retrieval_corpus/
+    INDEX.md
+    docs/
+    consulting_docs/
+    tickets/
+  external_runs/
 ```
 
-If the bundle is missing, stop and rebuild or unpack the workspace bundle before running the external baseline.
+The wrapper can be run from any working directory as long as you pass explicit paths.
+
+If the retrieval bundle is missing `INDEX.md`, stop before running.
 
 ## Recommended Execution Model
 
@@ -59,7 +55,7 @@ Use one Claude Code process per benchmark case.
 
 For each case:
 1. build a single prompt containing the user-visible case input
-2. instruct Claude Code to use `workspace/file_retrieval_corpus/INDEX.md` first
+2. instruct Claude Code to use the provided bundle `INDEX.md` first
 3. request structured JSON output only
 4. record wall-clock start and finish timestamps outside the CLI
 5. parse the Claude Code result JSON
@@ -137,8 +133,8 @@ Required prompt elements:
 - identify the benchmark case id and dataset
 - include the full case input exactly as presented to the user
 - tell the agent not to inspect `solution.md`
-- tell the agent to treat `workspace/file_retrieval_corpus` as the main evidence source
-- require reading `workspace/file_retrieval_corpus/INDEX.md` early
+- tell the agent to treat the provided file retrieval corpus as the main evidence source
+- require reading the provided `INDEX.md` early
 - require a concise final support answer
 - require a JSON response with a fixed schema
 
@@ -179,8 +175,8 @@ Rules:
 - Do not inspect any `solution.md` file.
 - Do not modify repository files.
 - Use read-only tool usage only.
-- Treat `workspace/file_retrieval_corpus` as your primary evidence source.
-- Read `workspace/file_retrieval_corpus/INDEX.md` before broader searching.
+- Treat `{bundle_root}` as your primary evidence source.
+- Read `{bundle_root}/INDEX.md` before broader searching.
 - Prefer targeted reads over repeated broad searches.
 - Keep the final support answer concise and operationally useful.
 
@@ -219,7 +215,6 @@ claude \
 ```
 
 Operational notes:
-- run from the ATHOS repo root
 - treat this as a trusted local repo only
 - do not use `--dangerously-skip-permissions` for the collaborator workflow
 - keep the run as read-only as your local Claude Code setup allows
@@ -302,7 +297,11 @@ This lets ATHOS import and scoring preserve failure behavior rather than silentl
 Use the repo wrapper:
 
 ```bash
-python scripts/run_claude_code_eval.py
+python <path/to/run_claude_code_eval.py> \
+  --qa-file <path/to/simple_qa.jsonl> \
+  --cases-dir <path/to/test_cases> \
+  --bundle-root <path/to/file_retrieval_corpus> \
+  --output <path/to/external_runs/claude_code_fs_bundle_v1.jsonl>
 ```
 
 The wrapper:
@@ -325,11 +324,25 @@ Why a wrapper is preferred:
 Useful options:
 
 ```bash
-python scripts/run_claude_code_eval.py --dry-run
-python scripts/run_claude_code_eval.py --case-id perlmutter_debug_qos --case-id sbatch-qos-error
-python scripts/run_claude_code_eval.py --model sonnet
-python scripts/run_claude_code_eval.py --permission-mode default
-python scripts/run_claude_code_eval.py --output results/external_runs/claude_code_fs_bundle_v1.jsonl
+python <path/to/run_claude_code_eval.py> \
+  --qa-file <path/to/simple_qa.jsonl> \
+  --cases-dir <path/to/test_cases> \
+  --bundle-root <path/to/file_retrieval_corpus> \
+  --dry-run
+
+python <path/to/run_claude_code_eval.py> \
+  --qa-file <path/to/simple_qa.jsonl> \
+  --cases-dir <path/to/test_cases> \
+  --bundle-root <path/to/file_retrieval_corpus> \
+  --case-id perlmutter_debug_qos \
+  --case-id sbatch-qos-error
+
+python <path/to/run_claude_code_eval.py> \
+  --qa-file <path/to/simple_qa.jsonl> \
+  --cases-dir <path/to/test_cases> \
+  --bundle-root <path/to/file_retrieval_corpus> \
+  --model sonnet \
+  --output <path/to/external_runs/claude_code_fs_bundle_v1.jsonl>
 ```
 
 ## Smoke Run
@@ -341,10 +354,13 @@ Before running all 12 cases, do a smoke run on:
 Example:
 
 ```bash
-python scripts/run_claude_code_eval.py \
+python <path/to/run_claude_code_eval.py> \
+  --qa-file <path/to/simple_qa.jsonl> \
+  --cases-dir <path/to/test_cases> \
+  --bundle-root <path/to/file_retrieval_corpus> \
   --case-id perlmutter_debug_qos \
   --case-id sbatch-qos-error \
-  --output results/external_runs/claude_code_fs_bundle_v1.smoke.jsonl
+  --output <path/to/external_runs/claude_code_fs_bundle_v1.smoke.jsonl>
 ```
 
 Success criteria:
@@ -359,13 +375,13 @@ Success criteria:
 Assume the wrapper writes:
 
 ```bash
-results/external_runs/claude_code_fs_bundle_v1.jsonl
+<path/to/external_runs/claude_code_fs_bundle_v1.jsonl>
 ```
 
 Share the raw external JSONL file, not imported/scored ATHOS outputs.
 
 What to send back:
-- `results/external_runs/claude_code_fs_bundle_v1.jsonl`
+- the JSONL file you wrote with `--output`
 
 Optional helpful sidecars:
 - a short note with the Claude Code version used
