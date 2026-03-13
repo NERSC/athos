@@ -85,6 +85,7 @@ Status update (2026-02-27):
 Status update (2026-03-09):
 - Pipeline enabler work is complete for M1/M2 execution needs.
 - Remaining work is process/documentation hardening (milestone manifests, closeout checklists, and updated experiment pointers).
+- Paper-facing scoring follow-up: rescore archived runs with at least one non-overlapping judge model so evaluation and judgment are not both anchored on GPT-OSS when GPT-OSS is also a system under test.
 
 ## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
 
@@ -329,6 +330,7 @@ Deliverables:
 - `Analysis Narrative v0`: takeaways, limitations, and key caveats.
 - `Paper Draft v0`: complete section draft aligned with milestone evidence.
 - `Paper Draft v1`: revised draft with updated milestone outputs.
+- `Judge Sensitivity Note v0`: brief agreement/sensitivity analysis across judge choices on the same stored runs.
 
 Status update (2026-03-11):
 - Manuscript drafting is active in `../athos_cug_2026_paper`.
@@ -352,6 +354,11 @@ Status update (2026-03-12):
   - Sonnet is operationally cleaner in this repeated-run slice but still exhibits a stable retrieval-driven semantic failure on `salloc-account-error`
   - reliability differences are case-specific and should not be collapsed to overall mean score alone
 
+Status update (2026-03-13):
+- Judge-model sensitivity should be treated as an explicit paper-quality check, not only an eval harness detail.
+- Preferred next step is to rescore existing canonical runs with one or more judge models that are different from the evaluated model family, then compare score/pass deltas and any ranking changes.
+- If stable, this becomes evidence that the current conclusions are judge-robust; if not, it becomes a useful mini study and a limitation note.
+
 ### Manuscript Status Snapshot
 
 Status update (2026-03-11):
@@ -373,6 +380,25 @@ Status update (2026-03-11):
   - ACM front matter placeholders
   - final figure/table captions and references
   - acknowledgments/bibliography cleanup as needed
+
+### Paper Limitations To Capture
+
+- Dataset scope:
+  - current benchmark coverage is selective rather than comprehensive,
+  - the paper emphasizes Q&A and single-turn ticket-style cases and does not yet establish performance on broader multi-turn, live-operations, or human-in-the-loop workflows.
+- Judge-model overlap:
+  - current scoring setup uses GPT-OSS-family judging while GPT-OSS is also a system under test,
+  - this is a paper limitation unless alternate-judge rescoring shows conclusions are stable across judge choice.
+- Retrieval corpus bias:
+  - retrieval results depend in part on corpus construction choices, including what documentation/tickets were included, how they were filtered, and how they were chunked/indexed,
+  - observed gains or failures should therefore be interpreted as model-plus-retrieval-stack behavior, not as model capability in isolation.
+- Prompt-engineering scope:
+  - this paper does not include extensive prompt optimization,
+  - only limited trial-and-error prompt iteration was used for selected configurations (notably LangChain optimized retrieval configs and filesystem configs),
+  - no judge-model prompt tuning was performed beyond the current rubric prompt/version choices.
+- Production-readiness boundary:
+  - current results should not be interpreted as sufficient validation for production deployment in HPC operations settings,
+  - substantial additional validation is still required before claiming readiness for production systems.
 
 ## 5. Versioning and Change Control
 
@@ -397,14 +423,22 @@ Execution track:
 4. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
 5. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization when adding new optional comparison rows.
 6. For filesystem experiments, preserve the bundle-backed setup as the canonical config lineage and vary corpus contents via bundle assembly rather than reverting to raw workspace exposure.
+7. Rescore canonical M1/M2/M3 run artifacts with at least one alternate judge model that is not GPT-OSS and record score/pass deltas relative to the current judgments.
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
 2. Add explicit discussion of execution robustness and skip-rate differences so M2 vs M3 stability improvements are visible.
 3. Write conclusion, limitations, and future-work sections based on current M1/M2/M3 evidence.
-4. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
-5. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
-6. Capture the main file-based retrieval lesson in the manuscript discussion:
+4. Add one concrete benchmark example from the eval dataset to the manuscript:
+   - main text target: a short, representative case showing benchmark input plus reference solution,
+   - appendix option if space allows: include model output and judge/judgment excerpt for the same case.
+5. Add a short judge-sensitivity subsection or appendix note:
+   - motivation: avoid using GPT-OSS as both a system under test and the sole judge,
+   - method: rescore the same stored outputs with different judge model(s),
+   - report whether conclusions, rankings, and pass-rate gaps are stable across judges.
+6. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
+7. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
+8. Capture the main file-based retrieval lesson in the manuscript discussion:
    - weaker models benefited substantially from explicit corpus shaping and navigational scaffolding (`file_retrieval_corpus` + `INDEX.md`), not just access to filesystem tools.
 
 ## M3 Execution Log (2026-03-11)
