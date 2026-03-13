@@ -116,6 +116,7 @@ def _build_claude_command(
     prompt: str,
     schema_json: str,
     model: str | None,
+    permission_mode: str,
 ) -> list[str]:
     cmd = [
         "claude",
@@ -123,8 +124,7 @@ def _build_claude_command(
         "--output-format",
         "json",
         "--permission-mode",
-        "dontAsk",
-        "--dangerously-skip-permissions",
+        permission_mode,
         "--json-schema",
         schema_json,
     ]
@@ -311,6 +311,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--model", default=None)
     parser.add_argument(
+        "--permission-mode",
+        default="default",
+        choices=["acceptEdits", "bypassPermissions", "default", "dontAsk", "plan"],
+        help="Claude Code permission mode. Do not use bypassPermissions unless you explicitly intend it.",
+    )
+    parser.add_argument(
         "--bundle-root",
         default="workspace/file_retrieval_corpus",
         help="Read-only retrieval corpus root used by the prompt.",
@@ -374,6 +380,7 @@ def main() -> None:
                 prompt=prompt,
                 schema_json=schema_json,
                 model=args.model,
+                permission_mode=args.permission_mode,
             )
 
             print(f"Running {case['dataset_id']}/{case['case_id']}...", file=sys.stderr)

@@ -1,13 +1,13 @@
 # Claude Code External Eval Guide
 
-This guide describes how to run a standalone coding agent on the ATHOS paper evals and import the results into the ATHOS scoring pipeline.
+This guide describes how to run a standalone coding agent on the ATHOS paper evals and produce raw external-run JSONL for later import into the ATHOS scoring pipeline.
 
 Current recommendation:
 - prioritize the focused small comparison first
 - use the same M1 small datasets already used in the paper's harness comparison
 - keep the standalone agent on a frozen, read-only file bundle rather than exposing the full repo as an open-ended retrieval surface
 
-This is an external baseline path. The agent runs outside ATHOS, and its outputs are later imported with `evals/import_runs.py`.
+This is an external baseline path. The agent runs outside ATHOS, and its outputs are captured as raw external-run records for later import by the ATHOS maintainer.
 
 ## Scope
 
@@ -66,11 +66,10 @@ For each case:
 6. append one JSON record to an external-runs JSONL file
 
 After all cases complete:
-1. import with `evals/import_runs.py`
-2. score with `evals/score_runs.py`
-3. summarize with `evals/summarize_results.py`
+1. check that the external-runs JSONL looks complete
+2. share that JSONL back with the ATHOS maintainer
 
-This keeps the external baseline aligned with the ATHOS canonical run/judgment flow.
+The maintainer can then import, score, and summarize the runs centrally.
 
 ## Output Contract
 
@@ -214,8 +213,7 @@ The guide assumes a current Claude Code CLI with non-interactive print mode. A r
 claude \
   --print \
   --output-format json \
-  --permission-mode dontAsk \
-  --dangerously-skip-permissions \
+  --permission-mode default \
   --json-schema '<SCHEMA_JSON>' \
   "<PROMPT>"
 ```
@@ -223,7 +221,8 @@ claude \
 Operational notes:
 - run from the ATHOS repo root
 - treat this as a trusted local repo only
-- use a disposable checkout if your local Claude Code settings allow edits or broader tool access than intended
+- do not use `--dangerously-skip-permissions` for the collaborator workflow
+- keep the run as read-only as your local Claude Code setup allows
 - if your local Claude Code version does not support `--json-schema` cleanly, fall back to `--output-format text` and parse only the final JSON object from the answer body
 
 Representative successful Claude Code result payload:
@@ -320,7 +319,7 @@ Why a wrapper is preferred:
 - easier JSON parsing
 - cleaner latency capture
 - cleaner failure handling
-- direct compatibility with `evals/import_runs.py`
+- direct compatibility with later import via `evals/import_runs.py`
 - less opportunity for colleagues to accidentally drift from the agreed config lineage
 
 Useful options:
@@ -329,6 +328,7 @@ Useful options:
 python scripts/run_claude_code_eval.py --dry-run
 python scripts/run_claude_code_eval.py --case-id perlmutter_debug_qos --case-id sbatch-qos-error
 python scripts/run_claude_code_eval.py --model sonnet
+python scripts/run_claude_code_eval.py --permission-mode default
 python scripts/run_claude_code_eval.py --output results/external_runs/claude_code_fs_bundle_v1.jsonl
 ```
 
@@ -352,9 +352,9 @@ Success criteria:
 - the wrapper writes valid JSONL records
 - `dataset_id` values are exactly `simple_qa` and `test_cases`
 - latency is captured
-- import + score + summarize complete without reference-resolution skips
+- the output JSONL is ready to share back for maintainer-side import and scoring
 
-## Import, Score, Summarize
+## What To Share Back
 
 Assume the wrapper writes:
 
@@ -362,50 +362,21 @@ Assume the wrapper writes:
 results/external_runs/claude_code_fs_bundle_v1.jsonl
 ```
 
-Import:
+Share the raw external JSONL file, not imported/scored ATHOS outputs.
 
-```bash
-python evals/import_runs.py \
-  --input results/external_runs/claude_code_fs_bundle_v1.jsonl \
-  --output-dir results \
-  --experiment-id cug_claude_code_small_$(date +%Y%m%d_%H%M%S)
-```
+What to send back:
+- `results/external_runs/claude_code_fs_bundle_v1.jsonl`
 
-Score:
+Optional helpful sidecars:
+- a short note with the Claude Code version used
+- any stderr logs for failed cases
+- the exact command line if you changed wrapper defaults
 
-```bash
-python evals/score_runs.py \
-  --config config/config.yaml \
-  --runs-dir results/<experiment_id> \
-  --cases-dir evals/test_cases \
-  --qa-file evals/simple_qa.jsonl \
-  --judge-model gptoss \
-  --judge-id gptoss_rubric_v1 \
-  --judge-prompt-version rubric_v1 \
-  --skips-output results/<experiment_id>/judgments/gptoss_rubric_v1.skips.jsonl \
-  --output results/<experiment_id>/judgments/gptoss_rubric_v1.jsonl
-```
-
-Summarize:
-
-```bash
-python evals/summarize_results.py \
-  --runs-dir results/<experiment_id> \
-  --judgments-dir results/<experiment_id>/judgments \
-  --output results/<experiment_id>/aggregates/summary.json
-```
-
-## What To Share Back
-
-Share the full imported experiment directory under `results/`, not just the raw external JSONL.
-
-That directory should contain:
-- canonical imported `run.json` trees
-- judgments JSONL
-- skips JSONL
-- summary JSON
-
-Keep the raw external JSONL alongside it for provenance and possible parser debugging.
+The ATHOS maintainer can then handle:
+- import
+- scoring
+- summarization
+- paper-table assembly
 
 ## Known Caveats
 
