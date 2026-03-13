@@ -1,6 +1,6 @@
 # Filesystem Bundle Eval Issue
 
-**Status:** active, but materially improved. The canonical paper filesystem config now uses a bundle-rooted workspace and is performing well on the current mini QA smoke set.
+**Status:** active, but materially improved. The canonical paper filesystem config now uses a bundle-rooted workspace and performs strongly on the docs-only mini QA smoke set, with a modest regression once raw tickets are added back in.
 
 ## Summary
 
@@ -27,26 +27,30 @@ This turned out to be the key design change. The narrowed root alone helped path
 
 ### 1. Added filesystem-eval bundle assembly
 
-`scripts/build_workspace.py` now supports an opt-in bundle build:
+`scripts/build_workspace.py` now supports an explicit path-driven file-retrieval corpus build:
 
-- `--build-fs-eval-bundle`
 - `--fs-docs-dir`
 - `--fs-consulting-docs-dir`
 - `--fs-tickets-dir`
 - `--fs-include-tickets`
+- `--build-fs-index`
 
-This allows the normal workspace assembly to remain unchanged while creating a paper-specific subtree under:
+When any `--fs-*` source path is provided, the paper-specific subtree under
 
 - `workspace/file_retrieval_corpus`
+
+is created or updated without requiring the legacy workspace copies.
 
 Current bundle build used:
 
 ```bash
 python scripts/build_workspace.py \
   --workspace-dir workspace \
-  --build-fs-eval-bundle \
   --fs-docs-dir data/docs/docs \
-  --fs-consulting-docs-dir data/consulting_docs/docs
+  --fs-consulting-docs-dir data/consulting_docs/docs \
+  --fs-tickets-dir data/servicenow_tickets_balanced_v0_20260306_filtered \
+  --fs-include-tickets \
+  --build-fs-index
 ```
 
 Resulting manifests:
@@ -163,7 +167,7 @@ Relevant artifacts:
 
 ### Current mini QA smoke result
 
-After the bundle, prompt, and index updates, the canonical GPT-OSS filesystem row now performs strongly on the mini QA smoke set:
+After the corpus, prompt, and index updates, the canonical GPT-OSS filesystem row performs strongly on the docs-only mini QA smoke set:
 
 - experiment:
   - `results/cug_m3_smoke_fs_gptoss_v3_20260312_214620`
@@ -191,6 +195,44 @@ Token cost on this smoke set is also comparatively low:
 
 - `tokens_total_mean=17747.2`
 
+### Ticket-inclusive mini QA smoke result
+
+Adding raw ticket JSON back into the corpus caused a moderate regression, but not a collapse:
+
+- experiment:
+  - `results/cug_m3_smoke_fs_gptoss_tickets_20260312_232026`
+- summary:
+  - `results/cug_m3_smoke_fs_gptoss_tickets_20260312_232026/aggregates/summary.json`
+- judgments:
+  - `results/cug_m3_smoke_fs_gptoss_tickets_20260312_232026/judgments/gptoss_rubric_v1.jsonl`
+
+Observed result:
+
+- `run_count=5`
+- `skipped_count=1`
+- `score_mean=80.0`
+- `pass_rate=0.8`
+
+The skipped case was:
+
+- `nersc_ai_support_group`
+
+Representative failure artifact:
+
+- `results/cug_m3_smoke_fs_gptoss_tickets_20260312_232026/athos/cug_lang_filesystem_gptoss__gptoss__57048e37/simple_qa/nersc_ai_support_group/0/run.json`
+
+That run ended with:
+
+- `status=execution_error`
+- `error_type=ToolException`
+- `output_text="Error: Error: EISDIR: illegal operation on a directory, read"`
+
+Interpretation:
+
+- adding tickets did not break the row globally
+- but the broader heterogeneous corpus did reintroduce some tool-use brittleness
+- the current filesystem row is therefore good enough to treat as meaningful paper signal, but not yet fully stable on the ticket-inclusive corpus
+
 ## Lessons Learned
 
 These are the main takeaways to carry into the paper discussion of file-based tool configs:
@@ -212,6 +254,9 @@ These are the main takeaways to carry into the paper discussion of file-based to
 
 6. The fair file-based comparison for the paper is not "entire workspace filesystem access."
    - The defensible comparison point is a frozen, read-only, task-oriented bundle.
+
+7. Broader heterogeneous corpora still expose navigation brittleness.
+   - Adding raw tickets back into the corpus caused only a moderate regression, but it was enough to reintroduce at least one execution failure on the mini QA set.
 
 ## Observability Gap
 
@@ -259,9 +304,6 @@ python src/athos/examples/repro_filesystem_bundle_case.py \
 
 ## Recommended Next Steps
 
-1. Add tickets into the bundle in existing JSON form and run source ablations:
-   - docs
-   - docs + consulting_docs
-   - docs + consulting_docs + tickets
+1. Treat the current docs-only and ticket-inclusive smoke results as the present file-based retrieval evidence for the paper.
 2. Keep using the repro script when a filesystem row regresses, since failed eval artifacts still do not preserve full traces.
-3. If the ticket-inclusive bundle causes new drift, try a stricter tool subset before changing the overall bundle design.
+3. If this row needs another improvement pass later, prefer tool-surface restrictions or corpus-specific routing improvements over reverting to raw whole-workspace exposure.

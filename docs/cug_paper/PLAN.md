@@ -299,6 +299,10 @@ Status update (2026-03-12):
   - the bundle-backed `cug_lang_filesystem_gptoss` mini QA smoke now completed cleanly with `run_count=5`, `skipped_count=0`, `score_mean=99.0`, `pass_rate=1.0`
   - this is sufficient to treat the bundle-backed config as the canonical filesystem paper configuration for next-stage experiments
   - the remaining open question is larger-scale behavior once tickets are added back into the bundle
+- Filesystem status update (2026-03-13):
+  - ticket-inclusive mini QA smoke for the same canonical config completed with `run_count=5`, `skipped_count=1`, `score_mean=80.0`, `pass_rate=0.8`
+  - the skipped case was `nersc_ai_support_group` (`ToolException`, `EISDIR`)
+  - interpretation for paper purposes: corpus shaping plus `INDEX.md` guidance makes file-based retrieval viable, but broader heterogeneous corpora still reintroduce some navigation/tool-use brittleness for GPT-OSS
 
 Variance-run bookkeeping note (2026-03-12):
 - Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
