@@ -49,10 +49,14 @@ mcp_servers:
       "chroma_get_documents"
     ]
   filesystem_mcp:
-    description: "Local filesystem MCP server with read/write access to ATHOS workspace"
+    description: "Filesystem MCP server restricted to the paper eval bundle subtree"
     mcp_type: "mcp_stdio"
     command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
+    args: [
+      "-y",
+      "@modelcontextprotocol/server-filesystem",
+      "${ATHOS_WORKSPACE}/file_retrieval_corpus"
+    ]
     allowed_tools: [
       "list_allowed_directories",
       "list_directory",
@@ -192,7 +196,15 @@ flows:
     type: "langchain_agent"
     model: "gptoss"
     mcp_servers: ["filesystem_mcp"]
-    max_iterations: 12
+    max_iterations: 32
+    system_prompt_path: "../prompts/cug_lang_filesystem_system_prompt.txt"
+
+  cug_lang_filesystem_sonnet:
+    description: "LangChain filesystem-tool baseline on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["filesystem_mcp"]
+    max_iterations: 32
     system_prompt_path: "../prompts/cug_lang_filesystem_system_prompt.txt"
 
 logging_config:

@@ -269,6 +269,9 @@ Execution scope update (2026-03-11):
   - keep the SmolAgents retrieval tool surface restricted to the same read-only five-tool subset used by paper-facing LangChain Chroma runs.
   - if `gptoss` underperforms materially in the SmolAgents harness, add a `claude_sonnet` SmolAgents comparison row as a model-fit calibration point rather than treating the GPT-OSS result as harness-conclusive by itself.
 - Paper-eval guardrail: filesystem MCP usage for `cug_lang_filesystem_gptoss` is restricted via MCP tool filtering (`allowed_tools` + `blocked_tools`) to read-only operations.
+- Filesystem paper-config note (2026-03-12):
+  - the canonical filesystem row now uses a frozen bundle rooted at `${ATHOS_WORKSPACE}/file_retrieval_corpus`, not raw whole-workspace filesystem exposure
+  - the bundle is intended to provide a fairer and more reproducible file-based retrieval baseline by narrowing the corpus to task-relevant sources and adding a generated `INDEX.md`
 - Paper-eval guardrail (Chroma): for current M3 paper runs, do not expose `chroma_peek_collection` in active retrieval toolsets.
   - Finding from M3 smoke: in MCP/LangChain path, `chroma_peek_collection` intermittently failed with serialization errors (`numpy.ndarray` in tool result).
   - Mitigation applied in current configs: retrieval runs use `list/query/get/info/count` subset and exclude `peek`.
@@ -292,6 +295,10 @@ Status update (2026-03-12):
 - Remaining execution work for M3 is:
   - full expanded-dataset comparison runs for SmolAgents rows (`cug_smol_chroma_gptoss`, optional `cug_smol_chroma_sonnet`),
   - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
+- Filesystem status update (2026-03-12):
+  - the bundle-backed `cug_lang_filesystem_gptoss` mini QA smoke now completed cleanly with `run_count=5`, `skipped_count=0`, `score_mean=99.0`, `pass_rate=1.0`
+  - this is sufficient to treat the bundle-backed config as the canonical filesystem paper configuration for next-stage experiments
+  - the remaining open question is larger-scale behavior once tickets are added back into the bundle
 
 Variance-run bookkeeping note (2026-03-12):
 - Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
@@ -385,6 +392,7 @@ Execution track:
    - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
 4. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
 5. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization when adding new optional comparison rows.
+6. For filesystem experiments, preserve the bundle-backed setup as the canonical config lineage and vary corpus contents via bundle assembly rather than reverting to raw workspace exposure.
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
@@ -392,6 +400,8 @@ Writing track:
 3. Write conclusion, limitations, and future-work sections based on current M1/M2/M3 evidence.
 4. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
 5. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
+6. Capture the main file-based retrieval lesson in the manuscript discussion:
+   - weaker models benefited substantially from explicit corpus shaping and navigational scaffolding (`file_retrieval_corpus` + `INDEX.md`), not just access to filesystem tools.
 
 ## M3 Execution Log (2026-03-11)
 
@@ -482,3 +492,4 @@ Optional rows:
 
 Reporting note:
 - Keep `Eval/Skip` (or equivalent execution-success visibility) in the table so M2 vs M3 robustness differences are explicit.
+- If the filesystem row is discussed, describe it as a bundle-backed file-retrieval baseline rather than generic whole-workspace filesystem access.
