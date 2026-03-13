@@ -263,20 +263,62 @@ Execution scope update (2026-03-11):
   - `cug_lang_chroma_sonnet_opt`
   - `cug_smol_chroma_gptoss`
   - `cug_lang_filesystem_gptoss`
+- SmolAgents comparison-row alignment for M3:
+  - treat the built-in SmolAgents coding prompt/behavior as part of the harness,
+  - align the ATHOS-authored retrieval instructions with the LangChain optimized Chroma prompt,
+  - keep the SmolAgents retrieval tool surface restricted to the same read-only five-tool subset used by paper-facing LangChain Chroma runs.
+  - if `gptoss` underperforms materially in the SmolAgents harness, add a `claude_sonnet` SmolAgents comparison row as a model-fit calibration point rather than treating the GPT-OSS result as harness-conclusive by itself.
 - Paper-eval guardrail: filesystem MCP usage for `cug_lang_filesystem_gptoss` is restricted via MCP tool filtering (`allowed_tools` + `blocked_tools`) to read-only operations.
+- Filesystem paper-config note (2026-03-12):
+  - the canonical filesystem row now uses a frozen bundle rooted at `${ATHOS_WORKSPACE}/file_retrieval_corpus`, not raw whole-workspace filesystem exposure
+  - the bundle is intended to provide a fairer and more reproducible file-based retrieval baseline by narrowing the corpus to task-relevant sources and adding a generated `INDEX.md`
 - Paper-eval guardrail (Chroma): for current M3 paper runs, do not expose `chroma_peek_collection` in active retrieval toolsets.
   - Finding from M3 smoke: in MCP/LangChain path, `chroma_peek_collection` intermittently failed with serialization errors (`numpy.ndarray` in tool result).
   - Mitigation applied in current configs: retrieval runs use `list/query/get/info/count` subset and exclude `peek`.
 
-Status update (2026-03-11):
+Status update (2026-03-12):
 - Partially complete.
 - Full expanded-dataset paper-facing Chroma-optimized LangChain runs are complete:
   - `cug_m3_full_gptoss_opt_20260311_013848`
   - `cug_m3_full_sonnet_opt_20260311_081645`
+- Small-dataset variance run for `cug_lang_chroma_gptoss_opt` completed via collaborator handoff:
+  - artifact root: `madan_results/cug_m3_var_20260312_093435`
+  - complete run tree: `120` run artifacts across `evals/test_cases` + `evals/simple_qa.jsonl`
+  - observed execution/output failures retained in analysis: `3`
+    - `simple_qa/nersc_ai_support_group/2`: provider-side `BadRequestError` (`max_tokens` became negative)
+    - `test_cases/pytorch-launch-error/0`: retrieval tool queried nonexistent collection `perlmutter_ddp_guides`
+    - `test_cases/pytorch-launch-error/1`: empty model response (`invalid_output`)
+- Small-dataset variance run for `cug_lang_chroma_sonnet_opt` completed via collaborator handoff:
+  - artifact root: `madan_results/cug_m3_var_20260312_130318`
+  - complete run tree: `120` run artifacts across `evals/test_cases` + `evals/simple_qa.jsonl`
+  - execution/output failures: `0`
 - Remaining execution work for M3 is:
-  - variance runs on M1 datasets for `cug_lang_chroma_gptoss_opt` and `cug_lang_chroma_sonnet_opt`,
-  - expanded-set comparison runs for `cug_smol_chroma_gptoss`,
+  - full expanded-dataset comparison runs for SmolAgents rows (`cug_smol_chroma_gptoss`, optional `cug_smol_chroma_sonnet`),
   - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
+- Filesystem status update (2026-03-12):
+  - the bundle-backed `cug_lang_filesystem_gptoss` mini QA smoke now completed cleanly with `run_count=5`, `skipped_count=0`, `score_mean=99.0`, `pass_rate=1.0`
+  - this is sufficient to treat the bundle-backed config as the canonical filesystem paper configuration for next-stage experiments
+  - the remaining open question is larger-scale behavior once tickets are added back into the bundle
+- Filesystem status update (2026-03-13):
+  - ticket-inclusive mini QA smoke for the same canonical config completed with `run_count=5`, `skipped_count=1`, `score_mean=80.0`, `pass_rate=0.8`
+  - the skipped case was `nersc_ai_support_group` (`ToolException`, `EISDIR`)
+  - interpretation for paper purposes: corpus shaping plus `INDEX.md` guidance makes file-based retrieval viable, but broader heterogeneous corpora still reintroduce some navigation/tool-use brittleness for GPT-OSS
+
+Variance-run bookkeeping note (2026-03-12):
+- Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
+- Those same records still carry `judgment_status = skipped_execution_status`, so current `summary.json` files can report internally inconsistent `scored_count` / `skipped_count` combinations even when the visible pass/score/fail table values remain aligned with the intended interpretation.
+- For the paper deadline, keep behavior unchanged and interpret current `skipped_count` in variance summaries/tables as execution-failure count.
+- Post-deadline cleanup is tracked in GitHub issue `#87`.
+
+Variance failure-analysis note (2026-03-12):
+- In the collaborator-run Sonnet variance artifact (`madan_results/cug_m3_var_20260312_130318`), `test_cases/salloc-account-error` failed consistently across all `10` attempts.
+- All runs executed successfully and were scored, so this is not an execution-stability issue.
+- Repeated failure pattern:
+  - the model retrieved evidence (`chroma_list_collections` + `chroma_query_documents`) and then diagnosed the issue as missing Perlmutter `salloc` flags such as `--qos interactive` and `--constraint`
+  - the benchmark reference solution instead attributes the error to lack of authorization for the `desi` allocation account and recommends checking `iris` / `groups` and contacting the PI if needed
+- Candidate paper takeaway:
+  - retrieval can reinforce the wrong explanation when multiple sources share the same surface error string
+  - this case is a useful example of retrieval-driven misdiagnosis rather than pure model hallucination or infrastructure failure
 
 ## 4. Analysis and Writing
 
@@ -302,6 +344,13 @@ Status update (2026-03-11):
   - discussion of robustness/failure modes and retrieval tradeoffs,
   - conclusion/limitations/future work,
   - cleanup of ACM metadata/front matter placeholders.
+
+Status update (2026-03-12):
+- Repeated-run variance figure using collaborator-provided GPT-OSS and Sonnet artifacts is now integrated into `../athos_cug_2026_paper/main.tex` as a dedicated subsection with side-by-side subfigures.
+- Current variance writeup anchors three points that should be preserved in later edits:
+  - GPT-OSS shows broader dispersion and a small number of execution/output failures that are retained in the variance story
+  - Sonnet is operationally cleaner in this repeated-run slice but still exhibits a stable retrieval-driven semantic failure on `salloc-account-error`
+  - reliability differences are case-specific and should not be collapsed to overall mean score alone
 
 ### Manuscript Status Snapshot
 
@@ -339,12 +388,15 @@ Policy:
 ## Immediate Next Steps (Updated 2026-03-11)
 
 Execution track:
-1. Run M3 variance study on M1 datasets with `cug_lang_chroma_gptoss_opt` and `cug_lang_chroma_sonnet_opt` (`run_count=10` target).
-2. Run the remaining full expanded-dataset comparison sweeps for `cug_smol_chroma_gptoss` and `cug_lang_filesystem_gptoss`.
-3. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
-4. Compare LangChain vs SmolAgents retrieval behavior (`cug_lang_chroma_gptoss_opt` vs `cug_smol_chroma_gptoss`) and carry results forward alongside external coding-agent baselines.
-5. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
-6. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization.
+1. Run the remaining full expanded-dataset comparison sweeps for SmolAgents rows and `cug_lang_filesystem_gptoss`.
+2. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
+3. Carry forward the completed M1 harness comparison:
+   - `langchain + claude_sonnet` was strongest,
+   - `smolagents + claude_sonnet` was competitive but weaker and more token-expensive,
+   - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
+4. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
+5. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization when adding new optional comparison rows.
+6. For filesystem experiments, preserve the bundle-backed setup as the canonical config lineage and vary corpus contents via bundle assembly rather than reverting to raw workspace exposure.
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
@@ -352,6 +404,8 @@ Writing track:
 3. Write conclusion, limitations, and future-work sections based on current M1/M2/M3 evidence.
 4. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
 5. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
+6. Capture the main file-based retrieval lesson in the manuscript discussion:
+   - weaker models benefited substantially from explicit corpus shaping and navigational scaffolding (`file_retrieval_corpus` + `INDEX.md`), not just access to filesystem tools.
 
 ## M3 Execution Log (2026-03-11)
 
@@ -359,6 +413,45 @@ Writing track:
   - experiment: `cug_m3_smoke_20260311_013258`
   - runs path: `results/cug_m3_smoke_20260311_013258`
   - flow: `cug_lang_chroma_sonnet_opt`
+- SmolAgents GPTOSS QA smoke (simple_qa only):
+  - experiment: `cug_m3_smoke_20260311_204913`
+  - runs path: `results/cug_m3_smoke_20260311_204913`
+  - flow: `cug_smol_chroma_gptoss`
+  - summary:
+    - `simple_qa`: `run_count=5`, `skipped_count=0`, `pass_rate=0.4`, `score_mean=49.0`
+  - takeaway:
+    - run stability was acceptable, but answer quality was poor and token use was high; do not treat this row alone as harness-conclusive.
+- SmolAgents Sonnet QA smoke (simple_qa only):
+  - experiment: `cug_m3_smoke_20260311_205923`
+  - runs path: `results/cug_m3_smoke_20260311_205923`
+  - flow: `cug_smol_chroma_sonnet`
+  - summary:
+    - `simple_qa`: `run_count=5`, `skipped_count=0`, `pass_rate=1.0`, `score_mean=95.0`
+  - takeaway:
+    - strong Sonnet smoke supports interpreting the weak GPTOSS SmolAgents row as a model-fit issue rather than a blanket SmolAgents failure.
+- Four-way M1 harness comparison (LangChain vs SmolAgents; GPTOSS vs Sonnet):
+  - experiment: `cug_m3_var_20260311_231139`
+  - runs path: `results/cug_m3_var_20260311_231139`
+  - datasets: `evals/test_cases` + `evals/simple_qa.jsonl`
+  - flows:
+    - `cug_lang_chroma_gptoss_opt`
+    - `cug_lang_chroma_sonnet_opt`
+    - `cug_smol_chroma_gptoss`
+    - `cug_smol_chroma_sonnet`
+  - overall ranking across 12 M1 cases per config:
+    - `cug_lang_chroma_sonnet_opt`: overall `score_mean=89.33`, `pass_rate=0.917`
+    - `cug_smol_chroma_sonnet`: overall `score_mean=80.67`, `pass_rate=0.750`
+    - `cug_lang_chroma_gptoss_opt`: overall `score_mean=63.17`, `pass_rate=0.583`
+    - `cug_smol_chroma_gptoss`: overall `score_mean=43.50`, `pass_rate=0.333`
+  - dataset-level notes:
+    - `simple_qa`: `lang_sonnet` `96.0/1.0`, `smol_sonnet` `94.0/0.8`, `lang_gptoss` `80.0/0.8`, `smol_gptoss` `66.0/0.6`
+    - `test_cases`: `lang_sonnet` `84.57/0.857`, `smol_sonnet` `71.14/0.714`, `lang_gptoss` `51.14/0.429`, `smol_gptoss` `27.43/0.143`
+  - interpretation:
+    - model choice dominated harness choice on M1 datasets;
+    - LangChain outperformed SmolAgents at both model tiers;
+    - the gap was much smaller with Sonnet than with GPTOSS;
+    - SmolAgents rows were materially more token-expensive, especially on `test_cases`;
+    - repeated hard cases across harnesses included `salloc-account-error` and `pytorch-launch-error-2`.
 - GPTOSS full expanded-set run:
   - experiment: `cug_m3_full_gptoss_opt_20260311_013848`
   - runs path: `results/cug_m3_full_gptoss_opt_20260311_013848`
@@ -403,3 +496,4 @@ Optional rows:
 
 Reporting note:
 - Keep `Eval/Skip` (or equivalent execution-success visibility) in the table so M2 vs M3 robustness differences are explicit.
+- If the filesystem row is discussed, describe it as a bundle-backed file-retrieval baseline rather than generic whole-workspace filesystem access.

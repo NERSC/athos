@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-"""Assemble/update workspace data from latest snapshots under ./data.
+"""Assemble/update explicit workspace assets and filesystem-eval bundle content.
 
-This script picks:
-- the latest ServiceNow ticket snapshot directory under ``data/``
-- the latest aggregate Chroma persist directory under ``data/chroma/aggregates/``
-  (falls back to any Chroma DB under ``data/chroma/`` if no aggregate exists)
+Each copied component is opt-in via its path argument:
+- ``--tickets-dir`` -> ``<workspace>/servicenow_incidents``
+- ``--chroma-dir`` -> ``<workspace>/chroma``
+- ``--docs-dir`` -> ``<workspace>/docs``
+- ``--consulting-docs-dir`` -> ``<workspace>/consulting_docs``
+- ``--fs-*-dir`` -> ``<workspace>/file_retrieval_corpus/...``
 
-Then it replaces:
-- ``<workspace>/servicenow_incidents``
-- ``<workspace>/chroma``
-- ``<workspace>/docs``
-- ``<workspace>/consulting_docs``
-
-with copies of those selected sources.
+When any ``--fs-*-dir`` path is provided, the filesystem retrieval corpus is created
+or updated automatically. ``--build-fs-index`` controls whether the bundle
+receives a generated ``INDEX.md``. ``manifest.json`` is always written for the
+bundle when bundle content is requested.
 """
 
 from __future__ import annotations
@@ -22,76 +21,7 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
-import re
 import shutil
-from typing import Iterable
-
-
-DATE_RE = re.compile(r"(20\d{6})")
-
-
-def _extract_latest_date_token(name: str) -> int:
-    """Return YYYYMMDD token found in name, or 0 when absent."""
-    matches = DATE_RE.findall(name)
-    if not matches:
-        return 0
-    return max(int(token) for token in matches)
-
-
-def _tickets_variant_priority(name: str) -> int:
-    """Prefer filtered snapshots when date ties.
-
-    Higher values are preferred.
-    """
-    lowered = name.lower()
-    if "_filtered" in lowered:
-        return 3
-    if "_retrieval_lt_" in lowered:
-        return 2
-    if "_candidate_ge_" in lowered:
-        return 1
-    return 0
-
-
-def _chroma_variant_priority(name: str) -> int:
-    """Prefer ticket corpora over docs corpora when date ties.
-
-    Higher values are preferred.
-    """
-    lowered = name.lower()
-    if "servicenow_tickets" in lowered:
-        return 2
-    if "docs" in lowered:
-        return 1
-    return 0
-
-
-def _select_latest(
-    candidates: Iterable[Path],
-    *,
-    variant_priority,
-    preferred_date: int | None = None,
-) -> Path:
-    available = [p for p in candidates if p.is_dir()]
-    if not available:
-        raise FileNotFoundError("No matching directories found.")
-
-    if preferred_date is not None:
-        preferred = [
-            p for p in available if _extract_latest_date_token(p.name) == preferred_date
-        ]
-        if preferred:
-            available = preferred
-
-    def key(path: Path) -> tuple[int, int, float, str]:
-        return (
-            _extract_latest_date_token(path.name),
-            variant_priority(path.name),
-            path.stat().st_mtime,
-            path.name,
-        )
-
-    return max(available, key=key)
 
 
 def _replace_tree(source: Path, target: Path, dry_run: bool) -> None:
@@ -100,6 +30,13 @@ def _replace_tree(source: Path, target: Path, dry_run: bool) -> None:
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(source, target, symlinks=True)
+
+
+def _write_text(path: Path, content: str, *, dry_run: bool) -> None:
+    if dry_run:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
 
 
 def _dir_signature(root: Path) -> str:
@@ -134,53 +71,168 @@ def _sync_component(
     return "copied"
 
 
-def _discover_ticket_candidates(data_dir: Path) -> list[Path]:
-    # Consider top-level versioned snapshots only.
-    return sorted(
-        p
-        for p in data_dir.iterdir()
-        if p.is_dir()
-        and p.name.startswith("servicenow_tickets_")
-        and p.name != "servicenow_incidents"
+def _build_file_retrieval_corpus(
+    *,
+    bundle_dir: Path,
+    docs_src: Path,
+    consulting_docs_src: Path,
+    dry_run: bool,
+    skip_unchanged: bool,
+    include_tickets: bool,
+    tickets_src: Path | None,
+    build_index: bool,
+) -> dict[str, object]:
+    docs_dst = bundle_dir / "docs"
+    consulting_docs_dst = bundle_dir / "consulting_docs"
+
+    if not dry_run:
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+
+    docs_action = _sync_component(
+        docs_src,
+        docs_dst,
+        dry_run=dry_run,
+        skip_unchanged=skip_unchanged,
+    )
+    consulting_docs_action = _sync_component(
+        consulting_docs_src,
+        consulting_docs_dst,
+        dry_run=dry_run,
+        skip_unchanged=skip_unchanged,
     )
 
+    tickets_action = "not_included"
+    tickets_dst: Path | None = None
+    if include_tickets:
+        if tickets_src is None:
+            raise ValueError("tickets_src is required when include_tickets=True")
+        tickets_dst = bundle_dir / "tickets"
+        tickets_action = _sync_component(
+            tickets_src,
+            tickets_dst,
+            dry_run=dry_run,
+            skip_unchanged=skip_unchanged,
+        )
 
-def _discover_chroma_candidates(chroma_root: Path) -> list[Path]:
-    if not chroma_root.exists():
-        return []
+    bundle_manifest = {
+        "schema_version": "athos.file_retrieval_corpus.v0",
+        "bundle_dir": str(bundle_dir),
+        "docs_source": str(docs_src),
+        "docs_target": str(docs_dst),
+        "docs_action": docs_action,
+        "consulting_docs_source": str(consulting_docs_src),
+        "consulting_docs_target": str(consulting_docs_dst),
+        "consulting_docs_action": consulting_docs_action,
+        "tickets_included": include_tickets,
+        "tickets_source": str(tickets_src) if tickets_src is not None else None,
+        "tickets_target": str(tickets_dst) if tickets_dst is not None else None,
+        "tickets_action": tickets_action,
+        "index_generated": build_index,
+    }
 
-    candidates: list[Path] = []
-    aggregate_root = chroma_root / "aggregates"
+    if build_index:
+        index_lines = [
+            "# File Retrieval Corpus",
+            "",
+            "This corpus is a narrowed subtree for filesystem-tool evaluation.",
+            "",
+            "## Contents",
+            "",
+            f"- `docs/`: copied from `{docs_src}`",
+            f"- `consulting_docs/`: copied from `{consulting_docs_src}`",
+        ]
+        if include_tickets and tickets_src is not None:
+            index_lines.append(f"- `tickets/`: copied from `{tickets_src}`")
+        else:
+            index_lines.append("- `tickets/`: not included in this bundle build")
+        index_lines.extend(
+            [
+                "",
+                "## Required Starting Point",
+                "",
+                "- Read this `INDEX.md` first.",
+                "- Use the topic map below to pick one likely location before broader searching.",
+                "- Prefer reading a specific file over repeated broad searches.",
+                "",
+                "## Topic Map",
+                "",
+                "### QOS, queue, walltime, charging, premium/debug limits",
+                "",
+                "- Start with `docs/jobs/policy.md`.",
+                "- If the question is about how to run or monitor jobs on Perlmutter, then also check `docs/systems/perlmutter/running-jobs/index.md`.",
+                "",
+                "### Perlmutter system hardware, CPU/GPU node details",
+                "",
+                "- Start with `docs/systems/perlmutter/architecture.md`.",
+                "- For GPU questions, also inspect `docs/systems/perlmutter/` and nearby files under that directory.",
+                "",
+                "### Filesystem policy, purge rules, scratch/home/CFS",
+                "",
+                "- Start with files under `docs/filesystems/`.",
+                "- For purge-policy questions, check `docs/filesystems/perlmutter-scratch.md` first.",
+                "",
+                "### AI software support and consulting guidance",
+                "",
+                "- Start by searching under `consulting_docs/` for `AI`, `ML`, `support`, or the topic named in the question.",
+                "- If the question is about a NERSC support group or internal consulting practice, prefer `consulting_docs/` over `docs/`.",
+                "",
+                "### Historical tickets and past incident examples",
+                "",
+            ]
+        )
+        if include_tickets and tickets_src is not None:
+            index_lines.extend(
+                [
+                    "- Start within `tickets/` when the question is about a past incident, workaround, or troubleshooting history.",
+                    "- Use `search_files` with a specific incident id, product name, filesystem name, or error string.",
+                    "- Ticket records are stored as JSON; prefer a narrow search first, then read only the most relevant matching file.",
+                    "- If the question is policy or documentation oriented rather than incident-history oriented, prefer `docs/` or `consulting_docs/` first.",
+                    "",
+                ]
+            )
+        else:
+            index_lines.extend(
+                [
+                    "- `tickets/` is not included in this build, so answer from `docs/` and `consulting_docs/` only.",
+                    "",
+                ]
+            )
+        index_lines.extend(
+            [
+                "### General search fallback",
+                "",
+                "- If the topic map does not clearly apply, do one narrow `search_files` within either `docs/` or `consulting_docs/`.",
+                "- If `tickets/` is included and the question explicitly sounds incident- or workaround-oriented, do one narrow `search_files` within `tickets/` instead.",
+                "- Avoid repeating the same search across the entire bundle with only minor wording changes.",
+                "",
+                "## Mini QA Routing Hints",
+                "",
+                "- `perlmutter_debug_qos`: start with `docs/jobs/policy.md`.",
+                "- `premium_qos_charge_factor`: start with `docs/jobs/policy.md`.",
+                "- `perlmutter_gpus`: start with `docs/systems/perlmutter/architecture.md`.",
+                "- `purged_filesystem`: start with `docs/filesystems/perlmutter-scratch.md`.",
+                "- `nersc_ai_support_group`: start by searching under `consulting_docs/` for `AI support` or `AI software`.",
+                "",
+                "See `manifest.json` for provenance.",
+                "",
+            ]
+        )
 
-    # Default to aggregate DB snapshots when available.
-    if aggregate_root.exists():
-        for path in aggregate_root.rglob("chroma.sqlite3"):
-            parent = path.parent
-            if parent not in candidates:
-                candidates.append(parent)
-        if candidates:
-            return sorted(candidates)
+        _write_text(bundle_dir / "INDEX.md", "\n".join(index_lines), dry_run=dry_run)
+    _write_text(
+        bundle_dir / "manifest.json",
+        json.dumps(bundle_manifest, indent=2) + "\n",
+        dry_run=dry_run,
+    )
 
-    # Fallback: any Chroma DB under data/chroma.
-    for path in chroma_root.rglob("chroma.sqlite3"):
-        parent = path.parent
-        if parent not in candidates:
-            candidates.append(parent)
-    return sorted(candidates)
+    return bundle_manifest
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Assemble/update ATHOS workspace from latest data snapshots "
-            "(tickets + Chroma DB + docs + consulting_docs)."
+            "Assemble/update ATHOS workspace from explicit source paths."
         )
-    )
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=Path("data"),
-        help="Root data directory containing ticket snapshots and chroma/",
     )
     parser.add_argument(
         "--workspace-dir",
@@ -192,25 +244,25 @@ def parse_args() -> argparse.Namespace:
         "--tickets-dir",
         type=Path,
         default=None,
-        help="Explicit ticket source directory (skips auto-select)",
+        help="Ticket source directory to copy into <workspace>/servicenow_incidents",
     )
     parser.add_argument(
         "--chroma-dir",
         type=Path,
         default=None,
-        help="Explicit Chroma source directory containing chroma.sqlite3 (skips auto-select)",
+        help="Chroma source directory containing chroma.sqlite3 to copy into <workspace>/chroma",
     )
     parser.add_argument(
         "--docs-dir",
         type=Path,
         default=None,
-        help="Explicit docs source directory (default: <data-dir>/docs)",
+        help="Docs source directory to copy into <workspace>/docs",
     )
     parser.add_argument(
         "--consulting-docs-dir",
         type=Path,
         default=None,
-        help="Explicit consulting docs source directory (default: <data-dir>/consulting_docs)",
+        help="Consulting docs source directory to copy into <workspace>/consulting_docs",
     )
     parser.add_argument(
         "--dry-run",
@@ -231,61 +283,46 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional manifest output path (default: <workspace>/.workspace_assembly_manifest.json)",
     )
+    parser.add_argument(
+        "--build-fs-index",
+        action="store_true",
+        help="Generate INDEX.md for <workspace>/file_retrieval_corpus when any --fs-*-dir is provided.",
+    )
+    parser.add_argument(
+        "--fs-bundle-subdir",
+        default="file_retrieval_corpus",
+        help="Subdirectory name under the workspace for the filesystem-eval bundle.",
+    )
+    parser.add_argument(
+        "--fs-docs-dir",
+        type=Path,
+        default=None,
+        help="Explicit docs source directory for the filesystem-eval bundle only.",
+    )
+    parser.add_argument(
+        "--fs-consulting-docs-dir",
+        type=Path,
+        default=None,
+        help="Explicit consulting docs source directory for the filesystem-eval bundle only.",
+    )
+    parser.add_argument(
+        "--fs-tickets-dir",
+        type=Path,
+        default=None,
+        help="Explicit ticket source directory for the filesystem-eval bundle only.",
+    )
+    parser.add_argument(
+        "--fs-include-tickets",
+        action="store_true",
+        help="Include the selected ticket corpus under <fs-bundle>/tickets.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
 
-    data_dir = args.data_dir.resolve()
     workspace_dir = args.workspace_dir.resolve()
-
-    if not data_dir.exists():
-        raise FileNotFoundError(f"Data directory not found: {data_dir}")
-
-    if args.tickets_dir is not None:
-        tickets_src = args.tickets_dir.resolve()
-        if not tickets_src.is_dir():
-            raise FileNotFoundError(f"Ticket source directory not found: {tickets_src}")
-    else:
-        ticket_candidates = _discover_ticket_candidates(data_dir)
-        tickets_src = _select_latest(
-            ticket_candidates,
-            variant_priority=_tickets_variant_priority,
-        )
-
-    tickets_date = _extract_latest_date_token(tickets_src.name)
-
-    chroma_root = data_dir / "chroma"
-    if args.chroma_dir is not None:
-        chroma_src = args.chroma_dir.resolve()
-        if not (chroma_src / "chroma.sqlite3").exists():
-            raise FileNotFoundError(
-                f"Chroma source must contain chroma.sqlite3: {chroma_src}"
-            )
-    else:
-        chroma_candidates = _discover_chroma_candidates(chroma_root)
-        chroma_src = _select_latest(
-            chroma_candidates,
-            variant_priority=_chroma_variant_priority,
-            preferred_date=tickets_date if tickets_date else None,
-        )
-
-    if args.docs_dir is not None:
-        docs_src = args.docs_dir.resolve()
-    else:
-        docs_src = (data_dir / "docs").resolve()
-    if not docs_src.is_dir():
-        raise FileNotFoundError(f"Docs source directory not found: {docs_src}")
-
-    if args.consulting_docs_dir is not None:
-        consulting_docs_src = args.consulting_docs_dir.resolve()
-    else:
-        consulting_docs_src = (data_dir / "consulting_docs").resolve()
-    if not consulting_docs_src.is_dir():
-        raise FileNotFoundError(
-            f"Consulting docs source directory not found: {consulting_docs_src}"
-        )
 
     tickets_dst = workspace_dir / "servicenow_incidents"
     chroma_dst = workspace_dir / "chroma"
@@ -295,30 +332,107 @@ def main() -> None:
     if not args.dry_run:
         workspace_dir.mkdir(parents=True, exist_ok=True)
 
-    tickets_action = _sync_component(
-        tickets_src,
-        tickets_dst,
-        dry_run=args.dry_run,
-        skip_unchanged=args.skip_unchanged,
+    tickets_src = args.tickets_dir.resolve() if args.tickets_dir is not None else None
+    if tickets_src is not None and not tickets_src.is_dir():
+        raise FileNotFoundError(f"Ticket source directory not found: {tickets_src}")
+    if tickets_src is not None:
+        tickets_action = _sync_component(
+            tickets_src,
+            tickets_dst,
+            dry_run=args.dry_run,
+            skip_unchanged=args.skip_unchanged,
+        )
+    else:
+        tickets_action = "not_requested"
+
+    chroma_src = args.chroma_dir.resolve() if args.chroma_dir is not None else None
+    if chroma_src is not None and not (chroma_src / "chroma.sqlite3").exists():
+        raise FileNotFoundError(
+            f"Chroma source must contain chroma.sqlite3: {chroma_src}"
+        )
+    if chroma_src is not None:
+        chroma_action = _sync_component(
+            chroma_src,
+            chroma_dst,
+            dry_run=args.dry_run,
+            skip_unchanged=args.skip_unchanged,
+        )
+    else:
+        chroma_action = "not_requested"
+
+    docs_src = args.docs_dir.resolve() if args.docs_dir is not None else None
+    if docs_src is not None and not docs_src.is_dir():
+        raise FileNotFoundError(f"Docs source directory not found: {docs_src}")
+    if docs_src is not None:
+        docs_action = _sync_component(
+            docs_src,
+            docs_dst,
+            dry_run=args.dry_run,
+            skip_unchanged=args.skip_unchanged,
+        )
+    else:
+        docs_action = "not_requested"
+
+    consulting_docs_src = (
+        args.consulting_docs_dir.resolve()
+        if args.consulting_docs_dir is not None
+        else None
     )
-    chroma_action = _sync_component(
-        chroma_src,
-        chroma_dst,
-        dry_run=args.dry_run,
-        skip_unchanged=args.skip_unchanged,
-    )
-    docs_action = _sync_component(
-        docs_src,
-        docs_dst,
-        dry_run=args.dry_run,
-        skip_unchanged=args.skip_unchanged,
-    )
-    consulting_docs_action = _sync_component(
-        consulting_docs_src,
-        consulting_docs_dst,
-        dry_run=args.dry_run,
-        skip_unchanged=args.skip_unchanged,
-    )
+    if consulting_docs_src is not None and not consulting_docs_src.is_dir():
+        raise FileNotFoundError(
+            f"Consulting docs source directory not found: {consulting_docs_src}"
+        )
+    if consulting_docs_src is not None:
+        consulting_docs_action = _sync_component(
+            consulting_docs_src,
+            consulting_docs_dst,
+            dry_run=args.dry_run,
+            skip_unchanged=args.skip_unchanged,
+        )
+    else:
+        consulting_docs_action = "not_requested"
+
+    file_retrieval_corpus_manifest: dict[str, object] | None = None
+    if (
+        args.fs_docs_dir is not None
+        or args.fs_consulting_docs_dir is not None
+        or args.fs_tickets_dir is not None
+    ):
+        fs_bundle_dir = workspace_dir / args.fs_bundle_subdir
+        if args.fs_docs_dir is None or args.fs_consulting_docs_dir is None:
+            raise FileNotFoundError(
+                "Filesystem-eval bundle requires both --fs-docs-dir and "
+                "--fs-consulting-docs-dir."
+            )
+        fs_docs_src = args.fs_docs_dir.resolve()
+        if not fs_docs_src.is_dir():
+            raise FileNotFoundError(
+                f"Filesystem-eval docs source directory not found: {fs_docs_src}"
+            )
+        fs_consulting_docs_src = args.fs_consulting_docs_dir.resolve()
+        if not fs_consulting_docs_src.is_dir():
+            raise FileNotFoundError(
+                "Filesystem-eval consulting docs source directory not found: "
+                f"{fs_consulting_docs_src}"
+            )
+        fs_tickets_src = args.fs_tickets_dir.resolve() if args.fs_tickets_dir is not None else None
+        if args.fs_include_tickets and (
+            fs_tickets_src is None or not fs_tickets_src.is_dir()
+        ):
+            raise FileNotFoundError(
+                "Filesystem-eval ticket source directory not found: "
+                f"{fs_tickets_src}"
+            )
+        file_retrieval_corpus_manifest = _build_file_retrieval_corpus(
+            bundle_dir=fs_bundle_dir,
+            docs_src=fs_docs_src,
+            consulting_docs_src=fs_consulting_docs_src,
+            dry_run=args.dry_run,
+            skip_unchanged=args.skip_unchanged,
+            include_tickets=args.fs_include_tickets,
+            tickets_src=fs_tickets_src,
+            build_index=args.build_fs_index,
+        )
 
     manifest_path = (
         args.manifest_path.resolve()
@@ -328,20 +442,24 @@ def main() -> None:
     manifest = {
         "assembled_utc": datetime.now(timezone.utc).isoformat(),
         "dry_run": args.dry_run,
-        "data_dir": str(data_dir),
         "workspace_dir": str(workspace_dir),
-        "tickets_source": str(tickets_src),
-        "tickets_target": str(tickets_dst),
+        "tickets_source": str(tickets_src) if tickets_src is not None else None,
+        "tickets_target": str(tickets_dst) if tickets_src is not None else None,
         "tickets_action": tickets_action,
-        "chroma_source": str(chroma_src),
-        "chroma_target": str(chroma_dst),
+        "chroma_source": str(chroma_src) if chroma_src is not None else None,
+        "chroma_target": str(chroma_dst) if chroma_src is not None else None,
         "chroma_action": chroma_action,
-        "docs_source": str(docs_src),
-        "docs_target": str(docs_dst),
+        "docs_source": str(docs_src) if docs_src is not None else None,
+        "docs_target": str(docs_dst) if docs_src is not None else None,
         "docs_action": docs_action,
-        "consulting_docs_source": str(consulting_docs_src),
-        "consulting_docs_target": str(consulting_docs_dst),
+        "consulting_docs_source": (
+            str(consulting_docs_src) if consulting_docs_src is not None else None
+        ),
+        "consulting_docs_target": (
+            str(consulting_docs_dst) if consulting_docs_src is not None else None
+        ),
         "consulting_docs_action": consulting_docs_action,
+        "file_retrieval_corpus": file_retrieval_corpus_manifest,
     }
 
     if not args.dry_run:
@@ -349,17 +467,41 @@ def main() -> None:
         manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     print(f"tickets_source={tickets_src}")
-    print(f"tickets_target={tickets_dst}")
+    print(f"tickets_target={tickets_dst if tickets_src is not None else None}")
     print(f"tickets_action={tickets_action}")
     print(f"chroma_source={chroma_src}")
-    print(f"chroma_target={chroma_dst}")
+    print(f"chroma_target={chroma_dst if chroma_src is not None else None}")
     print(f"chroma_action={chroma_action}")
     print(f"docs_source={docs_src}")
-    print(f"docs_target={docs_dst}")
+    print(f"docs_target={docs_dst if docs_src is not None else None}")
     print(f"docs_action={docs_action}")
     print(f"consulting_docs_source={consulting_docs_src}")
-    print(f"consulting_docs_target={consulting_docs_dst}")
+    print(
+        "consulting_docs_target="
+        f"{consulting_docs_dst if consulting_docs_src is not None else None}"
+    )
     print(f"consulting_docs_action={consulting_docs_action}")
+    if file_retrieval_corpus_manifest is not None:
+        print(
+            "file_retrieval_corpus_dir="
+            f"{file_retrieval_corpus_manifest['bundle_dir']}"
+        )
+        print(
+            "file_retrieval_corpus_docs_action="
+            f"{file_retrieval_corpus_manifest['docs_action']}"
+        )
+        print(
+            "file_retrieval_corpus_consulting_docs_action="
+            f"{file_retrieval_corpus_manifest['consulting_docs_action']}"
+        )
+        print(
+            "file_retrieval_corpus_tickets_included="
+            f"{file_retrieval_corpus_manifest['tickets_included']}"
+        )
+        print(
+            "file_retrieval_corpus_tickets_action="
+            f"{file_retrieval_corpus_manifest['tickets_action']}"
+        )
     print(f"dry_run={args.dry_run}")
     if not args.dry_run:
         print(f"manifest={manifest_path}")

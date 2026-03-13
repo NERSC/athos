@@ -79,6 +79,35 @@ Before freezing retrieval comparisons:
   - `chroma_peek_collection` intermittently returned non-JSON-serializable content (`numpy.ndarray`) and caused execution failures.
 - For current paper-facing M3 runs, `chroma_peek_collection` is excluded from active retrieval toolsets.
 - Active retrieval subset for these runs is: `chroma_list_collections`, `chroma_get_collection_info`, `chroma_get_collection_count`, `chroma_query_documents`, `chroma_get_documents`.
+- M1 small-dataset harness comparison (`results/cug_m3_var_20260311_231139`) adds a four-row LangChain vs SmolAgents view:
+  - `langchain + claude_sonnet` was strongest overall,
+  - `smolagents + claude_sonnet` was competitive but weaker and more token-expensive,
+  - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
+- Current interpretation for paper framing:
+  - model choice dominated harness choice on M1,
+  - SmolAgents should not be judged from the GPTOSS row alone,
+  - Sonnet-backed SmolAgents is viable as an auxiliary comparison row rather than part of the main six-row LangChain table.
+
+## M3 Variance Status (2026-03-12)
+
+- Collaborator-run variance artifact for `cug_lang_chroma_gptoss_opt` is now available at:
+  - `madan_results/cug_m3_var_20260312_093435`
+- Scope matches the planned small-dataset variance study:
+  - `evals/test_cases`
+  - `evals/simple_qa.jsonl`
+  - `run_count=10`
+- Current interpretation:
+  - keep observed execution/output failures in the variance story rather than cleaning them away with targeted reruns
+  - the GPTOSS artifact includes `3` such failures over `120` total attempts
+- Collaborator-run variance artifact for `cug_lang_chroma_sonnet_opt` is now available at:
+  - `madan_results/cug_m3_var_20260312_130318`
+  - `120` total attempts, `0` execution/output skips
+- Manuscript status:
+  - the repeated-run variance study is now visualized in the paper as a dedicated side-by-side figure
+  - Sonnet's consistent miss on `salloc-account-error` is retained as a qualitative failure-analysis example rather than treated as run noise
+- Bookkeeping caveat:
+  - current summaries use `skipped_count` as the visible failure count while also zero-penalizing those failed attempts in score/pass metrics
+  - follow-up cleanup is tracked separately in GitHub issue `#87`
 
 ## Main Table Assembly Note (2026-03-11)
 

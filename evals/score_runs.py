@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Dict, Iterable
 import uuid
 
+from dotenv import load_dotenv
+
 from athos import build_config
 from athos.frameworks.smolagents import factories as smolagents_factories
 
@@ -165,6 +167,8 @@ def _resolve_reference(
 
 
 def main() -> None:
+    load_dotenv()
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="config/config.yaml")
     parser.add_argument("--runs-dir", default=None)

@@ -15,6 +15,9 @@ For expanded-study planning and execution, see `docs/cug_paper/EXPERIMENTS_M2.md
 - `llm_only` (no tools)
 - `semantic_retrieval`: `chroma_mcp` (langchain)
   - includes semantic retrieval over documentation and historical ServiceNow ticket corpus (via Chroma ingestion pipeline)
+- `file_based_retrieval`: `filesystem_mcp` (langchain; optional comparison row)
+  - canonical paper configuration for this axis is the bundle-backed filesystem setup rooted at `ATHOS_WORKSPACE/file_retrieval_corpus`
+  - this is intended to be a frozen, read-only, task-oriented file corpus rather than raw whole-workspace exposure
 
 ### Model
 - Open-weight models: `gptoss` (`lbl/cborg-coder`, GPT-OSS-120B)
@@ -42,6 +45,7 @@ For expanded-study planning and execution, see `docs/cug_paper/EXPERIMENTS_M2.md
 Notes:
 - M1 ATHOS-run experiments cover both open-weight (`gptoss`) and proprietary (`claude_sonnet`) model baselines through LangChain flows in `config/paper/cug_m1.yaml`.
 - For retrieval experiments, run generation should include `--aggregate-manifest <path>` to capture retrieval corpus provenance in canonical run artifacts.
+- File-based retrieval remains an optional comparison track; current lessons learned indicate that corpus shaping and explicit bundle indexing are critical for stable behavior.
 - M1 closeout checklist and current status are tracked in `docs/cug_paper/PLAN.md`.
 
 ## Changelog

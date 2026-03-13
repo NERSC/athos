@@ -49,10 +49,14 @@ mcp_servers:
       "chroma_get_documents"
     ]
   filesystem_mcp:
-    description: "Local filesystem MCP server with read/write access to ATHOS workspace"
+    description: "Filesystem MCP server restricted to the paper eval bundle subtree"
     mcp_type: "mcp_stdio"
     command: "npx"
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "${ATHOS_WORKSPACE}"]
+    args: [
+      "-y",
+      "@modelcontextprotocol/server-filesystem",
+      "${ATHOS_WORKSPACE}/file_retrieval_corpus"
+    ]
     allowed_tools: [
       "list_allowed_directories",
       "list_directory",
@@ -158,31 +162,49 @@ flows:
     system_prompt_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
 
   cug_smol_chroma_gptoss:
-    description: "SmolAgents retrieval baseline with Chroma tools on GPT-OSS"
+    description: "SmolAgents coding-agent retrieval comparison row on GPT-OSS"
     type: "smol_agent"
-    agent_type: "tool_calling"
+    agent_type: "code"
     model: "gptoss"
     max_steps: 24
     additional_authorized_imports: ["json"]
+    instructions_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
     tools:
       - chroma_list_collections
       - chroma_get_collection_info
       - chroma_get_collection_count
       - chroma_query_documents
       - chroma_get_documents
-    instructions: |
-      You are an HPC operations assistant.
-      Use Chroma retrieval tools to gather evidence before answering.
-      Always verify collection names before querying.
-      Prefer these collections when relevant: docs, consulting_docs, tickets.
-      Cite retrieved evidence clearly in the final response.
+
+  cug_smol_chroma_sonnet:
+    description: "SmolAgents coding-agent retrieval comparison row on Claude Sonnet"
+    type: "smol_agent"
+    agent_type: "code"
+    model: "claude_sonnet"
+    max_steps: 24
+    additional_authorized_imports: ["json"]
+    instructions_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
+    tools:
+      - chroma_list_collections
+      - chroma_get_collection_info
+      - chroma_get_collection_count
+      - chroma_query_documents
+      - chroma_get_documents
 
   cug_lang_filesystem_gptoss:
     description: "LangChain filesystem-tool baseline on GPT-OSS"
     type: "langchain_agent"
     model: "gptoss"
     mcp_servers: ["filesystem_mcp"]
-    max_iterations: 12
+    max_iterations: 32
+    system_prompt_path: "../prompts/cug_lang_filesystem_system_prompt.txt"
+
+  cug_lang_filesystem_sonnet:
+    description: "LangChain filesystem-tool baseline on Claude Sonnet"
+    type: "langchain_agent"
+    model: "claude_sonnet"
+    mcp_servers: ["filesystem_mcp"]
+    max_iterations: 32
     system_prompt_path: "../prompts/cug_lang_filesystem_system_prompt.txt"
 
 logging_config:
