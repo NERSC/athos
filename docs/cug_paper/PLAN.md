@@ -285,7 +285,10 @@ Status update (2026-03-12):
     - `simple_qa/nersc_ai_support_group/2`: provider-side `BadRequestError` (`max_tokens` became negative)
     - `test_cases/pytorch-launch-error/0`: retrieval tool queried nonexistent collection `perlmutter_ddp_guides`
     - `test_cases/pytorch-launch-error/1`: empty model response (`invalid_output`)
-- Small-dataset variance companion run for `cug_lang_chroma_sonnet_opt` is now in progress via the same collaborator workflow.
+- Small-dataset variance run for `cug_lang_chroma_sonnet_opt` completed via collaborator handoff:
+  - artifact root: `madan_results/cug_m3_var_20260312_130318`
+  - complete run tree: `120` run artifacts across `evals/test_cases` + `evals/simple_qa.jsonl`
+  - execution/output failures: `0`
 - Remaining execution work for M3 is:
   - full expanded-dataset comparison runs for SmolAgents rows (`cug_smol_chroma_gptoss`, optional `cug_smol_chroma_sonnet`),
   - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
@@ -295,6 +298,16 @@ Variance-run bookkeeping note (2026-03-12):
 - Those same records still carry `judgment_status = skipped_execution_status`, so current `summary.json` files can report internally inconsistent `scored_count` / `skipped_count` combinations even when the visible pass/score/fail table values remain aligned with the intended interpretation.
 - For the paper deadline, keep behavior unchanged and interpret current `skipped_count` in variance summaries/tables as execution-failure count.
 - Post-deadline cleanup is tracked in GitHub issue `#87`.
+
+Variance failure-analysis note (2026-03-12):
+- In the collaborator-run Sonnet variance artifact (`madan_results/cug_m3_var_20260312_130318`), `test_cases/salloc-account-error` failed consistently across all `10` attempts.
+- All runs executed successfully and were scored, so this is not an execution-stability issue.
+- Repeated failure pattern:
+  - the model retrieved evidence (`chroma_list_collections` + `chroma_query_documents`) and then diagnosed the issue as missing Perlmutter `salloc` flags such as `--qos interactive` and `--constraint`
+  - the benchmark reference solution instead attributes the error to lack of authorization for the `desi` allocation account and recommends checking `iris` / `groups` and contacting the PI if needed
+- Candidate paper takeaway:
+  - retrieval can reinforce the wrong explanation when multiple sources share the same surface error string
+  - this case is a useful example of retrieval-driven misdiagnosis rather than pure model hallucination or infrastructure failure
 
 ## 4. Analysis and Writing
 
@@ -320,6 +333,13 @@ Status update (2026-03-11):
   - discussion of robustness/failure modes and retrieval tradeoffs,
   - conclusion/limitations/future work,
   - cleanup of ACM metadata/front matter placeholders.
+
+Status update (2026-03-12):
+- Repeated-run variance figure using collaborator-provided GPT-OSS and Sonnet artifacts is now integrated into `../athos_cug_2026_paper/main.tex` as a dedicated subsection with side-by-side subfigures.
+- Current variance writeup anchors three points that should be preserved in later edits:
+  - GPT-OSS shows broader dispersion and a small number of execution/output failures that are retained in the variance story
+  - Sonnet is operationally cleaner in this repeated-run slice but still exhibits a stable retrieval-driven semantic failure on `salloc-account-error`
+  - reliability differences are case-specific and should not be collapsed to overall mean score alone
 
 ### Manuscript Status Snapshot
 

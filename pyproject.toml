@@ -23,6 +23,7 @@ dependencies = [
     "python-dotenv",
     "httpx",
     "PyYAML",
+    "matplotlib",
     "fastmcp>=2.10.6",
     "authlib",
     "ipykernel",

@@ -99,7 +99,12 @@ Before freezing retrieval comparisons:
 - Current interpretation:
   - keep observed execution/output failures in the variance story rather than cleaning them away with targeted reruns
   - the GPTOSS artifact includes `3` such failures over `120` total attempts
-- Companion collaborator run for `cug_lang_chroma_sonnet_opt` is now underway on the same small-dataset setup.
+- Collaborator-run variance artifact for `cug_lang_chroma_sonnet_opt` is now available at:
+  - `madan_results/cug_m3_var_20260312_130318`
+  - `120` total attempts, `0` execution/output skips
+- Manuscript status:
+  - the repeated-run variance study is now visualized in the paper as a dedicated side-by-side figure
+  - Sonnet's consistent miss on `salloc-account-error` is retained as a qualitative failure-analysis example rather than treated as run noise
 - Bookkeeping caveat:
   - current summaries use `skipped_count` as the visible failure count while also zero-penalizing those failed attempts in score/pass metrics
   - follow-up cleanup is tracked separately in GitHub issue `#87`
