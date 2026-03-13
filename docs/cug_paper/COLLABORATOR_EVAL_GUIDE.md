@@ -1,5 +1,7 @@
 # Collaborator Eval Setup Guide
 
+For the external standalone-agent baseline workflow, see `docs/cug_paper/CLAUDE_CODE_EVAL_GUIDE.md`.
+
 This guide is for running the M3 variance experiment in a clean repo-local setup.
 
 ## Assignment
