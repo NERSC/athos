@@ -249,12 +249,26 @@ def main() -> None:
                 output_tokens = token_usage.get("output_tokens")
                 has_input = isinstance(input_tokens, (int, float))
                 has_output = isinstance(output_tokens, (int, float))
-                if has_input:
-                    group["token_input"].append(float(input_tokens))
+                cache_tokens = 0.0
+                for cache_key in (
+                    "cached_input_tokens",
+                    "cache_creation_input_tokens",
+                    "cache_read_input_tokens",
+                ):
+                    cache_value = token_usage.get(cache_key)
+                    if isinstance(cache_value, (int, float)):
+                        cache_tokens += float(cache_value)
+
+                effective_input_tokens = float(input_tokens) + cache_tokens if has_input else None
+                if effective_input_tokens is not None:
+                    group["token_input"].append(effective_input_tokens)
                 if has_output:
                     group["token_output"].append(float(output_tokens))
-                if has_input and has_output:
-                    group["token_total"].append(float(input_tokens) + float(output_tokens))
+                total_tokens = token_usage.get("total_tokens")
+                if isinstance(total_tokens, (int, float)):
+                    group["token_total"].append(float(total_tokens))
+                elif effective_input_tokens is not None and has_output:
+                    group["token_total"].append(effective_input_tokens + float(output_tokens))
 
         judgment = None
         if isinstance(run_id, str) and run_id:
