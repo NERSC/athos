@@ -233,6 +233,40 @@ Interpretation:
 - but the broader heterogeneous corpus did reintroduce some tool-use brittleness
 - the current filesystem row is therefore good enough to treat as meaningful paper signal, but not yet fully stable on the ticket-inclusive corpus
 
+### Sonnet expanded QA run
+
+We also obtained a collaborator-run Sonnet filesystem result on the expanded QA dataset only:
+
+- experiment:
+  - `results/cug_m3_smoke_20260313_145034`
+- summary:
+  - `results/cug_m3_smoke_20260313_145034/aggregates/summary.json`
+
+Recorded aggregate:
+
+- `run_count=123`
+- `skipped_count=17`
+- `score_mean=69.52`
+- `pass_rate=0.6504`
+- `tokens_total_mean=44678.08`
+
+However, this run appears to be quota-contaminated rather than cleanly representative:
+
+- the skipped cases were all marked `skipped_execution_status`
+- the skipped `run.json` files contain effectively no terminal error payload:
+  - `status=null`
+  - `error=null`
+  - `metadata=null`
+- the 17 skipped cases were emitted in a tight burst at the end of the run rather than being distributed throughout execution
+
+That pattern is much more consistent with provider quota exhaustion than with case-specific retrieval failures.
+
+Interpretation:
+
+- the run is useful evidence that the Sonnet filesystem config is operational at expanded-QA scale
+- the reported aggregate is likely pessimistic because the final 17 cases were probably lost to exhausted quota
+- any paper-facing use of this result should mark it as provisional until those tail cases are rerun
+
 ## Lessons Learned
 
 These are the main takeaways to carry into the paper discussion of file-based tool configs:

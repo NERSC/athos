@@ -295,7 +295,7 @@ Status update (2026-03-12):
   - execution/output failures: `0`
 - Remaining execution work for M3 is:
   - full expanded-dataset comparison runs for SmolAgents rows (`cug_smol_chroma_gptoss`, optional `cug_smol_chroma_sonnet`),
-  - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
+  - filesystem follow-on runs for `cug_lang_filesystem_sonnet` and any targeted filesystem reruns needed to repair provider-quota-contaminated tails.
 - Filesystem status update (2026-03-12):
   - the bundle-backed `cug_lang_filesystem_gptoss` mini QA smoke now completed cleanly with `run_count=5`, `skipped_count=0`, `score_mean=99.0`, `pass_rate=1.0`
   - this is sufficient to treat the bundle-backed config as the canonical filesystem paper configuration for next-stage experiments
@@ -304,6 +304,24 @@ Status update (2026-03-12):
   - ticket-inclusive mini QA smoke for the same canonical config completed with `run_count=5`, `skipped_count=1`, `score_mean=80.0`, `pass_rate=0.8`
   - the skipped case was `nersc_ai_support_group` (`ToolException`, `EISDIR`)
   - interpretation for paper purposes: corpus shaping plus `INDEX.md` guidance makes file-based retrieval viable, but broader heterogeneous corpora still reintroduce some navigation/tool-use brittleness for GPT-OSS
+- Filesystem status update (2026-03-13, Sonnet QA-only collaborator run):
+  - artifact root now copied locally at `results/cug_m3_smoke_20260313_145034`
+  - flow: `cug_lang_filesystem_sonnet`
+  - dataset: `evals/nersc_qa.v2.jsonl`
+  - aggregate summary:
+    - `run_count=123`
+    - `skipped_count=17`
+    - `score_mean=69.52`
+    - `pass_rate=0.6504`
+    - `tokens_total_mean=44678.08`
+  - important caveat:
+    - the 17 skipped cases appear quota-contaminated rather than semantically representative
+    - all skipped runs were emitted in a tight burst at the end of execution
+    - representative skipped `run.json` files contain effectively no terminal error payload (`status=null`, `error=null`, `metadata=null`) and only tiny latency values
+  - working interpretation:
+    - treat this run as promising but partially invalidated by provider exhaustion
+    - do not compare the raw `0.6504` pass rate directly against completed rows without noting the likely quota-failure tail
+    - the next clean Sonnet QA number should come from rerunning just the affected QA cases if paper inclusion requires it
 
 Variance-run bookkeeping note (2026-03-12):
 - Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
@@ -423,8 +441,9 @@ Execution track:
 4. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
 5. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization when adding new optional comparison rows.
 6. For filesystem experiments, preserve the bundle-backed setup as the canonical config lineage and vary corpus contents via bundle assembly rather than reverting to raw workspace exposure.
-7. Rescore canonical M1/M2/M3 run artifacts with at least one alternate judge model that is not GPT-OSS and record score/pass deltas relative to the current judgments.
-8. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
+7. For quota-sensitive Sonnet filesystem runs, prefer bounded reruns over full reruns when the artifact pattern shows a likely provider-exhaustion tail.
+8. Rescore canonical M1/M2/M3 run artifacts with at least one alternate judge model that is not GPT-OSS and record score/pass deltas relative to the current judgments.
+9. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
@@ -441,6 +460,7 @@ Writing track:
 7. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
 8. Capture the main file-based retrieval lesson in the manuscript discussion:
    - weaker models benefited substantially from explicit corpus shaping and navigational scaffolding (`file_retrieval_corpus` + `INDEX.md`), not just access to filesystem tools.
+7. If the Sonnet filesystem QA result is discussed before rerun repair, explicitly note that the collaborator run ended with a likely quota-exhaustion tail and should be treated as provisional.
 
 ## M3 Execution Log (2026-03-11)
 
