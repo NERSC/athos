@@ -66,10 +66,16 @@ def main() -> None:
         if not line:
             continue
         payload = json.loads(line)
+        case_id = payload.get("id")
         name = payload.get("name")
-        if isinstance(name, str) and name in requested:
+        match_id = isinstance(case_id, str) and case_id in requested
+        match_name = isinstance(name, str) and name in requested
+        if match_id or match_name:
             selected_rows.append(json.dumps(payload))
-            found.add(name)
+            if match_id:
+                found.add(case_id)
+            if match_name:
+                found.add(name)
 
     output_qa_path.parent.mkdir(parents=True, exist_ok=True)
     output_qa_path.write_text(

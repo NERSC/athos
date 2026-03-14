@@ -138,7 +138,9 @@ def _short_config_id(config_id: str) -> str:
         model = "gptoss"
     else:
         model = "unknown"
-    if "chroma" in config_id and "opt" in config_id:
+    if "filesystem" in config_id:
+        tools = "filesystem"
+    elif "chroma" in config_id and "opt" in config_id:
         tools = "chroma_opt"
     elif "chroma" in config_id:
         tools = "chroma"

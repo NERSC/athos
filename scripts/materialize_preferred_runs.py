@@ -21,7 +21,8 @@ def parse_args() -> argparse.Namespace:
         action="append",
         required=True,
         help=(
-            "Source spec: experiment_id|config_id|run_index|ticket_dataset_id|label. "
+            "Source spec: "
+            "experiment_id|config_id|run_index|source_dataset_id|normalized_dataset_id|label. "
             "Provide in baseline-first order; later sources replace earlier ones."
         ),
     )
@@ -45,12 +46,19 @@ def parse_args() -> argparse.Namespace:
 
 def _parse_source_spec(spec: str) -> dict[str, object]:
     parts = spec.split("|")
-    if len(parts) != 5:
+    if len(parts) != 6:
         raise ValueError(
             "invalid --source spec; expected "
-            "experiment_id|config_id|run_index|ticket_dataset_id|label"
+            "experiment_id|config_id|run_index|source_dataset_id|normalized_dataset_id|label"
         )
-    experiment_id, config_id, run_index_raw, ticket_dataset_id, label = parts
+    (
+        experiment_id,
+        config_id,
+        run_index_raw,
+        source_dataset_id,
+        normalized_dataset_id,
+        label,
+    ) = parts
     try:
         run_index = int(run_index_raw)
     except ValueError as exc:
@@ -59,19 +67,30 @@ def _parse_source_spec(spec: str) -> dict[str, object]:
         "experiment_id": experiment_id,
         "config_id": config_id,
         "run_index": run_index,
-        "ticket_dataset_id": ticket_dataset_id,
+        "source_dataset_id": source_dataset_id,
+        "normalized_dataset_id": normalized_dataset_id,
         "label": label,
     }
 
 
-def _load_records(config_dir: Path, run_index: int) -> dict[tuple[str, str], Path]:
-    records: dict[tuple[str, str], Path] = {}
+def _load_records(
+    config_dir: Path,
+    run_index: int,
+    source_dataset_id: str,
+    normalized_dataset_id: str,
+) -> dict[tuple[str, str], dict[str, object]]:
+    records: dict[tuple[str, str], dict[str, object]] = {}
     for run_path in sorted(config_dir.glob(f"**/{run_index}/run.json")):
         payload = json.loads(run_path.read_text(encoding="utf-8"))
         dataset_id = payload.get("dataset_id")
         case_id = payload.get("case_id")
+        if dataset_id != source_dataset_id:
+            continue
         if isinstance(dataset_id, str) and isinstance(case_id, str):
-            records[(dataset_id, case_id)] = run_path.resolve()
+            records[(normalized_dataset_id, case_id)] = {
+                "run_json": run_path.resolve(),
+                "source_dataset_id": dataset_id,
+            }
     return records
 
 
@@ -108,11 +127,6 @@ def main() -> None:
     if not parsed_sources:
         raise ValueError("at least one --source is required")
 
-    baseline_source = parsed_sources[0]
-    baseline_experiment_id = str(baseline_source["experiment_id"])
-    baseline_config_id = str(baseline_source["config_id"])
-    baseline_ticket_dataset_id = str(baseline_source["ticket_dataset_id"])
-
     source_records: list[dict[str, object]] = []
     for source in parsed_sources:
         config_dir = (
@@ -123,7 +137,12 @@ def main() -> None:
         )
         if not config_dir.exists():
             raise FileNotFoundError(f"source config dir not found: {config_dir}")
-        records = _load_records(config_dir, int(source["run_index"]))
+        records = _load_records(
+            config_dir,
+            int(source["run_index"]),
+            str(source["source_dataset_id"]),
+            str(source["normalized_dataset_id"]),
+        )
         source_records.append(
             {
                 **source,
@@ -132,9 +151,14 @@ def main() -> None:
             }
         )
 
-    baseline_records = source_records[0]["records"]
-    if not isinstance(baseline_records, dict) or not baseline_records:
-        raise ValueError("baseline source produced no run records")
+    available_keys: set[tuple[str, str]] = set()
+    for source in source_records:
+        records = source["records"]
+        if not isinstance(records, dict):
+            continue
+        available_keys.update(records.keys())
+    if not available_keys:
+        raise ValueError("sources produced no run records")
 
     output_experiment_dir = Path(args.results_root).resolve() / args.output_experiment_id
     output_config_dir = output_experiment_dir / "athos" / args.output_config_id
@@ -173,36 +197,28 @@ def main() -> None:
     counts_by_dataset: Counter[str] = Counter()
     picks_by_label: Counter[str] = Counter()
 
-    for (baseline_dataset_id, case_id), baseline_run_json in sorted(baseline_records.items()):
-        normalized_dataset_id = baseline_dataset_id
-        chosen = {
-            "run_json": baseline_run_json,
-            "label": str(source_records[0]["label"]),
-            "experiment_id": baseline_experiment_id,
-            "config_id": baseline_config_id,
-            "dataset_id": baseline_dataset_id,
-            "run_index": int(source_records[0]["run_index"]),
-        }
-
-        for source in source_records[1:]:
+    for normalized_dataset_id, case_id in sorted(available_keys):
+        chosen: dict[str, object] | None = None
+        for source in source_records:
             records = source["records"]
             if not isinstance(records, dict):
                 continue
-            if baseline_dataset_id == baseline_ticket_dataset_id:
-                candidate_key = (str(source["ticket_dataset_id"]), case_id)
-            else:
-                candidate_key = (baseline_dataset_id, case_id)
+            candidate_key = (normalized_dataset_id, case_id)
             candidate = records.get(candidate_key)
             if candidate is None:
                 continue
             chosen = {
-                "run_json": candidate,
+                "run_json": candidate["run_json"],
                 "label": str(source["label"]),
                 "experiment_id": str(source["experiment_id"]),
                 "config_id": str(source["config_id"]),
-                "dataset_id": candidate_key[0],
+                "source_dataset_id": str(candidate["source_dataset_id"]),
                 "run_index": int(source["run_index"]),
             }
+        if chosen is None:
+            raise RuntimeError(
+                f"internal error: no chosen record for {(normalized_dataset_id, case_id)}"
+            )
 
         source_run_json = chosen["run_json"]
         if not isinstance(source_run_json, Path):
@@ -238,7 +254,7 @@ def main() -> None:
                 "source_label": str(chosen["label"]),
                 "source_experiment_id": str(chosen["experiment_id"]),
                 "source_config_id": str(chosen["config_id"]),
-                "source_dataset_id": str(chosen["dataset_id"]),
+                "source_dataset_id": str(chosen["source_dataset_id"]),
                 "source_run_index": int(chosen["run_index"]),
                 "source_run_path": str(source_run_json),
                 "dest_run_path": str(dest_run_json.resolve()),
@@ -250,7 +266,6 @@ def main() -> None:
         for row in source_rows:
             handle.write(json.dumps(row) + "\n")
 
-    print(f"baseline_experiment_id={baseline_experiment_id}")
     print(f"output_experiment_id={args.output_experiment_id}")
     print(f"output_config_dir={output_config_dir}")
     print(f"manifest_out={manifest_out}")

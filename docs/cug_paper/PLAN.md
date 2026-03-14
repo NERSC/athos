@@ -304,24 +304,24 @@ Status update (2026-03-12):
   - ticket-inclusive mini QA smoke for the same canonical config completed with `run_count=5`, `skipped_count=1`, `score_mean=80.0`, `pass_rate=0.8`
   - the skipped case was `nersc_ai_support_group` (`ToolException`, `EISDIR`)
   - interpretation for paper purposes: corpus shaping plus `INDEX.md` guidance makes file-based retrieval viable, but broader heterogeneous corpora still reintroduce some navigation/tool-use brittleness for GPT-OSS
-- Filesystem status update (2026-03-13, Sonnet QA-only collaborator run):
-  - artifact root now copied locally at `results/cug_m3_smoke_20260313_145034`
-  - flow: `cug_lang_filesystem_sonnet`
-  - dataset: `evals/nersc_qa.v2.jsonl`
-  - aggregate summary:
-    - `run_count=123`
-    - `skipped_count=17`
-    - `score_mean=69.52`
-    - `pass_rate=0.6504`
-    - `tokens_total_mean=44678.08`
-  - important caveat:
-    - the 17 skipped cases appear quota-contaminated rather than semantically representative
-    - all skipped runs were emitted in a tight burst at the end of execution
-    - representative skipped `run.json` files contain effectively no terminal error payload (`status=null`, `error=null`, `metadata=null`) and only tiny latency values
-  - working interpretation:
-    - treat this run as promising but partially invalidated by provider exhaustion
-    - do not compare the raw `0.6504` pass rate directly against completed rows without noting the likely quota-failure tail
-    - the next clean Sonnet QA number should come from rerunning just the affected QA cases if paper inclusion requires it
+- Filesystem status update (2026-03-14, Sonnet stitched canonical result):
+  - canonical stitched artifact root: `results/cug_m3_fs_sonnet_stitched_20260314`
+  - clean paper-facing judgments dir: `results/cug_m3_fs_sonnet_stitched_20260314/judgments_final`
+  - flow/config lineage: `cug_lang_filesystem_sonnet__claude_sonnet__91ee9a56`
+  - source runs merged into the stitched artifact:
+    - ticket baseline: `results/cug_m3_fs_sonnet_tickets_20260313_145140`
+    - ticket quota-retry subset: `results/cug_m3_fs_sonnet_tickets_20260313_145140_retry_badrequest`
+    - QA baseline: `results/cug_m3_smoke_20260313_145034`
+    - QA budget-retry subset: `results/cug_m3_smoke_20260313_145034_retry_budget`
+  - stitched aggregate summary from `aggregates_final/summary.json`:
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=1`, `score_mean=78.76`, `pass_rate=0.7236`
+    - `ticket_cases`: `run_count=156`, `skipped_count=14`, `score_mean=72.31`, `pass_rate=0.6538`
+  - retry outcome:
+    - all `16` quota-hit QA cases were successfully repaired via bounded rerun
+    - `8` of the `9` quota-hit ticket cases were repaired; `INC0248658_portal_hpss_degraded_access` still failed on rerun with `GraphRecursionError`
+  - paper interpretation:
+    - use this stitched experiment as the canonical Sonnet filesystem paper source instead of the raw collaborator QA run
+    - the remaining skips now mostly reflect actual execution failures, not quota-tail contamination
 
 Variance-run bookkeeping note (2026-03-12):
 - Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
@@ -432,7 +432,7 @@ Policy:
 ## Immediate Next Steps (Updated 2026-03-11)
 
 Execution track:
-1. Run the remaining full expanded-dataset comparison sweeps for SmolAgents rows and `cug_lang_filesystem_gptoss`.
+1. Run the remaining full expanded-dataset comparison sweeps for the SmolAgents rows.
 2. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
 3. Carry forward the completed M1 harness comparison:
    - `langchain + claude_sonnet` was strongest,
@@ -459,8 +459,9 @@ Writing track:
 6. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
 7. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
 8. Capture the main file-based retrieval lesson in the manuscript discussion:
+9. Treat the bundle-backed filesystem rows as secondary comparison rows rather than keeping them provisional; SmolAgents inclusion beyond the main six-row table remains a separate decision.
    - weaker models benefited substantially from explicit corpus shaping and navigational scaffolding (`file_retrieval_corpus` + `INDEX.md`), not just access to filesystem tools.
-7. If the Sonnet filesystem QA result is discussed before rerun repair, explicitly note that the collaborator run ended with a likely quota-exhaustion tail and should be treated as provisional.
+10. If the filesystem-tool rows are discussed, use the stitched Sonnet artifact and the full expanded GPT-OSS filesystem run rather than the earlier provisional collaborator QA-only artifact.
 
 ## M3 Execution Log (2026-03-11)
 
@@ -571,8 +572,9 @@ Primary manuscript results table should include six LangChain configurations:
   - `lang_gptoss_chroma_opt` (from `cug_m3_full_gptoss_opt_20260311_013848`)
   - `lang_sonnet_chroma_opt` (from `cug_m3_full_sonnet_opt_20260311_081645`)
 
-Optional rows:
-- `lang_gptoss_filesystem` may be included only if execution stability is brought to an acceptable level on expanded datasets.
+Secondary comparison rows:
+- `lang_gptoss_filesystem` from `results/cug_m3_20260313_080148`
+- `lang_sonnet_filesystem` from `results/cug_m3_fs_sonnet_stitched_20260314`
 
 Reporting note:
 - Keep `Eval/Skip` (or equivalent execution-success visibility) in the table so M2 vs M3 robustness differences are explicit.
