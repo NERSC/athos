@@ -138,7 +138,9 @@ def _short_config_id(config_id: str) -> str:
         model = "gptoss"
     else:
         model = "unknown"
-    if "chroma" in config_id and "opt" in config_id:
+    if "filesystem" in config_id:
+        tools = "filesystem"
+    elif "chroma" in config_id and "opt" in config_id:
         tools = "chroma_opt"
     elif "chroma" in config_id:
         tools = "chroma"
@@ -147,6 +149,53 @@ def _short_config_id(config_id: str) -> str:
     else:
         tools = "unknown"
     return f"{harness}_{model}_{tools}"
+
+
+def _config_parts(config_id: str) -> tuple[str, str, str]:
+    harness = "lang" if "_lang_" in config_id or config_id.startswith("cug_lang_") else "unknown"
+    if "sonnet" in config_id:
+        model = "sonnet"
+    elif "gptoss" in config_id:
+        model = "gptoss"
+    else:
+        model = "unknown"
+    if "filesystem" in config_id:
+        tools = "filesystem"
+    elif "chroma" in config_id and "opt" in config_id:
+        tools = "chroma_opt"
+    elif "chroma" in config_id:
+        tools = "chroma"
+    elif "base" in config_id:
+        tools = "base"
+    else:
+        tools = "unknown"
+    return harness, model, tools
+
+
+def _config_sort_key(config_id: str) -> tuple[int, int, int, str]:
+    harness, model, tools = _config_parts(config_id)
+    tool_rank = {
+        "base": 0,
+        "filesystem": 1,
+        "chroma": 2,
+        "chroma_opt": 3,
+        "unknown": 4,
+    }
+    model_rank = {
+        "gptoss": 0,
+        "sonnet": 1,
+        "unknown": 2,
+    }
+    harness_rank = {
+        "lang": 0,
+        "unknown": 1,
+    }
+    return (
+        tool_rank.get(tools, 99),
+        model_rank.get(model, 99),
+        harness_rank.get(harness, 99),
+        config_id,
+    )
 
 
 def _fmt_pass_score(pass_rate: Any, score_mean: Any) -> str:
@@ -238,7 +287,7 @@ def main() -> None:
 
     wide_rows = sorted(
         by_config.values(),
-        key=lambda r: str(r["short_config_id"]),
+        key=lambda r: _config_sort_key(str(r["config_id"])),
     )
 
     dataset_label_map = {
@@ -273,7 +322,11 @@ def main() -> None:
         subheader.append("Lat")
     lines.append(" & ".join(subheader) + " \\\\")
     lines.append("\\midrule")
+    previous_tool_family: str | None = None
     for cfg in wide_rows:
+        _, _, tool_family = _config_parts(str(cfg["config_id"]))
+        if previous_tool_family is not None and tool_family != previous_tool_family:
+            lines.append("\\midrule")
         row_cells = [
             _escape_tex(str(cfg["short_config_id"])),
         ]
@@ -284,6 +337,7 @@ def main() -> None:
             row_cells.append(_fmt_tokens_iot(ds))
             row_cells.append(_fmt_latency_s(ds.get("latency_ms_p50")))
         lines.append(" & ".join(row_cells) + " \\\\")
+        previous_tool_family = tool_family
     lines.append("\\bottomrule")
     lines.append("\\end{tabular}")
     lines.append("\\end{table*}")

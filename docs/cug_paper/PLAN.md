@@ -2,7 +2,7 @@
 
 This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) and iterative milestones.
 
-## Status Snapshot (2026-03-11)
+## Status Snapshot (2026-03-14)
 
 - Eval pipeline v1 is implemented and in active use (`run_evaluations.py` + `score_runs.py` + `summarize_results.py`).
 - M1 baseline study is complete and remains useful as a small-dataset validation track.
@@ -10,6 +10,8 @@ This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) an
 - M3 paper-facing Chroma-optimized expanded-set runs are complete for:
   - `lang_gptoss_chroma_opt`
   - `lang_sonnet_chroma_opt`
+- Filesystem comparison runs are complete for current paper scope, including stitched reruns used to repair provider-quota-contaminated tails.
+- SmolAgents comparison is intentionally restricted to the mini-dataset harness slice and is already represented in the manuscript.
 - Manuscript drafting is in progress in `../athos_cug_2026_paper`.
 - Current manuscript draft already includes substantial content for introduction, related work, toolkit design, and experimental design; results interpretation and conclusion are still incomplete.
 - M2 execution required operational patches/reruns (judge retries, provider switch + stitched runs, and Chroma retrieval failure triage), which are recorded below as takeaways for M3 hardening.
@@ -278,7 +280,7 @@ Execution scope update (2026-03-11):
   - Mitigation applied in current configs: retrieval runs use `list/query/get/info/count` subset and exclude `peek`.
 
 Status update (2026-03-12):
-- Partially complete.
+- Complete for the scoped paper experiment set.
 - Full expanded-dataset paper-facing Chroma-optimized LangChain runs are complete:
   - `cug_m3_full_gptoss_opt_20260311_013848`
   - `cug_m3_full_sonnet_opt_20260311_081645`
@@ -293,9 +295,9 @@ Status update (2026-03-12):
   - artifact root: `madan_results/cug_m3_var_20260312_130318`
   - complete run tree: `120` run artifacts across `evals/test_cases` + `evals/simple_qa.jsonl`
   - execution/output failures: `0`
-- Remaining execution work for M3 is:
-  - full expanded-dataset comparison runs for SmolAgents rows (`cug_smol_chroma_gptoss`, optional `cug_smol_chroma_sonnet`),
-  - optional filesystem row completion for `cug_lang_filesystem_gptoss` if stability is acceptable.
+- SmolAgents scope decision:
+  - comparison is intentionally limited to the mini-dataset harness slice rather than expanded-dataset sweeps
+  - those results are already reflected in the paper as auxiliary comparison evidence, not as part of the main six-row LangChain table
 - Filesystem status update (2026-03-12):
   - the bundle-backed `cug_lang_filesystem_gptoss` mini QA smoke now completed cleanly with `run_count=5`, `skipped_count=0`, `score_mean=99.0`, `pass_rate=1.0`
   - this is sufficient to treat the bundle-backed config as the canonical filesystem paper configuration for next-stage experiments
@@ -304,6 +306,28 @@ Status update (2026-03-12):
   - ticket-inclusive mini QA smoke for the same canonical config completed with `run_count=5`, `skipped_count=1`, `score_mean=80.0`, `pass_rate=0.8`
   - the skipped case was `nersc_ai_support_group` (`ToolException`, `EISDIR`)
   - interpretation for paper purposes: corpus shaping plus `INDEX.md` guidance makes file-based retrieval viable, but broader heterogeneous corpora still reintroduce some navigation/tool-use brittleness for GPT-OSS
+- Filesystem status update (2026-03-14, Sonnet stitched canonical result):
+  - canonical stitched artifact root: `results/cug_m3_fs_sonnet_stitched_20260314`
+  - clean paper-facing judgments dir: `results/cug_m3_fs_sonnet_stitched_20260314/judgments_final`
+  - flow/config lineage: `cug_lang_filesystem_sonnet__claude_sonnet__91ee9a56`
+  - source runs merged into the stitched artifact:
+    - ticket baseline: `results/cug_m3_fs_sonnet_tickets_20260313_145140`
+    - ticket quota-retry subset: `results/cug_m3_fs_sonnet_tickets_20260313_145140_retry_badrequest`
+    - QA baseline: `results/cug_m3_smoke_20260313_145034`
+    - QA budget-retry subset: `results/cug_m3_smoke_20260313_145034_retry_budget`
+  - stitched aggregate summary from `aggregates_final/summary.json`:
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=1`, `score_mean=78.76`, `pass_rate=0.7236`
+    - `ticket_cases`: `run_count=156`, `skipped_count=14`, `score_mean=72.31`, `pass_rate=0.6538`
+  - retry outcome:
+    - all `16` quota-hit QA cases were successfully repaired via bounded rerun
+    - `8` of the `9` quota-hit ticket cases were repaired; `INC0248658_portal_hpss_degraded_access` still failed on rerun with `GraphRecursionError`
+  - paper interpretation:
+    - use this stitched experiment as the canonical Sonnet filesystem paper source instead of the raw collaborator QA run
+    - the remaining skips now mostly reflect actual execution failures, not quota-tail contamination
+- Execution status note (2026-03-14):
+  - scoped experiment execution for the paper is complete
+  - remaining work in this branch is manuscript synchronization and plan/documentation cleanup, not additional ATHOS experiment runs
+  - coding-agent work remains part of the overall paper plan and is being finalized in a parallel branch
 
 Variance-run bookkeeping note (2026-03-12):
 - Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
@@ -330,7 +354,7 @@ Deliverables:
 - `Analysis Narrative v0`: takeaways, limitations, and key caveats.
 - `Paper Draft v0`: complete section draft aligned with milestone evidence.
 - `Paper Draft v1`: revised draft with updated milestone outputs.
-- `Judge Sensitivity Note v0`: brief agreement/sensitivity analysis across judge choices on the same stored runs.
+- `Judge Sensitivity Note v0`: rescore the paper-facing result set with an alternate judge and briefly assess whether headline conclusions remain stable across judge choice.
 
 Status update (2026-03-11):
 - Manuscript drafting is active in `../athos_cug_2026_paper`.
@@ -353,6 +377,10 @@ Status update (2026-03-12):
   - GPT-OSS shows broader dispersion and a small number of execution/output failures that are retained in the variance story
   - Sonnet is operationally cleaner in this repeated-run slice but still exhibits a stable retrieval-driven semantic failure on `salloc-account-error`
   - reliability differences are case-specific and should not be collapsed to overall mean score alone
+- Judge follow-up:
+  - try at least one alternate judge configuration/model for the paper-facing result set
+  - main motivation is to avoid having GPT-OSS evaluate GPT-OSS if the alternate judge produces reasonable results
+  - a broader judge-sensitivity study would add value, but remains optional rather than a paper blocker
 
 Status update (2026-03-13):
 - Judge-model sensitivity should be treated as an explicit paper-quality check, not only an eval harness detail.
@@ -411,20 +439,19 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-11)
+## Immediate Next Steps (Updated 2026-03-14)
 
 Execution track:
-1. Run the remaining full expanded-dataset comparison sweeps for SmolAgents rows and `cug_lang_filesystem_gptoss`.
-2. Keep retrieval preflight gates active for Chroma runs (collection-name verification and representative smoke queries).
-3. Carry forward the completed M1 harness comparison:
+1. Freeze the scoped paper experiment set as complete and keep any further runs explicitly out of scope unless they are needed to repair a documented artifact.
+2. Carry forward the completed M1 harness comparison:
    - `langchain + claude_sonnet` was strongest,
    - `smolagents + claude_sonnet` was competitive but weaker and more token-expensive,
    - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
-4. If filesystem retrieval underperforms, iterate only the filesystem system prompt and rerun the same config id lineage with clear versioned provenance.
-5. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization when adding new optional comparison rows.
-6. For filesystem experiments, preserve the bundle-backed setup as the canonical config lineage and vary corpus contents via bundle assembly rather than reverting to raw workspace exposure.
-7. Rescore canonical M1/M2/M3 run artifacts with at least one alternate judge model that is not GPT-OSS and record score/pass deltas relative to the current judgments.
-8. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
+3. Preserve the bundle-backed filesystem setup as the canonical paper lineage and use the stitched Sonnet artifact as the paper-facing filesystem source.
+4. For quota-sensitive Sonnet filesystem runs, prefer bounded reruns over full reruns when the artifact pattern shows a likely provider-exhaustion tail.
+5. Rescore the paper-facing result set with at least one alternate judge model that is not GPT-OSS and record whether headline conclusions stay stable.
+6. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
+7. Keep coding-agent work in the overall paper plan while it is finalized in the parallel branch.
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
@@ -440,7 +467,10 @@ Writing track:
 6. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
 7. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
 8. Capture the main file-based retrieval lesson in the manuscript discussion:
+9. Treat the bundle-backed filesystem rows as secondary comparison rows rather than keeping them provisional; SmolAgents inclusion beyond the main six-row table remains a separate decision.
    - weaker models benefited substantially from explicit corpus shaping and navigational scaffolding (`file_retrieval_corpus` + `INDEX.md`), not just access to filesystem tools.
+10. If the filesystem-tool rows are discussed, use the stitched Sonnet artifact and the full expanded GPT-OSS filesystem run rather than the earlier provisional collaborator QA-only artifact.
+11. If the alternate-judge rescore is completed, add a brief note on whether the main conclusions were robust to the judge change; a deeper judge-sensitivity analysis is optional.
 
 ## M3 Execution Log (2026-03-11)
 
@@ -551,8 +581,9 @@ Primary manuscript results table should include six LangChain configurations:
   - `lang_gptoss_chroma_opt` (from `cug_m3_full_gptoss_opt_20260311_013848`)
   - `lang_sonnet_chroma_opt` (from `cug_m3_full_sonnet_opt_20260311_081645`)
 
-Optional rows:
-- `lang_gptoss_filesystem` may be included only if execution stability is brought to an acceptable level on expanded datasets.
+Secondary comparison rows:
+- `lang_gptoss_filesystem` from `results/cug_m3_20260313_080148`
+- `lang_sonnet_filesystem` from `results/cug_m3_fs_sonnet_stitched_20260314`
 
 Reporting note:
 - Keep `Eval/Skip` (or equivalent execution-success visibility) in the table so M2 vs M3 robustness differences are explicit.

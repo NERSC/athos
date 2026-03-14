@@ -32,7 +32,11 @@ FLOWS="${FLOWS:-cug_lang_chroma_gptoss_opt cug_lang_chroma_sonnet_opt cug_smol_c
 
 TICKET_CASES_DEFAULT="${SCRATCH}/athos/data/ticket_cases"
 CASES_DIRS="${CASES_DIRS:-${TICKET_CASES_DEFAULT}}"
-QA_FILES="${QA_FILES:-evals/nersc_qa.v2.jsonl}"
+# Preserve the default QA dataset only when QA_FILES is truly unset.
+# This allows callers to disable QA explicitly via QA_FILES="".
+if [[ "${QA_FILES+x}" != "x" ]]; then
+  QA_FILES="evals/nersc_qa.v2.jsonl"
+fi
 STRICT_DATASET_PATHS="${STRICT_DATASET_PATHS:-1}"
 
 AGGREGATE_MANIFEST="${AGGREGATE_MANIFEST:-$SCRATCH/athos/data/chroma/aggregates/manifests/athos_eval_bundle_20260306_local.json}"
