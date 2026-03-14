@@ -7,11 +7,17 @@ set -euo pipefail
 # Usage examples:
 #   EXPERIMENT_ID=cug_codex_external_mini_20260313_232712 scripts/score_cug_external.sh
 #   RUNS_DIR=results/cug_codex_external_mini_20260313_232712 scripts/score_cug_external.sh
+#   EXTERNAL_RUNS_INPUT=results/external_runs/claude_code_fs_bundle_v1_mini_20260314.success_only.jsonl \
+#     EXPERIMENT_ID=cug_claude_external_mini_20260314 \
+#     scripts/score_cug_external.sh
 
 SCORING_CONFIG_PATH="${SCORING_CONFIG_PATH:-config/paper/cug_m1.yaml}"
 RESULTS_ROOT="${RESULTS_ROOT:-results}"
 RUNS_DIR="${RUNS_DIR:-}"
 EXPERIMENT_ID="${EXPERIMENT_ID:-}"
+EXTERNAL_RUNS_INPUT="${EXTERNAL_RUNS_INPUT:-}"
+IMPORT_ALLOW_OVERWRITE="${IMPORT_ALLOW_OVERWRITE:-1}"
+NORMALIZE_EXTERNAL_RUNS="${NORMALIZE_EXTERNAL_RUNS:-1}"
 
 JUDGE_MODEL="${JUDGE_MODEL:-gptoss}"
 JUDGE_PROMPT_VERSION="${JUDGE_PROMPT_VERSION:-rubric_v1}"
@@ -28,9 +34,101 @@ STRICT_DATASET_PATHS="${STRICT_DATASET_PATHS:-1}"
 start_epoch="$(date +%s)"
 start_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
+if [[ -n "${EXTERNAL_RUNS_INPUT}" ]]; then
+  if [[ -z "${EXPERIMENT_ID}" ]]; then
+    echo "ERROR: EXTERNAL_RUNS_INPUT requires EXPERIMENT_ID" >&2
+    exit 2
+  fi
+  if [[ ! -f "${EXTERNAL_RUNS_INPUT}" ]]; then
+    echo "ERROR: external runs input not found: ${EXTERNAL_RUNS_INPUT}" >&2
+    exit 2
+  fi
+  if [[ -z "${RUNS_DIR}" ]]; then
+    RUNS_DIR="${RESULTS_ROOT}/${EXPERIMENT_ID}"
+  fi
+  import_input="${EXTERNAL_RUNS_INPUT}"
+  normalized_input_tmp=""
+  if [[ "${NORMALIZE_EXTERNAL_RUNS}" == "1" ]]; then
+    tmp_root="${TMPDIR:-/tmp}"
+    normalized_input_tmp="$(mktemp "${tmp_root%/}/external_runs_normalized.XXXXXX")"
+    normalized_input_tmp="${normalized_input_tmp}.jsonl"
+    python3 - "${EXTERNAL_RUNS_INPUT}" "${normalized_input_tmp}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dst = Path(sys.argv[2])
+
+fixed = 0
+rows = 0
+with src.open("r", encoding="utf-8") as rf, dst.open("w", encoding="utf-8") as wf:
+    for line in rf:
+        text = line.strip()
+        if not text:
+            continue
+        rows += 1
+        rec = json.loads(text)
+        status = ((rec.get("execution") or {}).get("status"))
+        response = rec.get("response")
+        output_text = (response or {}).get("output_text") if isinstance(response, dict) else None
+        if status == "success" and (not isinstance(output_text, str) or not output_text.strip()):
+            raw_stdout = ((rec.get("provenance") or {}).get("raw_stdout"))
+            candidate = None
+            if isinstance(raw_stdout, str) and raw_stdout.strip():
+                try:
+                    payload = json.loads(raw_stdout)
+                except json.JSONDecodeError:
+                    payload = {}
+                if isinstance(payload, dict):
+                    structured = payload.get("structured_output")
+                    if isinstance(structured, dict):
+                        ans = structured.get("answer")
+                        if isinstance(ans, str) and ans.strip():
+                            candidate = ans.strip()
+                    if candidate is None:
+                        res = payload.get("result")
+                        if isinstance(res, str) and res.strip():
+                            candidate = res.strip()
+            if candidate:
+                if not isinstance(response, dict):
+                    rec["response"] = {}
+                    response = rec["response"]
+                response["output_text"] = candidate
+                fixed += 1
+        wf.write(json.dumps(rec) + "\n")
+
+print(f"normalized_rows={rows} fixed_missing_output_text={fixed}")
+PY
+    import_input="${normalized_input_tmp}"
+  fi
+
+  import_cmd=(
+    python evals/import_runs.py
+    --input "${import_input}"
+    --output-dir "${RESULTS_ROOT}"
+    --experiment-id "${EXPERIMENT_ID}"
+  )
+  if [[ "${IMPORT_ALLOW_OVERWRITE}" == "1" ]]; then
+    import_cmd+=(--allow-overwrite-runs)
+  fi
+  echo "Importing external runs"
+  echo "  input: ${EXTERNAL_RUNS_INPUT}"
+  if [[ -n "${normalized_input_tmp}" ]]; then
+    echo "  normalized_input: ${normalized_input_tmp}"
+  fi
+  echo "  output_dir: ${RESULTS_ROOT}"
+  echo "  experiment_id: ${EXPERIMENT_ID}"
+  echo "  allow_overwrite: ${IMPORT_ALLOW_OVERWRITE}"
+  "${import_cmd[@]}"
+  if [[ -n "${normalized_input_tmp}" ]]; then
+    rm -f "${normalized_input_tmp}"
+  fi
+fi
+
 if [[ -z "${RUNS_DIR}" ]]; then
   if [[ -z "${EXPERIMENT_ID}" ]]; then
-    echo "ERROR: set RUNS_DIR or EXPERIMENT_ID" >&2
+    echo "ERROR: set RUNS_DIR or EXPERIMENT_ID (or EXTERNAL_RUNS_INPUT+EXPERIMENT_ID)" >&2
     exit 2
   fi
   RUNS_DIR="${RESULTS_ROOT}/${EXPERIMENT_ID}"

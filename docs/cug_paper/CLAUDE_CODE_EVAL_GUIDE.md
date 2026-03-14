@@ -49,6 +49,11 @@ After all cases complete:
 
 The maintainer can then import, score, and summarize the runs centrally.
 
+Important output-file hygiene:
+- `scripts/run_claude_code_eval.py` appends to `--output`.
+- Use a fresh output filename per run attempt (recommended), or remove old output first.
+- Avoid mixing failed smoke records and full-run records in the same JSONL.
+
 ## Output Contract
 
 The wrapper should write one JSON object per attempt to a JSONL file. Use this schema:
@@ -283,7 +288,7 @@ python scripts/run_claude_code_eval.py \
   --qa-file evals/simple_qa.jsonl \
   --cases-dir evals/test_cases \
   --bundle-root <path/to/file_retrieval_corpus> \
-  --output results/external_runs/claude_code_fs_bundle_v1.jsonl
+  --output results/external_runs/claude_code_fs_bundle_v1.<timestamp>.jsonl
 ```
 
 The wrapper:
@@ -294,7 +299,7 @@ The wrapper:
 4. invoke Claude Code once per case
 5. capture stdout, stderr, exit code, timestamps, and the Claude JSON result object
 6. append one record per case to:
-   - `results/external_runs/claude_code_fs_bundle_v1.jsonl`
+   - `results/external_runs/claude_code_fs_bundle_v1.<timestamp>.jsonl`
 
 By default, the wrapper leaves Claude tools unrestricted and runs Claude from an isolated temporary working directory with only the provided `--bundle-root` added as an allowed path.
 
@@ -302,7 +307,7 @@ Why a wrapper is preferred:
 - easier JSON parsing
 - cleaner latency capture
 - cleaner failure handling
-- direct compatibility with later import via `evals/import_runs.py`
+- direct compatibility with later import via `evals/import_runs.py` or one-command import+score via `scripts/score_cug_external.sh`
 - less opportunity for colleagues to accidentally drift from the agreed config lineage
 
 Useful options:
@@ -326,7 +331,7 @@ python scripts/run_claude_code_eval.py \
   --cases-dir evals/test_cases \
   --bundle-root <path/to/file_retrieval_corpus> \
   --model sonnet \
-  --output results/external_runs/claude_code_fs_bundle_v1.jsonl
+  --output results/external_runs/claude_code_fs_bundle_v1.<timestamp>.jsonl
 ```
 
 ## Smoke Run
@@ -377,6 +382,18 @@ The ATHOS maintainer can then handle:
 - scoring
 - summarization
 - paper-table assembly
+
+Maintainer one-command path (optional):
+
+```bash
+EXTERNAL_RUNS_INPUT=results/external_runs/claude_code_fs_bundle_v1.<timestamp>.jsonl \
+EXPERIMENT_ID=cug_claude_external_mini_<timestamp> \
+scripts/score_cug_external.sh
+```
+
+Notes:
+- `score_cug_external.sh` can import + score + summarize in one run.
+- It also normalizes successful Claude records that have empty top-level `result` but valid `structured_output.answer`.
 
 ## Known Caveats
 

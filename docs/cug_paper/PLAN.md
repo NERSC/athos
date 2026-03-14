@@ -511,6 +511,19 @@ Writing track:
     - `results/cug_codex_external_mini_20260313_232712/aggregates/summary.json`
   - implementation note:
     - wrapper summarizes from `--judgment-file` (single judge output) to avoid mixed-judge collisions when `judgments/` contains older judge files.
+- External Claude Code mini baseline (imported run scoring path):
+  - experiment: `cug_claude_external_mini_20260314`
+  - runs path: `results/cug_claude_external_mini_20260314`
+  - scorer wrapper: `scripts/score_cug_external.sh`
+  - scoring config: `config/paper/cug_m1.yaml`
+  - execution command:
+    - `EXTERNAL_RUNS_INPUT=results/external_runs/claude_code_fs_bundle_v1_mini_20260314.success_only.jsonl EXPERIMENT_ID=cug_claude_external_mini_20260314 scripts/score_cug_external.sh`
+  - summary highlights:
+    - `simple_qa`: `run_count=5`, `pass_rate=0.8`, `score_mean=85.0`, `tokens_total_mean=550.2`, `latency_ms_mean=13614.2`
+    - `test_cases`: `run_count=7`, `pass_rate=0.7143`, `score_mean=79.0`, `tokens_total_mean=2373.57`, `latency_ms_mean=51739.43`
+  - implementation notes:
+    - some successful Claude CLI responses can return empty top-level `result` while still returning `structured_output.answer`;
+    - `score_cug_external.sh` now normalizes missing `response.output_text` from `provenance.raw_stdout` before import.
 - Sonnet full expanded-set run:
   - experiment: `cug_m3_full_sonnet_opt_20260311_081645`
   - runs path: `results/cug_m3_full_sonnet_opt_20260311_081645`
