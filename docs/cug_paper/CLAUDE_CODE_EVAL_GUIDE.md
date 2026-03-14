@@ -21,33 +21,15 @@ Only move on to the expanded datasets after the focused run is stable and produc
 
 ## Required Inputs
 
-You do not need a full ATHOS runtime setup for this step.
+Collaborators should use the ATHOS repo checkout for:
+- `scripts/run_claude_code_eval.py`
+- `evals/simple_qa.jsonl`
+- `evals/test_cases`
 
-You need these inputs:
-- a copy of `scripts/run_claude_code_eval.py`
-- the focused Q&A dataset file
-- the focused ticket-style case directory
-- the frozen file retrieval corpus bundle
-- a writable output location for the JSONL results
+You provide only the file corpus bundle:
+- `<path/to/file_retrieval_corpus>`
 
-Representative layout:
-
-```text
-<working_dir>/
-  run_claude_code_eval.py
-  simple_qa.jsonl
-  test_cases/
-  file_retrieval_corpus/
-    INDEX.md
-    docs/
-    consulting_docs/
-    tickets/
-  external_runs/
-```
-
-The wrapper can be run from any working directory as long as you pass explicit paths.
-
-If the retrieval bundle is missing `INDEX.md`, stop before running.
+If `<path/to/file_retrieval_corpus>/INDEX.md` is missing, stop before running.
 
 ## Recommended Execution Model
 
@@ -294,14 +276,14 @@ This lets ATHOS import and scoring preserve failure behavior rather than silentl
 
 ## Suggested Wrapper Structure
 
-Use the repo wrapper:
+Use the wrapper from the repo:
 
 ```bash
-python <path/to/run_claude_code_eval.py> \
-  --qa-file <path/to/simple_qa.jsonl> \
-  --cases-dir <path/to/test_cases> \
+python scripts/run_claude_code_eval.py \
+  --qa-file evals/simple_qa.jsonl \
+  --cases-dir evals/test_cases \
   --bundle-root <path/to/file_retrieval_corpus> \
-  --output <path/to/external_runs/claude_code_fs_bundle_v1.jsonl>
+  --output results/external_runs/claude_code_fs_bundle_v1.jsonl
 ```
 
 The wrapper:
@@ -314,6 +296,8 @@ The wrapper:
 6. append one record per case to:
    - `results/external_runs/claude_code_fs_bundle_v1.jsonl`
 
+By default, the wrapper denies `WebFetch`, `WebSearch`, and `AskUserQuestion` and runs Claude from an isolated temporary working directory with only the provided `--bundle-root` added as an allowed path.
+
 Why a wrapper is preferred:
 - easier JSON parsing
 - cleaner latency capture
@@ -324,25 +308,25 @@ Why a wrapper is preferred:
 Useful options:
 
 ```bash
-python <path/to/run_claude_code_eval.py> \
-  --qa-file <path/to/simple_qa.jsonl> \
-  --cases-dir <path/to/test_cases> \
+python scripts/run_claude_code_eval.py \
+  --qa-file evals/simple_qa.jsonl \
+  --cases-dir evals/test_cases \
   --bundle-root <path/to/file_retrieval_corpus> \
   --dry-run
 
-python <path/to/run_claude_code_eval.py> \
-  --qa-file <path/to/simple_qa.jsonl> \
-  --cases-dir <path/to/test_cases> \
+python scripts/run_claude_code_eval.py \
+  --qa-file evals/simple_qa.jsonl \
+  --cases-dir evals/test_cases \
   --bundle-root <path/to/file_retrieval_corpus> \
   --case-id perlmutter_debug_qos \
   --case-id sbatch-qos-error
 
-python <path/to/run_claude_code_eval.py> \
-  --qa-file <path/to/simple_qa.jsonl> \
-  --cases-dir <path/to/test_cases> \
+python scripts/run_claude_code_eval.py \
+  --qa-file evals/simple_qa.jsonl \
+  --cases-dir evals/test_cases \
   --bundle-root <path/to/file_retrieval_corpus> \
   --model sonnet \
-  --output <path/to/external_runs/claude_code_fs_bundle_v1.jsonl>
+  --output results/external_runs/claude_code_fs_bundle_v1.jsonl
 ```
 
 ## Smoke Run
@@ -354,13 +338,13 @@ Before running all 12 cases, do a smoke run on:
 Example:
 
 ```bash
-python <path/to/run_claude_code_eval.py> \
-  --qa-file <path/to/simple_qa.jsonl> \
-  --cases-dir <path/to/test_cases> \
+python scripts/run_claude_code_eval.py \
+  --qa-file evals/simple_qa.jsonl \
+  --cases-dir evals/test_cases \
   --bundle-root <path/to/file_retrieval_corpus> \
   --case-id perlmutter_debug_qos \
   --case-id sbatch-qos-error \
-  --output <path/to/external_runs/claude_code_fs_bundle_v1.smoke.jsonl>
+  --output results/external_runs/claude_code_fs_bundle_v1.smoke.jsonl
 ```
 
 Success criteria:
@@ -375,7 +359,7 @@ Success criteria:
 Assume the wrapper writes:
 
 ```bash
-<path/to/external_runs/claude_code_fs_bundle_v1.jsonl>
+results/external_runs/claude_code_fs_bundle_v1.jsonl
 ```
 
 Share the raw external JSONL file, not imported/scored ATHOS outputs.

@@ -10,6 +10,7 @@ import json
 import socket
 import subprocess
 import sys
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -117,6 +118,8 @@ def _build_claude_command(
     schema_json: str,
     model: str | None,
     permission_mode: str,
+    bundle_root: Path,
+    disallowed_tools: list[str],
 ) -> list[str]:
     cmd = [
         "claude",
@@ -125,9 +128,13 @@ def _build_claude_command(
         "json",
         "--permission-mode",
         permission_mode,
+        "--add-dir",
+        str(bundle_root),
         "--json-schema",
         schema_json,
     ]
+    for tool_name in disallowed_tools:
+        cmd.extend(["--disallowedTools", tool_name])
     if model:
         cmd.extend(["--model", model])
     cmd.append(prompt)
@@ -294,6 +301,10 @@ def _load_cases(qa_file: Path, cases_dir: Path) -> list[dict[str, Any]]:
     return rows
 
 
+def _parse_csv_list(raw: str) -> list[str]:
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--qa-file", default="evals/simple_qa.jsonl")
@@ -315,6 +326,14 @@ def parse_args() -> argparse.Namespace:
         default="default",
         choices=["acceptEdits", "bypassPermissions", "default", "dontAsk", "plan"],
         help="Claude Code permission mode. Do not use bypassPermissions unless you explicitly intend it.",
+    )
+    parser.add_argument(
+        "--disallowed-tools",
+        default="WebFetch,WebSearch,AskUserQuestion",
+        help=(
+            "Comma-separated list of built-in Claude tools to deny. "
+            "Default blocks web/tool-escalation paths for eval purity."
+        ),
     )
     parser.add_argument(
         "--bundle-root",
@@ -340,7 +359,7 @@ def main() -> None:
     qa_file = Path(args.qa_file)
     cases_dir = Path(args.cases_dir)
     output_path = Path(args.output)
-    bundle_root = Path(args.bundle_root)
+    bundle_root = Path(args.bundle_root).resolve()
     index_path = bundle_root / "INDEX.md"
 
     if not qa_file.exists():
@@ -360,6 +379,7 @@ def main() -> None:
 
     schema_json = json.dumps(DEFAULT_SCHEMA, separators=(",", ":"))
     git_sha = _read_git_sha(REPO_ROOT)
+    disallowed_tools = _parse_csv_list(args.disallowed_tools)
 
     if args.dry_run:
         for case in all_cases:
@@ -381,16 +401,19 @@ def main() -> None:
                 schema_json=schema_json,
                 model=args.model,
                 permission_mode=args.permission_mode,
+                bundle_root=bundle_root,
+                disallowed_tools=disallowed_tools,
             )
 
             print(f"Running {case['dataset_id']}/{case['case_id']}...", file=sys.stderr)
             started_at = now_utc_iso()
-            completed = subprocess.run(
-                command,
-                cwd=REPO_ROOT,
-                capture_output=True,
-                text=True,
-            )
+            with tempfile.TemporaryDirectory(prefix="claude_code_eval_") as isolated_cwd:
+                completed = subprocess.run(
+                    command,
+                    cwd=isolated_cwd,
+                    capture_output=True,
+                    text=True,
+                )
             finished_at = now_utc_iso()
 
             stdout_text = completed.stdout.strip()
