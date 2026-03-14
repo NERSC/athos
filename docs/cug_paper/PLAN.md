@@ -327,7 +327,7 @@ Status update (2026-03-12):
 - Execution status note (2026-03-14):
   - scoped experiment execution for the paper is complete
   - remaining work in this branch is manuscript synchronization and plan/documentation cleanup, not additional ATHOS experiment runs
-  - coding-agent work remains part of the overall paper plan and is being finalized in a parallel branch
+  - focused coding-agent mini comparison work is complete and reflected in the manuscript harness-comparison section
 
 Variance-run bookkeeping note (2026-03-12):
 - Current scoring/summarization behavior intentionally penalizes execution/output failures with `score = 0` rather than dropping them from aggregate metrics.
@@ -451,7 +451,7 @@ Execution track:
 4. For quota-sensitive Sonnet filesystem runs, prefer bounded reruns over full reruns when the artifact pattern shows a likely provider-exhaustion tail.
 5. Rescore the paper-facing result set with at least one alternate judge model that is not GPT-OSS and record whether headline conclusions stay stable.
 6. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
-7. Keep coding-agent work in the overall paper plan while it is finalized in the parallel branch.
+7. Treat the focused external coding-agent mini comparison as complete for paper scope; keep any further coding-agent runs explicitly out of scope unless needed to repair artifacts.
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
@@ -549,11 +549,12 @@ Writing track:
   - execution command:
     - `EXTERNAL_RUNS_INPUT=results/external_runs/claude_code_fs_bundle_v1_mini_20260314.success_only.jsonl EXPERIMENT_ID=cug_claude_external_mini_20260314 scripts/score_cug_external.sh`
   - summary highlights:
-    - `simple_qa`: `run_count=5`, `pass_rate=0.8`, `score_mean=85.0`, `tokens_total_mean=550.2`, `latency_ms_mean=13614.2`
-    - `test_cases`: `run_count=7`, `pass_rate=0.7143`, `score_mean=79.0`, `tokens_total_mean=2373.57`, `latency_ms_mean=51739.43`
+    - `simple_qa`: `run_count=5`, `pass_rate=0.8`, `score_mean=85.0`, `tokens_total_mean=79299.0`, `latency_ms_mean=13614.2`
+    - `test_cases`: `run_count=7`, `pass_rate=0.7143`, `score_mean=79.0`, `tokens_total_mean=193367.14`, `latency_ms_mean=51739.43`
   - implementation notes:
     - some successful Claude CLI responses can return empty top-level `result` while still returning `structured_output.answer`;
-    - `score_cug_external.sh` now normalizes missing `response.output_text` from `provenance.raw_stdout` before import.
+    - `score_cug_external.sh` now normalizes missing `response.output_text` from `provenance.raw_stdout` before import;
+    - cache-aware token accounting is now applied in `evals/summarize_results.py` so external rows are comparable with provider-reported cached-token usage.
 - Sonnet full expanded-set run:
   - experiment: `cug_m3_full_sonnet_opt_20260311_081645`
   - runs path: `results/cug_m3_full_sonnet_opt_20260311_081645`
