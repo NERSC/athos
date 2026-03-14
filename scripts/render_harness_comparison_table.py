@@ -56,12 +56,22 @@ def _fmt_latency(row: dict[str, Any]) -> str:
 
 
 def _row_identity(config_id: str) -> tuple[str, str]:
+    external_map: dict[str, tuple[str, str]] = {
+        "codex_fs_bundle_v1": ("Codex (External)", "GPT-5 Codex"),
+        "claude_code_fs_bundle_v1": ("Claude Code (External)", "Claude Sonnet"),
+    }
+    if config_id in external_map:
+        return external_map[config_id]
     harness = "LangChain" if "cug_lang_" in config_id else "SmolAgents"
     model = "Claude Sonnet" if "sonnet" in config_id else "GPT-OSS"
     return harness, model
 
 
 def _sort_key(config_id: str) -> tuple[int, int]:
+    if config_id == "codex_fs_bundle_v1":
+        return (2, 0)
+    if config_id == "claude_code_fs_bundle_v1":
+        return (3, 1)
     harness_order = 0 if "cug_lang_" in config_id else 1
     model_order = 0 if "gptoss" in config_id else 1
     return harness_order, model_order
@@ -69,7 +79,7 @@ def _sort_key(config_id: str) -> tuple[int, int]:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--summary-json", required=True)
+    parser.add_argument("--summary-json", action="append", required=True)
     parser.add_argument("--output-tex", required=True)
     parser.add_argument(
         "--caption",
@@ -84,8 +94,14 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    payload = json.loads(Path(args.summary_json).read_text())
-    aggregates = payload.get("aggregates", [])
+    aggregates: list[dict[str, Any]] = []
+    for summary_json in args.summary_json:
+        payload = json.loads(Path(summary_json).read_text())
+        rows = payload.get("aggregates", [])
+        if isinstance(rows, list):
+            for row in rows:
+                if isinstance(row, dict):
+                    aggregates.append(row)
 
     wanted_datasets = ["simple_qa", "test_cases"]
     rows_by_config: dict[str, dict[str, dict[str, Any]]] = {}
