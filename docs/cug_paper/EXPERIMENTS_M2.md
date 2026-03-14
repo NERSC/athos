@@ -50,7 +50,7 @@ M2 completion note:
 | M2-E3 | Chroma retrieval baseline (LangChain, GPTOSS) | `config/paper/cug_m1.yaml :: cug_lang_chroma_gptoss` | same as M2-E1 | `run_count=1` | Complete |
 | M2-E4 | Chroma retrieval baseline (LangChain, Sonnet) | `config/paper/cug_m1.yaml :: cug_lang_chroma_sonnet` | same as M2-E1 | `run_count=1` | Complete (stitched) |
 | M2-E5 | Variance on leading configs | top-2 from M2-E1..E4 | same as M2-E1 | `run_count>=3` | Deferred to M3 planning |
-| M2-E6 | External coding-agent carry-forward | imported via `evals/import_runs.py` | dataset IDs must align with local references | per external runner | Deferred to M3 planning |
+| M2-E6 | External coding-agent carry-forward | imported via `evals/import_runs.py`; scored via `scripts/score_cug_external.sh` + `config/paper/cug_m1.yaml` (mini harness) | dataset IDs must align with local references | per external runner | Carried to M3 (active) |
 
 ## Execution Notes
 

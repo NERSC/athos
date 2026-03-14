@@ -329,10 +329,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--disallowed-tools",
-        default="WebFetch,WebSearch,AskUserQuestion",
+        default="",
         help=(
             "Comma-separated list of built-in Claude tools to deny. "
-            "Default blocks web/tool-escalation paths for eval purity."
+            "Default leaves tools unrestricted."
         ),
     )
     parser.add_argument(

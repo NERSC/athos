@@ -424,6 +424,7 @@ Execution track:
 5. Use `scripts/run_cug_m3_smoke.sh` for QA-only (`evals/simple_qa.jsonl`) M3 functional smoke runs with built-in scoring/summarization when adding new optional comparison rows.
 6. For filesystem experiments, preserve the bundle-backed setup as the canonical config lineage and vary corpus contents via bundle assembly rather than reverting to raw workspace exposure.
 7. Rescore canonical M1/M2/M3 run artifacts with at least one alternate judge model that is not GPT-OSS and record score/pass deltas relative to the current judgments.
+8. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
 
 Writing track:
 1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
@@ -498,6 +499,18 @@ Writing track:
   - artifact pointers:
     - `results/cug_m3_full_gptoss_opt_20260311_013848/aggregates/summary.json`
     - `results/cug_m3_full_gptoss_opt_20260311_013848/judgments/gptoss_rubric_v1.skips.jsonl`
+- External Codex mini baseline (imported run scoring path):
+  - experiment: `cug_codex_external_mini_20260313_232712`
+  - runs path: `results/cug_codex_external_mini_20260313_232712`
+  - scorer wrapper: `scripts/score_cug_external.sh`
+  - scoring config: `config/paper/cug_m1.yaml`
+  - execution command:
+    - `EXPERIMENT_ID=cug_codex_external_mini_20260313_232712 scripts/score_cug_external.sh`
+  - output artifacts:
+    - `results/cug_codex_external_mini_20260313_232712/judgments/gptoss_rubric_v1.jsonl`
+    - `results/cug_codex_external_mini_20260313_232712/aggregates/summary.json`
+  - implementation note:
+    - wrapper summarizes from `--judgment-file` (single judge output) to avoid mixed-judge collisions when `judgments/` contains older judge files.
 - Sonnet full expanded-set run:
   - experiment: `cug_m3_full_sonnet_opt_20260311_081645`
   - runs path: `results/cug_m3_full_sonnet_opt_20260311_081645`

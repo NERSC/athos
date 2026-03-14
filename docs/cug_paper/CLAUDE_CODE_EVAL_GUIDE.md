@@ -296,7 +296,7 @@ The wrapper:
 6. append one record per case to:
    - `results/external_runs/claude_code_fs_bundle_v1.jsonl`
 
-By default, the wrapper denies `WebFetch`, `WebSearch`, and `AskUserQuestion` and runs Claude from an isolated temporary working directory with only the provided `--bundle-root` added as an allowed path.
+By default, the wrapper leaves Claude tools unrestricted and runs Claude from an isolated temporary working directory with only the provided `--bundle-root` added as an allowed path.
 
 Why a wrapper is preferred:
 - easier JSON parsing
