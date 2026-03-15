@@ -13,32 +13,41 @@ set -euo pipefail
 
 GPTOSS_RUN_DIR="${GPTOSS_RUN_DIR:-results/cug_m3_var_20260312_093435}"
 SONNET_RUN_DIR="${SONNET_RUN_DIR:-results/cug_m3_var_20260312_130318}"
-OUTPUT_DIR="${OUTPUT_DIR:-results/cug_variance_figures}"
+OUTPUT_DIR="${OUTPUT_DIR:-../athos_cug_2026_paper/figures}"
 SHOW_FAILURE_COUNTS="${SHOW_FAILURE_COUNTS:-0}"
 
-GPTOSS_JUDGMENTS="${GPTOSS_JUDGMENTS:-${GPTOSS_RUN_DIR}/judgments/gptoss_rubric_v1.jsonl}"
-SONNET_JUDGMENTS="${SONNET_JUDGMENTS:-${SONNET_RUN_DIR}/judgments/gptoss_rubric_v1.jsonl}"
+GPTOSS_JUDGMENTS="${GPTOSS_JUDGMENTS:-${GPTOSS_RUN_DIR}/judgments/mistral_large_3_rubric_v1_cug_m3_var_20260312_093435.jsonl}"
+SONNET_JUDGMENTS="${SONNET_JUDGMENTS:-${SONNET_RUN_DIR}/judgments/mistral_large_3_rubric_v1_cug_m3_var_20260312_130318.jsonl}"
 
 mkdir -p "${OUTPUT_DIR}"
 
-common_args=()
+echo "Rendering GPT-OSS variance plot"
 if [[ "${SHOW_FAILURE_COUNTS}" == "1" ]]; then
-  common_args+=(--show-failure-counts)
+  python scripts/plot_cug_variance_by_case.py \
+    --judgments-jsonl "${GPTOSS_JUDGMENTS}" \
+    --output "${OUTPUT_DIR}/cug_variance_gptoss_by_case.pdf" \
+    --title "Per-Case Score Variance: LangChain / GPT-OSS" \
+    --show-failure-counts
+else
+  python scripts/plot_cug_variance_by_case.py \
+    --judgments-jsonl "${GPTOSS_JUDGMENTS}" \
+    --output "${OUTPUT_DIR}/cug_variance_gptoss_by_case.pdf" \
+    --title "Per-Case Score Variance: LangChain / GPT-OSS"
 fi
 
-echo "Rendering GPT-OSS variance plot"
-python scripts/plot_cug_variance_by_case.py \
-  --judgments-jsonl "${GPTOSS_JUDGMENTS}" \
-  --output "${OUTPUT_DIR}/cug_variance_gptoss_by_case.pdf" \
-  --title "Per-Case Score Variance: LangChain / GPT-OSS" \
-  "${common_args[@]}"
-
 echo "Rendering Claude Sonnet variance plot"
-python scripts/plot_cug_variance_by_case.py \
-  --judgments-jsonl "${SONNET_JUDGMENTS}" \
-  --output "${OUTPUT_DIR}/cug_variance_sonnet_by_case.pdf" \
-  --title "Per-Case Score Variance: LangChain / Claude Sonnet" \
-  "${common_args[@]}"
+if [[ "${SHOW_FAILURE_COUNTS}" == "1" ]]; then
+  python scripts/plot_cug_variance_by_case.py \
+    --judgments-jsonl "${SONNET_JUDGMENTS}" \
+    --output "${OUTPUT_DIR}/cug_variance_sonnet_by_case.pdf" \
+    --title "Per-Case Score Variance: LangChain / Claude Sonnet" \
+    --show-failure-counts
+else
+  python scripts/plot_cug_variance_by_case.py \
+    --judgments-jsonl "${SONNET_JUDGMENTS}" \
+    --output "${OUTPUT_DIR}/cug_variance_sonnet_by_case.pdf" \
+    --title "Per-Case Score Variance: LangChain / Claude Sonnet"
+fi
 
 echo "Done."
 echo "  ${OUTPUT_DIR}/cug_variance_gptoss_by_case.pdf"
