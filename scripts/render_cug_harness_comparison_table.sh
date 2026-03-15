@@ -5,9 +5,9 @@ set -euo pipefail
 # Render the focused harness comparison table (ATHOS harness rows + external coding-agent rows).
 #
 # Defaults:
-# - ATHOS harness summary: results/cug_m3_var_20260311_231139/aggregates/summary.json
-# - Codex external summary: results/cug_codex_external_mini_20260313_232712/aggregates/summary.json
-# - Claude external summary: results/cug_claude_external_mini_20260314/aggregates/summary.json
+# - ATHOS harness summary: results/cug_m3_var_20260311_231139/aggregates/summary.mistral_large_3_rubric_v1_cug_m3_var_20260311_231139.json
+# - Codex external summary: results/cug_codex_external_mini_20260313_232712/aggregates/summary.mistral_large_3_rubric_v1_cug_codex_external_mini_20260313_232712.json
+# - Claude external summary: results/cug_claude_external_mini_20260314/aggregates/summary.mistral_large_3_rubric_v1_cug_claude_external_mini_20260314.json
 # - Output table: ../athos_cug_2026_paper/tables/cug_harness_comparison.tex
 #
 # Example:
@@ -17,9 +17,9 @@ set -euo pipefail
 #   CLAUDE_SUMMARY=results/<exp>/aggregates/summary.json \
 #   scripts/render_cug_harness_comparison_table.sh
 
-ATHOS_SUMMARY="${ATHOS_SUMMARY:-results/cug_m3_var_20260311_231139/aggregates/summary.json}"
-CODEX_SUMMARY="${CODEX_SUMMARY:-results/cug_codex_external_mini_20260313_232712/aggregates/summary.json}"
-CLAUDE_SUMMARY="${CLAUDE_SUMMARY:-results/cug_claude_external_mini_20260314/aggregates/summary.json}"
+ATHOS_SUMMARY="${ATHOS_SUMMARY:-results/cug_m3_var_20260311_231139/aggregates/summary.mistral_large_3_rubric_v1_cug_m3_var_20260311_231139.json}"
+CODEX_SUMMARY="${CODEX_SUMMARY:-results/cug_codex_external_mini_20260313_232712/aggregates/summary.mistral_large_3_rubric_v1_cug_codex_external_mini_20260313_232712.json}"
+CLAUDE_SUMMARY="${CLAUDE_SUMMARY:-results/cug_claude_external_mini_20260314/aggregates/summary.mistral_large_3_rubric_v1_cug_claude_external_mini_20260314.json}"
 OUTPUT_TEX="${OUTPUT_TEX:-../athos_cug_2026_paper/tables/cug_harness_comparison.tex}"
 TABLE_LABEL="${TABLE_LABEL:-tab:cug-harness-comparison}"
 TABLE_CAPTION="${TABLE_CAPTION:-Focused Harness Comparison on Auxiliary Small-Scale Q\\&A and Ticket Sets (Tokens I/O/T = mean input/output/total tokens per run; Lat = median end-to-end latency).}"

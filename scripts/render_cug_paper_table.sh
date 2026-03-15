@@ -16,11 +16,14 @@ set -euo pipefail
 # Preferred default is a checked-in source manifest; RUN_SOURCES env var overrides it.
 SOURCE_MANIFEST="${SOURCE_MANIFEST:-config/paper/cug_paper_table_sources.txt}"
 RUN_SOURCES="${RUN_SOURCES:-}"
-ALLOW_MIXED_JUDGES="${ALLOW_MIXED_JUDGES:-1}"
+ALLOW_MIXED_JUDGES="${ALLOW_MIXED_JUDGES:-0}"
+JUDGE_ID_FILTER="${JUDGE_ID_FILTER:-}"
+JUDGE_MODEL_FILTER="${JUDGE_MODEL_FILTER:-mistral_large_3}"
+JUDGE_PROMPT_VERSION_FILTER="${JUDGE_PROMPT_VERSION_FILTER:-}"
 
 SUMMARY_DIR="${SUMMARY_DIR:-results/cug_paper_table/summaries}"
 MERGED_SUMMARY_OUT="${MERGED_SUMMARY_OUT:-results/cug_paper_table/summary_inputs.manifest.txt}"
-TABLE_OUT="${TABLE_OUT:-results/cug_paper_table/per_config_results_table.tex}"
+TABLE_OUT="${TABLE_OUT:-../athos_cug_2026_paper/tables/cug_results_per_config.tex}"
 
 TABLE_CAPTION="${TABLE_CAPTION:-Per-Configuration Results on NERSC QA and Ticket Datasets (Tokens I/O/T = mean input/output/total tokens per run; Lat = median end-to-end latency)}"
 TABLE_LABEL="${TABLE_LABEL:-tab:cug-results-per-config}"
@@ -53,6 +56,15 @@ echo "Rendering paper table"
 echo "  source_manifest: ${SOURCE_MANIFEST}"
 echo "  run_sources: ${RUN_SOURCES}"
 echo "  allow_mixed_judges: ${ALLOW_MIXED_JUDGES}"
+if [[ -n "${JUDGE_ID_FILTER}" ]]; then
+  echo "  judge_id_filter: ${JUDGE_ID_FILTER}"
+fi
+if [[ -n "${JUDGE_MODEL_FILTER}" ]]; then
+  echo "  judge_model_filter: ${JUDGE_MODEL_FILTER}"
+fi
+if [[ -n "${JUDGE_PROMPT_VERSION_FILTER}" ]]; then
+  echo "  judge_prompt_version_filter: ${JUDGE_PROMPT_VERSION_FILTER}"
+fi
 echo "  summary_dir: ${SUMMARY_DIR}"
 echo "  table_out: ${TABLE_OUT}"
 echo
@@ -78,13 +90,22 @@ for source_spec in "${source_arr[@]}"; do
   source_index=$((source_index + 1))
 
   summary_cmd=(
-    python evals/summarize_results.py
+    python3 evals/summarize_results.py
     --runs-dir "${runs_dir}"
     --judgments-dir "${judgments_dir}"
     --output "${summary_out}"
   )
   if [[ "${ALLOW_MIXED_JUDGES}" == "1" ]]; then
     summary_cmd+=(--allow-mixed-judges)
+  fi
+  if [[ -n "${JUDGE_ID_FILTER}" ]]; then
+    summary_cmd+=(--judge-id "${JUDGE_ID_FILTER}")
+  fi
+  if [[ -n "${JUDGE_MODEL_FILTER}" ]]; then
+    summary_cmd+=(--judge-model "${JUDGE_MODEL_FILTER}")
+  fi
+  if [[ -n "${JUDGE_PROMPT_VERSION_FILTER}" ]]; then
+    summary_cmd+=(--judge-prompt-version "${JUDGE_PROMPT_VERSION_FILTER}")
   fi
 
   echo "Summarizing source ${source_index}:"
@@ -100,7 +121,7 @@ done
 printf "%s\n" "${summary_paths[@]}" > "${MERGED_SUMMARY_OUT}"
 
 render_cmd=(
-  python scripts/render_per_config_results_table.py
+  python3 scripts/render_per_config_results_table.py
   --output-tex "${TABLE_OUT}"
   --caption "${TABLE_CAPTION}"
   --label "${TABLE_LABEL}"
@@ -124,11 +145,14 @@ if [[ -n "${DATASET_ORDER}" ]]; then
   done
 fi
 
+include_cfg_arr=()
 read -r -a include_cfg_arr <<< "${INCLUDE_CONFIG_SUBSTRINGS}"
-for cfg_substr in "${include_cfg_arr[@]}"; do
-  [[ -z "${cfg_substr}" ]] && continue
-  render_cmd+=(--include-config-substring "${cfg_substr}")
-done
+if [[ ${#include_cfg_arr[@]} -gt 0 ]]; then
+  for cfg_substr in "${include_cfg_arr[@]}"; do
+    [[ -z "${cfg_substr}" ]] && continue
+    render_cmd+=(--include-config-substring "${cfg_substr}")
+  done
+fi
 
 if [[ "${EXCLUDE_ZERO_SCORED}" == "1" ]]; then
   render_cmd+=(--exclude-zero-scored)
