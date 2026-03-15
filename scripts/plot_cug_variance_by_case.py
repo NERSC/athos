@@ -47,13 +47,22 @@ def parse_args() -> argparse.Namespace:
 
 
 def _load_judgments(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
+    # Judgment files can contain multiple entries for the same run_path when
+    # rescoring/reruns append to an existing file. Keep only the last entry per
+    # run_path so variance plots reflect one score per run attempt.
+    rows_by_run_path: dict[str, dict[str, Any]] = {}
+    rows_without_run_path: list[dict[str, Any]] = []
     for line in path.read_text().splitlines():
         line = line.strip()
         if not line:
             continue
-        rows.append(json.loads(line))
-    return rows
+        row = json.loads(line)
+        run_path = row.get("run_path")
+        if isinstance(run_path, str) and run_path:
+            rows_by_run_path[run_path] = row
+        else:
+            rows_without_run_path.append(row)
+    return [*rows_by_run_path.values(), *rows_without_run_path]
 
 
 def _extract_run_parts(run_path: str) -> tuple[str, str, str] | None:
