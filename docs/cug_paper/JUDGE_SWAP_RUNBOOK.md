@@ -1,8 +1,8 @@
 # Judge Swap Runbook (Mistral Large 3)
 
-This runbook is ordered to prioritize **finishing rescoring first**, then updating paper artifacts.
+This runbook records the completed Mistral judge swap and the reproducible commands for rerendering paper artifacts.
 
-## Handoff Status (2026-03-15)
+## Status (2026-03-15)
 
 ### Completed rescoring
 
@@ -20,12 +20,20 @@ This runbook is ordered to prioritize **finishing rescoring first**, then updati
   - `results/cug_m3_var_20260312_093435` (`skipped=3`, execution-status only)
   - `results/cug_m3_var_20260312_130318` (`skipped=0`)
 
-### Remaining work (for next agent)
+### Completed paper updates
 
-1. Regenerate paper table artifacts from Mistral summaries.
-2. Regenerate variance figures from Mistral judgments.
-3. Update `../athos_cug_2026_paper/main.tex` text values and judge-description language.
-4. Build paper PDF and sanity-check all updated table/figure references.
+- Regenerated main per-config table (`tables/cug_results_per_config.tex`) from Mistral summaries.
+- Regenerated harness comparison table (`tables/cug_harness_comparison.tex`) from Mistral summaries.
+- Regenerated variance figures (`figures/cug_variance_*_by_case.pdf`) from Mistral judgments.
+- Updated manuscript narrative in `../athos_cug_2026_paper/main.tex`:
+  - judge identity references now point to Mistral judge usage,
+  - stale GPT-OSS-judge-era numeric claims were updated to match current tables.
+- Updated wrapper defaults so paper regeneration no longer requires extensive env overrides.
+
+### Remaining work
+
+1. Build paper PDF and run final manuscript sanity check.
+2. Optional follow-on sensitivity run: `llama-4-maverick` on mini datasets first (budget-gated).
 
 ## 0) Environment Setup
 
@@ -45,10 +53,10 @@ Optional budget check:
 check_i2api_usage
 ```
 
-## 1) Finish Remaining Rescoring
+## 1) Optional: Rerun/Repair Rescoring
 
-The paper-scope rescoring is complete for the main results and external mini baselines.
-Remaining judge-dependent artifacts are the harness/variance run dirs:
+The paper-scope rescoring is already complete for the main results, harness/variance dirs, and external mini baselines.
+Use this only if an artifact needs repair or if you intentionally want to rerun:
 
 - `results/cug_m3_var_20260311_231139`
 - `results/cug_m3_var_20260312_093435`
@@ -94,12 +102,14 @@ Optional judge-error retry pass (if needed):
 
 ## 2) Update Main Per-Config Paper Table
 
-Render Mistral-only table using existing wrapper and canonical source manifest:
+Default wrapper behavior now targets paper-ready Mistral output:
+- `ALLOW_MIXED_JUDGES=0`
+- `JUDGE_MODEL_FILTER=mistral_large_3`
+- output path: `../athos_cug_2026_paper/tables/cug_results_per_config.tex`
+
+Run:
 
 ```bash
-JUDGE_MODEL_FILTER=mistral_large_3 \
-ALLOW_MIXED_JUDGES=0 \
-TABLE_OUT=/Users/sfarrell/Work/agentic-ops/athos_cug_2026_paper/tables/cug_results_per_config.tex \
 ./scripts/render_cug_paper_table.sh
 ```
 
@@ -112,35 +122,31 @@ Notes:
 
 ## 3) Update Harness Comparison Table
 
-Use Mistral summaries for:
-- ATHOS harness: `cug_m3_var_20260311_231139`
-- Codex external mini
-- Claude external mini
+Default wrapper behavior now points to the Mistral summary artifacts and paper output path.
 
 ```bash
-ATHOS_SUMMARY=results/cug_m3_var_20260311_231139/aggregates/summary.mistral_large_3_rubric_v1_cug_m3_var_20260311_231139.json \
-CODEX_SUMMARY=results/cug_codex_external_mini_20260313_232712/aggregates/summary.mistral_large_3_rubric_v1_cug_codex_external_mini_20260313_232712.json \
-CLAUDE_SUMMARY=results/cug_claude_external_mini_20260314/aggregates/summary.mistral_large_3_rubric_v1_cug_claude_external_mini_20260314.json \
-OUTPUT_TEX=/Users/sfarrell/Work/agentic-ops/athos_cug_2026_paper/tables/cug_harness_comparison.tex \
 ./scripts/render_cug_harness_comparison_table.sh
 ```
 
-## 4) Update Variance Figures (If Swapping Judge for Figures Too)
+## 4) Update Variance Figures
 
-Render with Mistral judgments for the two 10x repeated-run dirs:
+Default wrapper behavior now points to the Mistral judgment artifacts and paper figure output path.
 
 ```bash
-GPTOSS_JUDGMENTS=results/cug_m3_var_20260312_093435/judgments/mistral_large_3_rubric_v1_cug_m3_var_20260312_093435.jsonl \
-SONNET_JUDGMENTS=results/cug_m3_var_20260312_130318/judgments/mistral_large_3_rubric_v1_cug_m3_var_20260312_130318.jsonl \
-OUTPUT_DIR=/Users/sfarrell/Work/agentic-ops/athos_cug_2026_paper/figures \
 ./scripts/render_cug_variance_case_plots.sh
 ```
 
-## 5) Update Paper Text References
+If Matplotlib cache permissions are noisy in this execution context, run:
 
-In `../athos_cug_2026_paper/main.tex`, update:
+```bash
+MPLCONFIGDIR=/tmp/mplconfig ./scripts/render_cug_variance_case_plots.sh
+```
 
-- Judge description text (currently references GPT-OSS rubric judge in main-table paragraph).
+## 5) Update Paper Text References (Only If Needed)
+
+In `../athos_cug_2026_paper/main.tex`, verify/update:
+
+- Judge description text (should reference the Mistral judge setup).
 - Any explicit score/pass/fail values quoted in:
   - main per-config results narrative,
   - harness comparison narrative,

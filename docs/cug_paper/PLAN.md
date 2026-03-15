@@ -2,7 +2,7 @@
 
 This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) and iterative milestones.
 
-## Status Snapshot (2026-03-14)
+## Status Snapshot (2026-03-15)
 
 - Eval pipeline v1 is implemented and in active use (`run_evaluations.py` + `score_runs.py` + `summarize_results.py`).
 - M1 baseline study is complete and remains useful as a small-dataset validation track.
@@ -15,6 +15,10 @@ This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) an
 - Manuscript drafting is in progress in `../athos_cug_2026_paper`.
 - Current manuscript draft already includes substantial content for introduction, related work, toolkit design, and experimental design; results interpretation and conclusion are still incomplete.
 - M2 execution required operational patches/reruns (judge retries, provider switch + stitched runs, and Chroma retrieval failure triage), which are recorded below as takeaways for M3 hardening.
+- Paper-facing judge swap is complete:
+  - canonical runs are rescored with `mistral_large_3`,
+  - paper tables/figures and main narrative have been updated to the Mistral-scored artifacts,
+  - wrapper defaults are now paper-ready for reproducible rerenders without large command overrides.
 
 ## 0. Scope and Configuration Working Points
 
@@ -88,6 +92,11 @@ Status update (2026-03-09):
 - Pipeline enabler work is complete for M1/M2 execution needs.
 - Remaining work is process/documentation hardening (milestone manifests, closeout checklists, and updated experiment pointers).
 - Paper-facing scoring follow-up: rescore archived runs with at least one non-overlapping judge model so evaluation and judgment are not both anchored on GPT-OSS when GPT-OSS is also a system under test.
+
+Status update (2026-03-15):
+- Alternate-judge follow-up is complete for current paper scope:
+  - `mistral_large_3` rescoring completed for canonical main, filesystem, harness, variance, and external mini result dirs,
+  - retry pass cleared transient `skipped_judge_error` cases; remaining skips are execution-status related.
 
 ## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
 
@@ -387,6 +396,12 @@ Status update (2026-03-13):
 - Preferred next step is to rescore existing canonical runs with one or more judge models that are different from the evaluated model family, then compare score/pass deltas and any ranking changes.
 - If stable, this becomes evidence that the current conclusions are judge-robust; if not, it becomes a useful mini study and a limitation note.
 
+Status update (2026-03-15):
+- Judge swap execution and write-up alignment are complete for the current submission path:
+  - main paper outputs now use Mistral-judged artifacts,
+  - manuscript claims were updated to match regenerated table/figure values,
+  - a deeper multi-judge study remains optional follow-up work.
+
 ### Manuscript Status Snapshot
 
 Status update (2026-03-11):
@@ -414,9 +429,9 @@ Status update (2026-03-11):
 - Dataset scope:
   - current benchmark coverage is selective rather than comprehensive,
   - the paper emphasizes Q&A and single-turn ticket-style cases and does not yet establish performance on broader multi-turn, live-operations, or human-in-the-loop workflows.
-- Judge-model overlap:
-  - current scoring setup uses GPT-OSS-family judging while GPT-OSS is also a system under test,
-  - this is a paper limitation unless alternate-judge rescoring shows conclusions are stable across judge choice.
+- Judge-model coverage:
+  - paper-facing outputs now use a non-overlapping Mistral judge for scoring instead of GPT-OSS judging GPT-OSS,
+  - limitation shifts from overlap risk to breadth of sensitivity: only one alternate judge has been run across full paper scope so far.
 - Retrieval corpus bias:
   - retrieval results depend in part on corpus construction choices, including what documentation/tickets were included, how they were filtered, and how they were chunked/indexed,
   - observed gains or failures should therefore be interpreted as model-plus-retrieval-stack behavior, not as model capability in isolation.
@@ -439,7 +454,7 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-14)
+## Immediate Next Steps (Updated 2026-03-15)
 
 Execution track:
 1. Freeze the scoped paper experiment set as complete and keep any further runs explicitly out of scope unless they are needed to repair a documented artifact.
@@ -449,28 +464,20 @@ Execution track:
    - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
 3. Preserve the bundle-backed filesystem setup as the canonical paper lineage and use the stitched Sonnet artifact as the paper-facing filesystem source.
 4. For quota-sensitive Sonnet filesystem runs, prefer bounded reruns over full reruns when the artifact pattern shows a likely provider-exhaustion tail.
-5. Rescore the paper-facing result set with at least one alternate judge model that is not GPT-OSS and record whether headline conclusions stay stable.
+5. Keep alternate-judge rescoring frozen for submission unless a documented artifact repair is needed.
 6. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
 7. Treat the focused external coding-agent mini comparison as complete for paper scope; keep any further coding-agent runs explicitly out of scope unless needed to repair artifacts.
 
 Writing track:
-1. Turn the six-row LangChain main-results table into manuscript narrative in `../athos_cug_2026_paper/main.tex`.
-2. Add explicit discussion of execution robustness and skip-rate differences so M2 vs M3 stability improvements are visible.
-3. Write conclusion, limitations, and future-work sections based on current M1/M2/M3 evidence.
-4. Add one concrete benchmark example from the eval dataset to the manuscript:
-   - main text target: a short, representative case showing benchmark input plus reference solution,
-   - appendix option if space allows: include model output and judge/judgment excerpt for the same case.
-5. Add a short judge-sensitivity subsection or appendix note:
-   - motivation: avoid using GPT-OSS as both a system under test and the sole judge,
-   - method: rescore the same stored outputs with different judge model(s),
-   - report whether conclusions, rankings, and pass-rate gaps are stable across judges.
-6. Decide whether SmolAgents and filesystem rows are mature enough for inclusion beyond the main six-row table.
-7. Clean up ACM front matter placeholders and finalize figure/table references as the manuscript approaches submission quality.
-8. Capture the main file-based retrieval lesson in the manuscript discussion:
-9. Treat the bundle-backed filesystem rows as secondary comparison rows rather than keeping them provisional; SmolAgents inclusion beyond the main six-row table remains a separate decision.
-   - weaker models benefited substantially from explicit corpus shaping and navigational scaffolding (`file_retrieval_corpus` + `INDEX.md`), not just access to filesystem tools.
-10. If the filesystem-tool rows are discussed, use the stitched Sonnet artifact and the full expanded GPT-OSS filesystem run rather than the earlier provisional collaborator QA-only artifact.
-11. If the alternate-judge rescore is completed, add a brief note on whether the main conclusions were robust to the judge change; a deeper judge-sensitivity analysis is optional.
+1. Keep the current Mistral-aligned tables/figures/narrative frozen unless a documented artifact repair is needed.
+2. Build and sanity-check the final PDF against current paper artifacts (tables/figures/narrative all Mistral-aligned).
+3. Do a final manuscript pass for ACM metadata/front matter polish, captions, and references.
+4. If space allows, add one representative benchmark example (prompt + reference solution; optional appendix with model/judge excerpt).
+5. Preserve the short judge-sensitivity note as a robustness check:
+   - motivation: reduce judge overlap risk and test headline stability,
+   - method: rescore fixed stored outputs under alternate judge(s),
+   - current status: one alternate full-scope judge (`mistral_large_3`) completed.
+6. Keep filesystem and SmolAgents rows framed as secondary/diagnostic comparisons relative to the main six-row LangChain table.
 
 Post-deadline follow-up candidate (not required for current submission deadline):
 - Human adjudication mini-study:
