@@ -472,6 +472,12 @@ Writing track:
 10. If the filesystem-tool rows are discussed, use the stitched Sonnet artifact and the full expanded GPT-OSS filesystem run rather than the earlier provisional collaborator QA-only artifact.
 11. If the alternate-judge rescore is completed, add a brief note on whether the main conclusions were robust to the judge change; a deeper judge-sensitivity analysis is optional.
 
+Post-deadline follow-up candidate (not required for current submission deadline):
+- Human adjudication mini-study:
+  - sample a small set of cases with the largest judge-to-judge disagreements,
+  - collect blinded human scores/comments,
+  - compare human alignment versus automated judges and report as a follow-up hardening study.
+
 ## M3 Execution Log (2026-03-11)
 
 - Sonnet QA smoke (simple_qa only):
