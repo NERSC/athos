@@ -484,6 +484,9 @@ Post-deadline follow-up candidate (not required for current submission deadline)
   - sample a small set of cases with the largest judge-to-judge disagreements,
   - collect blinded human scores/comments,
   - compare human alignment versus automated judges and report as a follow-up hardening study.
+- Third-judge sensitivity extension:
+  - staged `llama-4-maverick` rescore plan is documented in `docs/cug_paper/JUDGE_SENSITIVITY_MAVERICK_PLAN.md`,
+  - run mini slices first (harness + external) before expanded sets to control budget and maximize early signal.
 
 ## M3 Execution Log (2026-03-11)
 
