@@ -8,6 +8,7 @@ from collections import Counter
 from datetime import datetime, timezone
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import shutil
@@ -18,6 +19,7 @@ from athos.utils.ticket_ingest import (
     evaluate_ticket_filter_reason,
     iter_ticket_json_files,
     load_ticket_json,
+    sanitize_ticket_record,
     write_manifest,
 )
 
@@ -39,6 +41,7 @@ DEFAULT_EXCLUDE_SHORT_DESCRIPTION_REGEXES = (
 )
 DEFAULT_EXCLUDE_ALL_MESSAGES_AUTHORS = ("autoticketing", "pm-node-info-bot")
 DEFAULT_INCLUDE_CLOSE_CODES_BALANCED = ("Solved (Permanently)",)
+DEFAULT_SANITIZE_SALT = "athos-ticket-ingest-v1"
 
 
 def parse_args() -> argparse.Namespace:
@@ -153,6 +156,10 @@ def parse_args() -> argparse.Namespace:
         "--allow-missing-attachments",
         action="store_true",
         help="Exit successfully even when attachment references cannot be resolved",
+    )
+    parser.add_argument(
+        "--sanitize-salt",
+        help="Salt for deterministic pseudonymization (default: ATHOS_TICKET_SANITIZE_SALT env var, else repo fallback)",
     )
     parser.add_argument(
         "--dry-run",
@@ -403,6 +410,15 @@ def _copy_file(src: Path, dst: Path, *, dry_run: bool) -> None:
     shutil.copy2(src, dst)
 
 
+def _write_json(path: Path, payload: Mapping[str, Any], *, dry_run: bool) -> None:
+    if dry_run:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+
+
 def main() -> None:
     args = parse_args()
     configure_logging(args.verbose)
@@ -418,6 +434,8 @@ def main() -> None:
         if args.manifest_out
         else output_root / "filter_manifest.json"
     )
+    sanitize_salt = args.sanitize_salt or os.environ.get("ATHOS_TICKET_SANITIZE_SALT") or DEFAULT_SANITIZE_SALT
+    salt_id = "env_or_cli" if (args.sanitize_salt or os.environ.get("ATHOS_TICKET_SANITIZE_SALT")) else "default-static-v1"
 
     (
         min_created_date_str,
@@ -455,6 +473,10 @@ def main() -> None:
     attachment_refs_total = 0
     attachment_files_copied = 0
     attachment_missing_count = 0
+    sanitized_user_replacements = 0
+    sanitized_structured_email_replacements = 0
+    sanitized_free_text_email_replacements = 0
+    sanitized_free_text_username_replacements = 0
 
     if not args.dry_run:
         output_root.mkdir(parents=True, exist_ok=True)
@@ -490,12 +512,22 @@ def main() -> None:
             selected_files.append(ticket_file)
             incident_rel = ticket_file.relative_to(source_root)
             incident_dst = output_root / incident_rel
+            sanitized_payload, sanitization_stats = sanitize_ticket_record(
+                payload,
+                salt=sanitize_salt,
+            )
+            sanitized_user_replacements += sanitization_stats.structured_user_replacements
+            sanitized_structured_email_replacements += sanitization_stats.structured_email_replacements
+            sanitized_free_text_email_replacements += sanitization_stats.free_text_email_replacements
+            sanitized_free_text_username_replacements += (
+                sanitization_stats.free_text_username_replacements
+            )
             if incident_dst not in copied_destinations:
-                _copy_file(ticket_file, incident_dst, dry_run=args.dry_run)
+                _write_json(incident_dst, sanitized_payload, dry_run=args.dry_run)
                 copied_destinations.add(incident_dst)
 
             attachment_sources: set[Path] = set()
-            for local_path in _extract_attachment_local_paths(payload):
+            for local_path in _extract_attachment_local_paths(sanitized_payload):
                 attachment_refs_total += 1
                 resolved = _resolve_attachment_candidate(local_path, source_root=source_root)
                 if resolved is None or not resolved.is_file():
@@ -567,6 +599,11 @@ def main() -> None:
             "limit": args.limit,
             "dry_run": args.dry_run,
             "materialized": not args.dry_run,
+            "sanitization": {
+                "enabled": True,
+                "version": "pii_basic_v1",
+                "salt_id": salt_id,
+            },
         },
         "counts": {
             "input_files": len(ticket_files),
@@ -577,6 +614,10 @@ def main() -> None:
             "attachment_references": attachment_refs_total,
             "attachments_copied": attachment_files_copied,
             "attachments_missing": attachment_missing_count,
+            "sanitized_user_replacements": sanitized_user_replacements,
+            "sanitized_structured_email_replacements": sanitized_structured_email_replacements,
+            "sanitized_free_text_email_replacements": sanitized_free_text_email_replacements,
+            "sanitized_free_text_username_replacements": sanitized_free_text_username_replacements,
         },
         "corpus_fingerprint": {
             "file_count": fingerprint.file_count,
