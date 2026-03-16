@@ -199,14 +199,14 @@ def main() -> None:
         "\\caption{Judge Leniency Ladder on Paper-Scope Main Results (weighted by scored runs across included configurations and datasets).}",
         "\\label{tab:cug-judge-leniency}",
         "\\centering",
-        "\\begin{tabular}{lrrrr}",
+        "\\begin{tabular}{lrrr}",
         "\\toprule",
-        "Judge & Score Mean & Pass Rate & Scored & Skipped \\\\",
+        "Judge & Score Mean & Pass Rate & Scored \\\\",
         "\\midrule",
     ]
     for judge, score, pr, scored, skipped in judge_totals:
         label = judge_labels.get(judge, judge)
-        lines.append(f"{_escape_tex(label)} & {_fmt_score(score)} & {_fmt_pct(pr)} & {scored} & {skipped} \\\\")
+        lines.append(f"{_escape_tex(label)} & {_fmt_score(score)} & {_fmt_pct(pr)} & {scored} \\\\")
     lines += ["\\bottomrule", "\\end{tabular}", "\\end{table}", ""]
     (output_dir / "cug_judge_leniency_ladder.tex").write_text("\n".join(lines))
 
