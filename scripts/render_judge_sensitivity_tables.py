@@ -102,9 +102,9 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     judge_labels = {
-        "gptoss": "GPT-OSS Judge",
-        "llama_4_maverick": "Llama 4 Maverick Judge",
-        "mistral_large_3": "Mistral Large 3 Judge",
+        "gptoss": "GPT-OSS",
+        "llama_4_maverick": "Llama 4 Maverick",
+        "mistral_large_3": "Mistral Large 3",
     }
 
     rows_by_judge: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
