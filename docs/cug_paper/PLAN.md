@@ -484,6 +484,12 @@ Post-deadline follow-up candidate (not required for current submission deadline)
   - sample a small set of cases with the largest judge-to-judge disagreements,
   - collect blinded human scores/comments,
   - compare human alignment versus automated judges and report as a follow-up hardening study.
+- Third-judge sensitivity extension:
+  - staged `llama-4-maverick` rescore plan is documented in `docs/cug_paper/JUDGE_SENSITIVITY_MAVERICK_PLAN.md`,
+  - Phase 1-3 status (mini harness + external mini + expanded optimized rows) is now complete,
+  - no judge-format reruns were needed in those phases (`skipped_judge_error=0` observed),
+  - full remaining Maverick scoring is now complete for paper-facing artifacts,
+  - writeup plan for the lightweight supplemental section is documented in `docs/cug_paper/JUDGE_SENSITIVITY_WRITEUP_PLAN.md`.
 
 ## M3 Execution Log (2026-03-11)
 
