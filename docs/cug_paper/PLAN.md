@@ -488,7 +488,8 @@ Post-deadline follow-up candidate (not required for current submission deadline)
   - staged `llama-4-maverick` rescore plan is documented in `docs/cug_paper/JUDGE_SENSITIVITY_MAVERICK_PLAN.md`,
   - Phase 1-3 status (mini harness + external mini + expanded optimized rows) is now complete,
   - no judge-format reruns were needed in those phases (`skipped_judge_error=0` observed),
-  - next decision is whether to finish full Maverick artifact swap (remaining 1914 runs) or keep Maverick as a targeted sensitivity addendum.
+  - full remaining Maverick scoring is now complete for paper-facing artifacts,
+  - writeup plan for the lightweight supplemental section is documented in `docs/cug_paper/JUDGE_SENSITIVITY_WRITEUP_PLAN.md`.
 
 ## M3 Execution Log (2026-03-11)
 

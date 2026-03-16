@@ -16,8 +16,8 @@ SONNET_RUN_DIR="${SONNET_RUN_DIR:-results/cug_m3_var_20260312_130318}"
 OUTPUT_DIR="${OUTPUT_DIR:-../athos_cug_2026_paper/figures}"
 SHOW_FAILURE_COUNTS="${SHOW_FAILURE_COUNTS:-0}"
 
-GPTOSS_JUDGMENTS="${GPTOSS_JUDGMENTS:-${GPTOSS_RUN_DIR}/judgments/mistral_large_3_rubric_v1_cug_m3_var_20260312_093435.jsonl}"
-SONNET_JUDGMENTS="${SONNET_JUDGMENTS:-${SONNET_RUN_DIR}/judgments/mistral_large_3_rubric_v1_cug_m3_var_20260312_130318.jsonl}"
+GPTOSS_JUDGMENTS="${GPTOSS_JUDGMENTS:-${GPTOSS_RUN_DIR}/judgments/llama_4_maverick_rubric_v1_cug_m3_var_20260312_093435.jsonl}"
+SONNET_JUDGMENTS="${SONNET_JUDGMENTS:-${SONNET_RUN_DIR}/judgments/llama_4_maverick_rubric_v1_cug_m3_var_20260312_130318.jsonl}"
 
 mkdir -p "${OUTPUT_DIR}"
 
