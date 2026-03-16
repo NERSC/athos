@@ -2,6 +2,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+import unicodedata
 
 import pytest
 
@@ -218,6 +219,72 @@ def test_split_materializes_json_and_attachments(tmp_path: Path, monkeypatch):
         / "candidate_20260212_012659_attachements"
         / "extra.txt"
     ).exists()
+
+
+def test_split_resolves_unicode_normalized_attachment_paths(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "filtered"
+    incident_dir = source_root / "INC010" / "99"
+    incident_dir.mkdir(parents=True)
+
+    attachment_dir = incident_dir / "candidate_20260212_012659_attachements"
+    attachment_dir.mkdir()
+    composed_name = "스크린샷 2024-03-08 181537.png"
+    decomposed_name = unicodedata.normalize("NFD", composed_name)
+    (attachment_dir / decomposed_name).write_text("image", encoding="utf-8")
+
+    (incident_dir / "candidate.json").write_text(
+        json.dumps(
+            _payload(
+                incident_number="INC9001",
+                created_on="2026-02-10 11:00:00",
+                local_paths=[
+                    f"filtered/INC010/99/candidate_20260212_012659_attachements/{composed_name}"
+                ],
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    selected_manifest = tmp_path / "selected_manifest.json"
+    selected_manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": "athos.ticket_filter_manifest.v1",
+                "source_path": str(source_root),
+                "selected_files": ["INC010/99/candidate.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    candidate_root = tmp_path / "candidate_root"
+    retrieval_root = tmp_path / "retrieval_root"
+    candidate_manifest = tmp_path / "candidate_manifest.json"
+    retrieval_manifest = tmp_path / "retrieval_manifest.json"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "split_tickets_by_created_date.py",
+            "--selected-corpus-manifest",
+            str(selected_manifest),
+            "--cutoff-date",
+            "2026-01-01",
+            "--candidate-output-root",
+            str(candidate_root),
+            "--retrieval-output-root",
+            str(retrieval_root),
+            "--candidate-manifest-out",
+            str(candidate_manifest),
+            "--retrieval-manifest-out",
+            str(retrieval_manifest),
+        ],
+    )
+
+    split_tickets_by_created_date_mod.main()
+
+    assert (candidate_root / "INC010" / "99" / "candidate_20260212_012659_attachements" / decomposed_name).exists()
     assert (retrieval_root / "INC010" / "99" / "retrieval.json").exists()
     assert not (retrieval_root / "INC010" / "99" / "candidate.json").exists()
 

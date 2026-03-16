@@ -2,6 +2,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+import unicodedata
 
 import pytest
 
@@ -643,3 +644,45 @@ def test_filter_excludes_non_closed_state_even_with_solved_close_code(tmp_path: 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["counts"]["selected_files"] == 0
     assert manifest["counts"]["filtered_by_reason"]["state_not_closed_or_resolved"] == 1
+
+
+def test_filter_resolves_unicode_normalized_attachment_paths(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    attachment_dir = incident_dir / "selected_20260212_012659_attachements"
+    attachment_dir.mkdir()
+    composed_name = "스크린샷 2024-03-08 181537.png"
+    decomposed_name = unicodedata.normalize("NFD", composed_name)
+    (attachment_dir / decomposed_name).write_text("image-bytes", encoding="utf-8")
+
+    payload = _payload(
+        incident_number="INC0001",
+        contact_type="Email",
+        local_paths=[f"servicenow_incidents/INC001/01/selected_20260212_012659_attachements/{composed_name}"],
+    )
+    incident_json = incident_dir / "selected.json"
+    incident_json.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+
+    assert (output_root / "INC001" / "01" / "selected_20260212_012659_attachements" / decomposed_name).exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["counts"]["attachments_missing"] == 0
