@@ -381,6 +381,9 @@ EMAIL_FIELD_NAMES = {
     "u_email_watchlist",
     "u_email",
 }
+PATH_PRESERVING_FIELD_NAMES = {
+    "local_path",
+}
 USERNAME_CHARS = r"[A-Za-z0-9._-]+"
 SHELL_LOGIN_PATTERN = re.compile(rf"\b({USERNAME_CHARS})@([A-Za-z][A-Za-z0-9._-]*)")
 HOME_PATH_PATTERN = re.compile(
@@ -552,6 +555,8 @@ def sanitize_ticket_record(
             if not stripped:
                 return value
             key_name = (key_hint or "").lower()
+            if key_name in PATH_PRESERVING_FIELD_NAMES:
+                return value
             if key_name in EMAIL_FIELD_NAMES:
                 stats = SanitizationStats(
                     structured_user_replacements=stats.structured_user_replacements,

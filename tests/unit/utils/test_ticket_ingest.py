@@ -337,3 +337,20 @@ def test_sanitize_ticket_record_canonicalizes_composite_identity_fields():
     assert "Lisa" not in itil
     assert "USER_" in itil
     assert stats.structured_user_replacements >= 4
+
+
+def test_sanitize_ticket_record_preserves_attachment_local_paths():
+    record = _sample_record()
+    record["attachments"] = [
+        {
+            "local_path": "servicenow_incidents/INC001/01/attachment_dir/Steps 5-6 (jdoe).png",
+            "file_name": "Steps 5-6 (jdoe).png",
+        }
+    ]
+
+    sanitized, _ = sanitize_ticket_record(record, salt="unit-test-salt")
+
+    attachment = sanitized["attachments"][0]
+    assert attachment["local_path"] == "servicenow_incidents/INC001/01/attachment_dir/Steps 5-6 (jdoe).png"
+    assert attachment["file_name"] != "Steps 5-6 (jdoe).png"
+    assert "USER_" in attachment["file_name"]
