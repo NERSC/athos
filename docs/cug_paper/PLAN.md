@@ -486,7 +486,9 @@ Post-deadline follow-up candidate (not required for current submission deadline)
   - compare human alignment versus automated judges and report as a follow-up hardening study.
 - Third-judge sensitivity extension:
   - staged `llama-4-maverick` rescore plan is documented in `docs/cug_paper/JUDGE_SENSITIVITY_MAVERICK_PLAN.md`,
-  - run mini slices first (harness + external) before expanded sets to control budget and maximize early signal.
+  - Phase 1-3 status (mini harness + external mini + expanded optimized rows) is now complete,
+  - no judge-format reruns were needed in those phases (`skipped_judge_error=0` observed),
+  - next decision is whether to finish full Maverick artifact swap (remaining 1914 runs) or keep Maverick as a targeted sensitivity addendum.
 
 ## M3 Execution Log (2026-03-11)
 

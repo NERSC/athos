@@ -3,6 +3,28 @@
 This plan adds a third judge (`llama-4-maverick`) on top of existing `gptoss` and `mistral_large_3` judgments.
 It is intentionally staged to maximize signal per token spend.
 
+## Status Snapshot (2026-03-15)
+
+Completed:
+- Phase 1 complete (`results/cug_m3_var_20260311_231139`):
+  - `scored=48`, `skipped=0`
+- Phase 2 complete (external mini dirs):
+  - `results/cug_codex_external_mini_20260313_232712`: `scored=12`, `skipped=0`
+  - `results/cug_claude_external_mini_20260314`: `scored=12`, `skipped=0`
+- Phase 3 complete (expanded optimized rows):
+  - `results/cug_m3_full_gptoss_opt_20260311_013848`: `scored=265`, `skipped=14` (`skipped_execution_status` only)
+  - `results/cug_m3_full_sonnet_opt_20260311_081645`: `scored=278`, `skipped=1` (`skipped_execution_status` only)
+
+Observed so far:
+- No `skipped_judge_error` in Phases 1-3.
+- Ranking stability held on completed slices:
+  - mini harness ranking unchanged across GPTOSS/Mistral/Maverick,
+  - expanded optimized pair ordering (`sonnet_opt` > `gptoss_opt`) unchanged.
+- Spend checkpoint:
+  - pre-Phase-3 spend: `39.08108147`
+  - post-Phase-3 spend: `39.46084594`
+  - Phase-3 delta: `0.37976447` for 558 runs (~`0.00068`/run).
+
 ## Goal
 
 - Check whether key conclusions remain stable with a third, non-overlapping judge.
@@ -145,7 +167,7 @@ done
 Target:
 - `results/cug_m2_canonical`
 
-Run only if Phase 1-3 indicates potentially material judge-dependent shifts.
+Run only if broader full-table Maverick swap is desired after the already-stable Phase 1-3 checks.
 
 ## Budget Guardrails
 
@@ -169,3 +191,14 @@ For each completed phase, compare:
 High-signal outputs to include in paper note/appendix:
 - “stable” if ordering and key qualitative claims are unchanged across all 3 judges,
 - “sensitive” if ranking flips in headline rows or large gap-direction reversals appear.
+
+## Remaining Work for Full Maverick Artifact Swap
+
+To regenerate all paper tables/plots entirely with Maverick judgments, remaining scoring is:
+- `results/cug_m2_canonical` (1116 runs)
+- `results/cug_m3_20260313_080148` (279 runs)
+- `results/cug_m3_fs_sonnet_stitched_20260314` (279 runs)
+- `results/cug_m3_var_20260312_093435` (120 runs)
+- `results/cug_m3_var_20260312_130318` (120 runs)
+
+Total remaining: `1914` runs (after Phases 1-3).
