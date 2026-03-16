@@ -16,8 +16,8 @@ This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) an
 - Current manuscript draft already includes substantial content for introduction, related work, toolkit design, and experimental design; results interpretation and conclusion are still incomplete.
 - M2 execution required operational patches/reruns (judge retries, provider switch + stitched runs, and Chroma retrieval failure triage), which are recorded below as takeaways for M3 hardening.
 - Paper-facing judge swap is complete:
-  - canonical runs are rescored with `mistral_large_3`,
-  - paper tables/figures and main narrative have been updated to the Mistral-scored artifacts,
+  - canonical runs are rescored with both `mistral_large_3` and `llama_4_maverick`,
+  - paper tables/figures and main narrative are now aligned to Maverick-scored artifacts,
   - wrapper defaults are now paper-ready for reproducible rerenders without large command overrides.
 
 ## 0. Scope and Configuration Working Points
@@ -96,6 +96,7 @@ Status update (2026-03-09):
 Status update (2026-03-15):
 - Alternate-judge follow-up is complete for current paper scope:
   - `mistral_large_3` rescoring completed for canonical main, filesystem, harness, variance, and external mini result dirs,
+  - `llama_4_maverick` rescoring completed for canonical main, filesystem, harness, variance, and external mini result dirs,
   - retry pass cleared transient `skipped_judge_error` cases; remaining skips are execution-status related.
 
 ## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
@@ -398,9 +399,9 @@ Status update (2026-03-13):
 
 Status update (2026-03-15):
 - Judge swap execution and write-up alignment are complete for the current submission path:
-  - main paper outputs now use Mistral-judged artifacts,
+  - main paper outputs now use Maverick-judged artifacts,
   - manuscript claims were updated to match regenerated table/figure values,
-  - a deeper multi-judge study remains optional follow-up work.
+  - a lightweight judge-sensitivity study across GPTOSS/Mistral/Maverick is now integrated.
 
 ### Manuscript Status Snapshot
 
@@ -430,8 +431,8 @@ Status update (2026-03-11):
   - current benchmark coverage is selective rather than comprehensive,
   - the paper emphasizes Q&A and single-turn ticket-style cases and does not yet establish performance on broader multi-turn, live-operations, or human-in-the-loop workflows.
 - Judge-model coverage:
-  - paper-facing outputs now use a non-overlapping Mistral judge for scoring instead of GPT-OSS judging GPT-OSS,
-  - limitation shifts from overlap risk to breadth of sensitivity: only one alternate judge has been run across full paper scope so far.
+  - paper-facing outputs now use a non-overlapping Maverick judge for scoring instead of GPT-OSS judging GPT-OSS,
+  - two alternate full-scope judges (`mistral_large_3`, `llama_4_maverick`) have been run, but broader judge diversity and human adjudication are still future work.
 - Retrieval corpus bias:
   - retrieval results depend in part on corpus construction choices, including what documentation/tickets were included, how they were filtered, and how they were chunked/indexed,
   - observed gains or failures should therefore be interpreted as model-plus-retrieval-stack behavior, not as model capability in isolation.
@@ -469,14 +470,14 @@ Execution track:
 7. Treat the focused external coding-agent mini comparison as complete for paper scope; keep any further coding-agent runs explicitly out of scope unless needed to repair artifacts.
 
 Writing track:
-1. Keep the current Mistral-aligned tables/figures/narrative frozen unless a documented artifact repair is needed.
-2. Build and sanity-check the final PDF against current paper artifacts (tables/figures/narrative all Mistral-aligned).
+1. Keep the current Maverick-aligned tables/figures/narrative frozen unless a documented artifact repair is needed.
+2. Build and sanity-check the final PDF against current paper artifacts (tables/figures/narrative all Maverick-aligned).
 3. Do a final manuscript pass for ACM metadata/front matter polish, captions, and references.
 4. If space allows, add one representative benchmark example (prompt + reference solution; optional appendix with model/judge excerpt).
-5. Preserve the short judge-sensitivity note as a robustness check:
+5. Preserve the short judge-sensitivity subsection as a robustness check:
    - motivation: reduce judge overlap risk and test headline stability,
    - method: rescore fixed stored outputs under alternate judge(s),
-   - current status: one alternate full-scope judge (`mistral_large_3`) completed.
+   - current status: two alternate full-scope judges (`mistral_large_3`, `llama_4_maverick`) completed and summarized.
 6. Keep filesystem and SmolAgents rows framed as secondary/diagnostic comparisons relative to the main six-row LangChain table.
 
 Post-deadline follow-up candidate (not required for current submission deadline):
@@ -485,10 +486,8 @@ Post-deadline follow-up candidate (not required for current submission deadline)
   - collect blinded human scores/comments,
   - compare human alignment versus automated judges and report as a follow-up hardening study.
 - Third-judge sensitivity extension:
-  - staged `llama-4-maverick` rescore plan is documented in `docs/cug_paper/JUDGE_SENSITIVITY_MAVERICK_PLAN.md`,
-  - Phase 1-3 status (mini harness + external mini + expanded optimized rows) is now complete,
-  - no judge-format reruns were needed in those phases (`skipped_judge_error=0` observed),
-  - full remaining Maverick scoring is now complete for paper-facing artifacts,
+  - full `llama-4-maverick` rescoring and judge-sensitivity table generation are complete and reproducible,
+  - rerun pipeline stability was good (`skipped_judge_error=0` in Maverick passes),
   - writeup plan for the lightweight supplemental section is documented in `docs/cug_paper/JUDGE_SENSITIVITY_WRITEUP_PLAN.md`.
 
 ## M3 Execution Log (2026-03-11)

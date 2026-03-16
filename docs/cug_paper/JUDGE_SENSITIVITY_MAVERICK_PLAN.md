@@ -14,6 +14,12 @@ Completed:
 - Phase 3 complete (expanded optimized rows):
   - `results/cug_m3_full_gptoss_opt_20260311_013848`: `scored=265`, `skipped=14` (`skipped_execution_status` only)
   - `results/cug_m3_full_sonnet_opt_20260311_081645`: `scored=278`, `skipped=1` (`skipped_execution_status` only)
+- Phase 4 complete (full paper-scope swap):
+  - `results/cug_m2_canonical`: `scored=985`, `skipped=131` (`skipped_execution_status` only after rerun)
+  - `results/cug_m3_20260313_080148`: `scored=148`, `skipped=131` (`skipped_execution_status`)
+  - `results/cug_m3_fs_sonnet_stitched_20260314`: `scored=253`, `skipped=26` (`skipped_execution_status`)
+  - `results/cug_m3_var_20260312_093435`: complete
+  - `results/cug_m3_var_20260312_130318`: complete
 
 Observed so far:
 - No `skipped_judge_error` in Phases 1-3.
@@ -162,12 +168,12 @@ do
 done
 ```
 
-### Phase 4 (Optional): Full M2 Canonical (1116 runs)
+### Phase 4 (Completed): Full Paper-Scope Swap
 
 Target:
 - `results/cug_m2_canonical`
 
-Run only if broader full-table Maverick swap is desired after the already-stable Phase 1-3 checks.
+This phase is complete. Maverick judgments now cover the paper-facing result set used by table/plot wrappers.
 
 ## Budget Guardrails
 
@@ -192,13 +198,8 @@ High-signal outputs to include in paper note/appendix:
 - “stable” if ordering and key qualitative claims are unchanged across all 3 judges,
 - “sensitive” if ranking flips in headline rows or large gap-direction reversals appear.
 
-## Remaining Work for Full Maverick Artifact Swap
+## Current State
 
-To regenerate all paper tables/plots entirely with Maverick judgments, remaining scoring is:
-- `results/cug_m2_canonical` (1116 runs)
-- `results/cug_m3_20260313_080148` (279 runs)
-- `results/cug_m3_fs_sonnet_stitched_20260314` (279 runs)
-- `results/cug_m3_var_20260312_093435` (120 runs)
-- `results/cug_m3_var_20260312_130318` (120 runs)
-
-Total remaining: `1914` runs (after Phases 1-3).
+- Full Maverick artifact swap is complete.
+- Paper wrappers/defaults target Maverick-generated summaries/judgments.
+- Judge sensitivity assets are generated via `scripts/render_cug_judge_sensitivity_tables.sh`.
