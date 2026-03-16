@@ -31,6 +31,14 @@ models:
     temperature: 0.0
     max_tokens: 2048
 
+  llama_4_maverick:
+    description: "Llama 4 Maverick via AmSC i2 API"
+    model_id: "llama-4-maverick"
+    api_key: "${AMSC_I2_API_KEY}"
+    api_base: "${AMSC_I2_API_URL}"
+    temperature: 0.0
+    max_tokens: 2048
+
 mcp_servers:
   chroma_mcp:
     description: "ChromaDB MCP server for persistent vector database operations"
