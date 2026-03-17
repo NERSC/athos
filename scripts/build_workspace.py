@@ -185,7 +185,7 @@ def _build_file_retrieval_corpus(
                 [
                     "- Start within `tickets/` when the question is about a past incident, workaround, or troubleshooting history.",
                     "- Use `search_files` with a specific incident id, product name, filesystem name, or error string.",
-                    "- Ticket records are stored as JSON; prefer a narrow search first, then read only the most relevant matching file.",
+                    "- Ticket records are stored as per-ticket files; prefer a narrow search first, then read only the most relevant matching file.",
                     "- If the question is policy or documentation oriented rather than incident-history oriented, prefer `docs/` or `consulting_docs/` first.",
                     "",
                 ]

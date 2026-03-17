@@ -385,6 +385,7 @@ PATH_PRESERVING_FIELD_NAMES = {
     "local_path",
 }
 USERNAME_CHARS = r"[A-Za-z0-9._-]+"
+USERNAME_ALIAS_CHARS = r"[a-z][a-z0-9._-]*"
 SHELL_LOGIN_PATTERN = re.compile(rf"\b({USERNAME_CHARS})@([A-Za-z][A-Za-z0-9._-]*)")
 HOME_PATH_PATTERN = re.compile(
     rf"(?P<prefix>/(?:global/homes|pscratch/sd|pscratch/sd/[A-Za-z]|global/cfs/cdirs)/[A-Za-z]?/?)(?P<username>{USERNAME_CHARS})"
@@ -395,8 +396,8 @@ COMMAND_USER_FLAG_PATTERN = re.compile(
 PARSE_FIELD_USERNAME_PATTERN = re.compile(
     rf"(?P<prefix>\b(?:caller_id|opened_by|u_owner|username|user):)(?P<username>{USERNAME_CHARS})\b"
 )
-PAREN_USERNAME_PATTERN = re.compile(rf"\((?P<username>{USERNAME_CHARS})\)")
-USERNAME_IN_PARENS_PATTERN = re.compile(rf"\((?P<username>{USERNAME_CHARS})\)")
+PAREN_USERNAME_PATTERN = re.compile(rf"\((?P<username>{USERNAME_ALIAS_CHARS})\)")
+USERNAME_IN_PARENS_PATTERN = re.compile(rf"\((?P<username>{USERNAME_ALIAS_CHARS})\)")
 HEX_SYS_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$", re.IGNORECASE)
 COMPOSITE_IDENTITY_ENTRY_PATTERN = re.compile(
     rf"""

@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""CLI for building a Chroma collection from ServiceNow ticket JSON files."""
+"""CLI for building a Chroma collection from raw or derived ServiceNow tickets."""
 
 from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 import json
 import logging
 from pathlib import Path
 import subprocess
 from typing import Any
 
+from athos.utils.derived_ticket_corpus import build_derived_ticket_document
 from athos.utils.ticket_ingest import (
     build_full_incident_document,
     compute_corpus_fingerprint,
@@ -30,12 +32,16 @@ def _positive_int(value: str) -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Build a ChromaDB collection from a selected ticket corpus manifest"
+        description="Build a ChromaDB collection from raw selected tickets or derived ticket JSONL"
     )
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
         "--selected-corpus-manifest",
-        required=True,
         help="Path to stage-1 filter manifest with selected_files + source_path",
+    )
+    input_group.add_argument(
+        "--derived-jsonl",
+        help="Path to derived ticket JSONL produced by build_derived_ticket_corpus.py",
     )
     parser.add_argument("--persist-dir", default="chroma", help="Directory to store ChromaDB data")
     parser.add_argument(
@@ -164,6 +170,14 @@ def _get_git_sha() -> str | None:
     return sha or None
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _load_selected_corpus_manifest(path: Path) -> tuple[Path, list[Path]]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
@@ -203,13 +217,25 @@ def _load_selected_corpus_manifest(path: Path) -> tuple[Path, list[Path]]:
     return source_root, ticket_files
 
 
+def _load_derived_jsonl(path: Path) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    with path.open("r", encoding="utf-8") as handle:
+        for line_no, line in enumerate(handle, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+            payload = json.loads(stripped)
+            if not isinstance(payload, dict):
+                raise ValueError(
+                    f"Expected JSON object per line in derived JSONL at line {line_no}: {path}"
+                )
+            rows.append(payload)
+    return rows
+
+
 def main() -> None:
     args = parse_args()
     configure_logging(args.verbose)
-
-    selected_manifest_path = Path(args.selected_corpus_manifest).resolve()
-    source_root, ticket_files = _load_selected_corpus_manifest(selected_manifest_path)
-    input_source_mode = "selected_corpus_manifest"
 
     documents: list[tuple[str, str, dict[str, object]]] = []
     error_count = 0
@@ -218,47 +244,94 @@ def main() -> None:
     chunked_tickets = 0
     kept_tickets = 0
     kept_ticket_files: list[Path] = []
-    for ticket_file in ticket_files:
-        try:
-            payload = load_ticket_json(ticket_file)
+    selected_manifest_path: Path | None = None
+    source_root: Path | None = None
+    derived_jsonl_path: Path | None = None
+    derived_jsonl_sha256: str | None = None
 
-            kept_tickets += 1
-            kept_ticket_files.append(ticket_file)
-            ticket_docs = build_full_incident_document(
-                payload,
-                source_json_path=ticket_file,
-                max_chars=args.max_incident_chars,
-                max_comment_chars=args.max_comment_chars,
-                max_work_note_chars=args.max_work_note_chars,
-            )
-            if ticket_docs and len(ticket_docs) > 1:
-                chunked_tickets += 1
+    if args.selected_corpus_manifest:
+        selected_manifest_path = Path(args.selected_corpus_manifest).resolve()
+        source_root, ticket_files = _load_selected_corpus_manifest(selected_manifest_path)
+        input_source_mode = "selected_corpus_manifest"
 
-            for doc in ticket_docs:
-                if doc.metadata.get("truncated_comments"):
-                    truncated_comment_docs += 1
-                if doc.metadata.get("truncated_work_notes"):
-                    truncated_work_note_docs += 1
+        for ticket_file in ticket_files:
+            try:
+                payload = load_ticket_json(ticket_file)
+
+                kept_tickets += 1
+                kept_ticket_files.append(ticket_file)
+                ticket_docs = build_full_incident_document(
+                    payload,
+                    source_json_path=ticket_file,
+                    max_chars=args.max_incident_chars,
+                    max_comment_chars=args.max_comment_chars,
+                    max_work_note_chars=args.max_work_note_chars,
+                )
+                if ticket_docs and len(ticket_docs) > 1:
+                    chunked_tickets += 1
+
+                for doc in ticket_docs:
+                    if doc.metadata.get("truncated_comments"):
+                        truncated_comment_docs += 1
+                    if doc.metadata.get("truncated_work_notes"):
+                        truncated_work_note_docs += 1
+                    documents.append((doc.doc_id, doc.text, doc.metadata))
+            except Exception:  # pragma: no cover - exercised by CLI
+                error_count += 1
+                logger.exception("Failed to process %s", ticket_file)
+
+        fingerprint = compute_corpus_fingerprint(source_root, ticket_files)
+        fingerprint_payload: dict[str, object] = {
+            "file_count": fingerprint.file_count,
+            "sha256": fingerprint.sha256,
+        }
+        input_file_count = len(ticket_files)
+        counts: dict[str, object] = {
+            "input_files": len(ticket_files),
+            "kept_tickets": kept_tickets,
+            "documents_before_dedup": len(documents),
+            "chunked_tickets": chunked_tickets,
+            "truncated_comment_docs": truncated_comment_docs,
+            "truncated_work_note_docs": truncated_work_note_docs,
+            "errors": error_count,
+        }
+    else:
+        derived_jsonl_path = Path(args.derived_jsonl).resolve()
+        input_source_mode = "derived_jsonl"
+        rows = _load_derived_jsonl(derived_jsonl_path)
+        input_file_count = len(rows)
+        for payload in rows:
+            try:
+                doc = build_derived_ticket_document(payload)
                 documents.append((doc.doc_id, doc.text, doc.metadata))
-        except Exception:  # pragma: no cover - exercised by CLI
-            error_count += 1
-            logger.exception("Failed to process %s", ticket_file)
+                kept_tickets += 1
+            except Exception:  # pragma: no cover - exercised by CLI
+                error_count += 1
+                logger.exception("Failed to process derived record from %s", derived_jsonl_path)
+        derived_jsonl_sha256 = _sha256_file(derived_jsonl_path)
+        fingerprint_payload = {
+            "record_count": len(rows),
+            "sha256": derived_jsonl_sha256,
+        }
+        counts = {
+            "input_records": len(rows),
+            "kept_records": kept_tickets,
+            "documents_before_dedup": len(documents),
+            "errors": error_count,
+        }
 
-    fingerprint = compute_corpus_fingerprint(source_root, kept_ticket_files)
     resolved_documents, duplicate_doc_ids = _resolve_duplicate_policy(documents, args.on_duplicate_id)
     manifest = {
         "run_timestamp_utc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "source_path": str(source_root.resolve()),
+        "source_path": str(source_root.resolve()) if source_root is not None else None,
         "input_source_mode": input_source_mode,
         "selected_corpus_manifest": str(selected_manifest_path) if selected_manifest_path else None,
+        "derived_jsonl": str(derived_jsonl_path) if derived_jsonl_path else None,
         "collection_name": args.collection_name,
         "persist_dir": str(Path(args.persist_dir)),
         "dry_run": args.dry_run,
         "git_sha": _get_git_sha(),
-        "corpus_fingerprint": {
-            "file_count": fingerprint.file_count,
-            "sha256": fingerprint.sha256,
-        },
+        "corpus_fingerprint": fingerprint_payload,
         "config": {
             "max_comment_chars": args.max_comment_chars,
             "max_work_note_chars": args.max_work_note_chars,
@@ -267,22 +340,16 @@ def main() -> None:
             "on_duplicate_id": args.on_duplicate_id,
         },
         "counts": {
-            "input_files": len(ticket_files),
-            "kept_tickets": kept_tickets,
-            "documents_before_dedup": len(documents),
+            **counts,
             "documents_written": len(resolved_documents),
             "duplicate_doc_ids_in_run": duplicate_doc_ids,
-            "chunked_tickets": chunked_tickets,
-            "truncated_comment_docs": truncated_comment_docs,
-            "truncated_work_note_docs": truncated_work_note_docs,
-            "errors": error_count,
         },
     }
 
     if args.dry_run:
         print(
             "dry_run=true "
-            f"files={len(ticket_files)} "
+            f"files={input_file_count} "
             f"documents={len(resolved_documents)} "
             f"chunked_tickets={chunked_tickets} "
             f"truncated_comment_docs={truncated_comment_docs} "
@@ -319,7 +386,7 @@ def main() -> None:
 
     print(
         f"collection={args.collection_name} "
-        f"files={len(ticket_files)} "
+        f"files={input_file_count} "
         f"documents={len(resolved_documents)} "
         f"chunked_tickets={chunked_tickets} "
         f"truncated_comment_docs={truncated_comment_docs} "
