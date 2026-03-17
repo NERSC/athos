@@ -2,6 +2,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+import unicodedata
 
 import pytest
 
@@ -101,14 +102,168 @@ def test_filter_copies_selected_json_and_attachments(tmp_path: Path, monkeypatch
     assert (output_root / "INC001" / "01" / "example.log").exists()
     assert (output_root / "INC001" / "01" / "selected_20260212_012659_attachements" / "extra.txt").exists()
     assert not (output_root / "INC001" / "01" / "filtered_out.json").exists()
+    selected_payload = json.loads((output_root / "INC001" / "01" / "selected.json").read_text(encoding="utf-8"))
+    comment = selected_payload["discussions"]["customer_facing_comments"][0]
+    assert comment["created_by"].startswith("USER_")
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["counts"]["selected_files"] == 1
     assert manifest["counts"]["attachments_copied"] == 2
     assert manifest["counts"]["attachments_missing"] == 0
+    assert manifest["counts"]["sanitized_user_replacements"] >= 1
     assert manifest["source_path"] == str(output_root.resolve())
     assert manifest["upstream_source_path"] == str(source_root.resolve())
     assert manifest["config"]["materialized"] is True
+
+
+def test_filter_sanitizes_structured_fields_and_free_text_emails(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    payload = _payload(
+        incident_number="INC0001",
+        contact_type="Email",
+        local_paths=[],
+    )
+    payload["incident_fields"]["sys_created_by"] = "guest_user"
+    payload["incident_fields"]["assigned_to"] = "consultant"
+    payload["incident_fields"]["description"] = "Please contact guest@example.com"
+    payload["incident_fields"]["email"] = "guest@example.com"
+    payload["discussions"]["customer_facing_comments"][0]["text"] = "follow up at guest@example.com"
+
+    incident_json = incident_dir / "selected.json"
+    incident_json.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+            "--allow-missing-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+
+    selected_payload = json.loads((output_root / "INC001" / "01" / "selected.json").read_text(encoding="utf-8"))
+    assert selected_payload["incident_fields"]["sys_created_by"].startswith("USER_")
+    assert selected_payload["incident_fields"]["assigned_to"].startswith("USER_")
+    assert selected_payload["incident_fields"]["email"].startswith("EMAIL_")
+    assert "guest@example.com" not in selected_payload["incident_fields"]["description"]
+    assert "guest@example.com" not in selected_payload["discussions"]["customer_facing_comments"][0]["text"]
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["config"]["sanitization"]["enabled"] is True
+    assert manifest["counts"]["sanitized_user_replacements"] >= 2
+    assert manifest["counts"]["sanitized_structured_email_replacements"] == 1
+    assert manifest["counts"]["sanitized_free_text_email_replacements"] >= 2
+
+
+def test_filter_sanitizes_leaked_username_fields_and_patterns(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    payload = _payload(
+        incident_number="INC0001",
+        contact_type="Email",
+        local_paths=[],
+    )
+    payload["incident_fields"]["caller_id"] = "Doe, Jane (jdoe)"
+    payload["incident_fields"]["closed_by"] = "Admin, Ops (opsadmin)"
+    payload["incident_fields"]["u_owner"] = "Admin, Ops (opsadmin)"
+    payload["discussions"]["customer_facing_comments"][0]["text"] = (
+        "Prompt jdoe@cori09:~> ls; path /global/homes/j/jdoe/project; run squeue -u jdoe"
+    )
+
+    incident_json = incident_dir / "selected.json"
+    incident_json.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+            "--allow-missing-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+
+    selected_payload = json.loads((output_root / "INC001" / "01" / "selected.json").read_text(encoding="utf-8"))
+    fields = selected_payload["incident_fields"]
+    assert fields["caller_id"].startswith("USER_")
+    assert fields["closed_by"].startswith("USER_")
+    assert fields["u_owner"].startswith("USER_")
+    text = selected_payload["discussions"]["customer_facing_comments"][0]["text"]
+    assert "jdoe@cori09" not in text
+    assert "/global/homes/j/jdoe" not in text
+    assert "-u jdoe" not in text
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["counts"]["sanitized_free_text_username_replacements"] >= 3
+
+
+def test_filter_canonicalizes_watchlist_display_names(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    payload = _payload(
+        incident_number="INC0001",
+        contact_type="Email",
+        local_paths=[],
+    )
+    payload["incident_fields"]["watch_list"] = "Bailey, Stephen (sbailey)"
+    payload["incident_fields"]["u_username_watchlist"] = "Bailey, Stephen (sbailey)"
+    payload["incident_fields"]["u_itil_watch_list"] = "Bagwell, Clayton (cbagwell), Gerhardt, Lisa (lgerhard)"
+
+    incident_json = incident_dir / "selected.json"
+    incident_json.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+            "--allow-missing-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+
+    selected_payload = json.loads((output_root / "INC001" / "01" / "selected.json").read_text(encoding="utf-8"))
+    fields = selected_payload["incident_fields"]
+    assert fields["watch_list"].startswith("USER_")
+    assert fields["u_username_watchlist"] == fields["watch_list"]
+    assert "Bailey" not in fields["watch_list"]
+    assert "Clayton" not in fields["u_itil_watch_list"]
+    assert "Lisa" not in fields["u_itil_watch_list"]
 
 
 def test_filter_fails_on_missing_attachment_by_default(tmp_path: Path, monkeypatch):
@@ -489,3 +644,45 @@ def test_filter_excludes_non_closed_state_even_with_solved_close_code(tmp_path: 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["counts"]["selected_files"] == 0
     assert manifest["counts"]["filtered_by_reason"]["state_not_closed_or_resolved"] == 1
+
+
+def test_filter_resolves_unicode_normalized_attachment_paths(tmp_path: Path, monkeypatch):
+    source_root = tmp_path / "servicenow_incidents"
+    incident_dir = source_root / "INC001" / "01"
+    incident_dir.mkdir(parents=True)
+    output_root = tmp_path / "filtered"
+    manifest_path = tmp_path / "manifest.json"
+
+    attachment_dir = incident_dir / "selected_20260212_012659_attachements"
+    attachment_dir.mkdir()
+    composed_name = "스크린샷 2024-03-08 181537.png"
+    decomposed_name = unicodedata.normalize("NFD", composed_name)
+    (attachment_dir / decomposed_name).write_text("image-bytes", encoding="utf-8")
+
+    payload = _payload(
+        incident_number="INC0001",
+        contact_type="Email",
+        local_paths=[f"servicenow_incidents/INC001/01/selected_20260212_012659_attachements/{composed_name}"],
+    )
+    incident_json = incident_dir / "selected.json"
+    incident_json.write_text(json.dumps(payload), encoding="utf-8")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "filter_tickets_corpus.py",
+            str(source_root),
+            "--output-root",
+            str(output_root),
+            "--manifest-out",
+            str(manifest_path),
+            "--no-exclude-if-single-message-no-attachments",
+        ],
+    )
+
+    filter_tickets_corpus_mod.main()
+
+    assert (output_root / "INC001" / "01" / "selected_20260212_012659_attachements" / decomposed_name).exists()
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["counts"]["attachments_missing"] == 0

@@ -7,6 +7,7 @@ from athos.utils.ticket_ingest import (
     build_full_incident_document,
     compute_corpus_fingerprint,
     evaluate_ticket_filter_reason,
+    sanitize_ticket_record,
     write_manifest,
 )
 
@@ -252,3 +253,104 @@ def test_write_manifest_creates_parent_dirs(tmp_path):
     write_manifest(manifest_path, payload)
     loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert loaded == payload
+
+
+def test_sanitize_ticket_record_replaces_structured_users_and_emails():
+    record = _sample_record()
+    record["incident_fields"]["description"] = "Reach me at jdoe@example.com for updates."
+    record["incident_fields"]["assigned_to"] = "consultant@example.com"
+    record["incident_fields"]["email"] = "guest@example.com"
+    record["discussions"]["customer_facing_comments"][0]["created_by"] = "guest_user"
+    record["discussions"]["customer_facing_comments"][0]["text"] = "My email is guest@example.com"
+
+    sanitized, stats = sanitize_ticket_record(record, salt="unit-test-salt")
+
+    assert sanitized["incident_fields"]["assigned_to"].startswith("USER_")
+    assert sanitized["incident_fields"]["email"].startswith("EMAIL_")
+    assert sanitized["discussions"]["customer_facing_comments"][0]["created_by"].startswith("USER_")
+    assert "guest@example.com" not in sanitized["incident_fields"]["description"]
+    assert "guest@example.com" not in sanitized["discussions"]["customer_facing_comments"][0]["text"]
+    assert "EMAIL_" in sanitized["incident_fields"]["description"]
+    assert "EMAIL_" in sanitized["discussions"]["customer_facing_comments"][0]["text"]
+    assert stats.structured_user_replacements >= 2
+    assert stats.structured_email_replacements == 1
+    assert stats.free_text_email_replacements >= 2
+
+
+def test_sanitize_ticket_record_is_deterministic_for_same_identity():
+    record = _sample_record()
+    record["incident_fields"]["sys_created_by"] = "Guest"
+    record["discussions"]["customer_facing_comments"] = [
+        {"timestamp": "t1", "created_by": "guest", "text": "guest@example.com"},
+        {"timestamp": "t2", "created_by": "Guest", "text": "guest@example.com"},
+    ]
+
+    sanitized, _ = sanitize_ticket_record(record, salt="unit-test-salt")
+
+    first_author = sanitized["discussions"]["customer_facing_comments"][0]["created_by"]
+    second_author = sanitized["discussions"]["customer_facing_comments"][1]["created_by"]
+    assert first_author == second_author
+    assert sanitized["incident_fields"]["sys_created_by"] == first_author
+
+
+def test_sanitize_ticket_record_scrubs_high_confidence_username_patterns():
+    record = _sample_record()
+    record["incident_fields"]["caller_id"] = "Doe, Jane (jdoe)"
+    record["incident_fields"]["closed_by"] = "Admin, Ops (opsadmin)"
+    record["incident_fields"]["u_owner"] = "Admin, Ops (opsadmin)"
+    record["discussions"]["customer_facing_comments"][0]["text"] = (
+        "Prompt jdoe@cori09:~> ls; path /global/homes/j/jdoe/project; "
+        "run squeue -u jdoe; caller_id:jdoe"
+    )
+
+    sanitized, stats = sanitize_ticket_record(record, salt="unit-test-salt")
+
+    assert sanitized["incident_fields"]["caller_id"].startswith("USER_")
+    assert sanitized["incident_fields"]["closed_by"].startswith("USER_")
+    assert sanitized["incident_fields"]["u_owner"].startswith("USER_")
+    text = sanitized["discussions"]["customer_facing_comments"][0]["text"]
+    assert "jdoe@cori09" not in text
+    assert "/global/homes/j/jdoe" not in text
+    assert "-u jdoe" not in text
+    assert "caller_id:jdoe" not in text
+    assert "USER_" in text
+    assert stats.free_text_username_replacements >= 4
+
+
+def test_sanitize_ticket_record_canonicalizes_composite_identity_fields():
+    record = _sample_record()
+    record["incident_fields"]["watch_list"] = "Bailey, Stephen (sbailey)"
+    record["incident_fields"]["u_username_watchlist"] = "Bailey, Stephen (sbailey)"
+    record["incident_fields"]["u_itil_watch_list"] = "Bagwell, Clayton (cbagwell), Gerhardt, Lisa (lgerhard)"
+
+    sanitized, stats = sanitize_ticket_record(record, salt="unit-test-salt")
+
+    expected_alias = sanitize_ticket_record(
+        {"incident_fields": {"sys_created_by": "sbailey"}},
+        salt="unit-test-salt",
+    )[0]["incident_fields"]["sys_created_by"]
+    assert sanitized["incident_fields"]["watch_list"] == expected_alias
+    assert sanitized["incident_fields"]["u_username_watchlist"] == expected_alias
+    assert "Bailey" not in sanitized["incident_fields"]["watch_list"]
+    itil = sanitized["incident_fields"]["u_itil_watch_list"]
+    assert "Clayton" not in itil
+    assert "Lisa" not in itil
+    assert "USER_" in itil
+    assert stats.structured_user_replacements >= 4
+
+
+def test_sanitize_ticket_record_preserves_attachment_local_paths():
+    record = _sample_record()
+    record["attachments"] = [
+        {
+            "local_path": "servicenow_incidents/INC001/01/attachment_dir/Steps 5-6 (jdoe).png",
+            "file_name": "Steps 5-6 (jdoe).png",
+        }
+    ]
+
+    sanitized, _ = sanitize_ticket_record(record, salt="unit-test-salt")
+
+    attachment = sanitized["attachments"][0]
+    assert attachment["local_path"] == "servicenow_incidents/INC001/01/attachment_dir/Steps 5-6 (jdoe).png"
+    assert attachment["file_name"] != "Steps 5-6 (jdoe).png"
+    assert "USER_" in attachment["file_name"]

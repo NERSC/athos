@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+import hmac
 import hashlib
 import json
 from pathlib import Path
@@ -44,6 +45,24 @@ class CorpusFingerprint:
 
     file_count: int
     sha256: str
+
+
+@dataclass(frozen=True)
+class SanitizationStats:
+    """Counts emitted while sanitizing one ticket payload."""
+
+    structured_user_replacements: int = 0
+    structured_email_replacements: int = 0
+    free_text_email_replacements: int = 0
+    free_text_username_replacements: int = 0
+
+    def as_dict(self) -> dict[str, int]:
+        return {
+            "structured_user_replacements": self.structured_user_replacements,
+            "structured_email_replacements": self.structured_email_replacements,
+            "free_text_email_replacements": self.free_text_email_replacements,
+            "free_text_username_replacements": self.free_text_username_replacements,
+        }
 
 
 def iter_ticket_json_files(source_root: Path) -> Iterable[Path]:
@@ -329,6 +348,261 @@ def write_manifest(manifest_out: Path, payload: Mapping[str, Any]) -> None:
     with manifest_out.open("w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
         handle.write("\n")
+
+
+EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
+USER_FIELD_NAMES = {
+    "assigned_to",
+    "author",
+    "caller_id",
+    "closed_by",
+    "created_by",
+    "opened_by",
+    "owner",
+    "resolved_by",
+    "reopened_by",
+    "requested_for",
+    "resolved_by",
+    "sys_created_by",
+    "sys_updated_by",
+    "u_owner",
+    "u_user",
+    "user",
+}
+COMPOSITE_USER_FIELD_NAMES = {
+    "u_itil_watch_list",
+    "u_user_watchlist",
+    "u_username_watchlist",
+    "watch_list",
+}
+EMAIL_FIELD_NAMES = {
+    "email",
+    "email_address",
+    "u_email_watchlist",
+    "u_email",
+}
+PATH_PRESERVING_FIELD_NAMES = {
+    "local_path",
+}
+USERNAME_CHARS = r"[A-Za-z0-9._-]+"
+SHELL_LOGIN_PATTERN = re.compile(rf"\b({USERNAME_CHARS})@([A-Za-z][A-Za-z0-9._-]*)")
+HOME_PATH_PATTERN = re.compile(
+    rf"(?P<prefix>/(?:global/homes|pscratch/sd|pscratch/sd/[A-Za-z]|global/cfs/cdirs)/[A-Za-z]?/?)(?P<username>{USERNAME_CHARS})"
+)
+COMMAND_USER_FLAG_PATTERN = re.compile(
+    rf"(?P<prefix>(?:^|[\s=])(?:-u|--user)\s+)(?P<username>{USERNAME_CHARS})(?=$|[\s,;:/])"
+)
+PARSE_FIELD_USERNAME_PATTERN = re.compile(
+    rf"(?P<prefix>\b(?:caller_id|opened_by|u_owner|username|user):)(?P<username>{USERNAME_CHARS})\b"
+)
+PAREN_USERNAME_PATTERN = re.compile(rf"\((?P<username>{USERNAME_CHARS})\)")
+USERNAME_IN_PARENS_PATTERN = re.compile(rf"\((?P<username>{USERNAME_CHARS})\)")
+HEX_SYS_ID_PATTERN = re.compile(r"^[0-9a-f]{32}$", re.IGNORECASE)
+COMPOSITE_IDENTITY_ENTRY_PATTERN = re.compile(
+    rf"""
+    \s*
+    (?:
+        (?P<email>{EMAIL_PATTERN.pattern})
+        |
+        (?P<name_username>[^,;]+(?:,\s*[^,;]+)?\s+\((?P<wrapped_username>{USERNAME_CHARS})\)(?:\s+[A-Za-z/]+)?)
+        |
+        (?P<bare_username>{USERNAME_CHARS})
+        |
+        (?P<sys_id>[0-9a-f]{{32}})
+    )
+    \s*
+    (?:,|;|$)
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
+
+def _build_deterministic_alias(kind: str, raw_value: str, salt: str) -> str:
+    normalized = raw_value.strip().lower()
+    digest = hmac.new(
+        salt.encode("utf-8"),
+        normalized.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()[:10].upper()
+    return f"{kind}_{digest}"
+
+
+def _sanitize_free_text_emails(
+    text: str,
+    *,
+    salt: str,
+) -> tuple[str, int]:
+    replacements = 0
+
+    def _replace(match: re.Match[str]) -> str:
+        nonlocal replacements
+        replacements += 1
+        return _build_deterministic_alias("EMAIL", match.group(0), salt)
+
+    return EMAIL_PATTERN.sub(_replace, text), replacements
+
+
+def _sanitize_free_text_usernames(
+    text: str,
+    *,
+    salt: str,
+) -> tuple[str, int]:
+    replacements = 0
+
+    def _user_alias(raw_value: str) -> str:
+        nonlocal replacements
+        replacements += 1
+        return _build_deterministic_alias("USER", raw_value, salt)
+
+    def _replace_shell_login(match: re.Match[str]) -> str:
+        return f"{_user_alias(match.group(1))}@{match.group(2)}"
+
+    def _replace_home_path(match: re.Match[str]) -> str:
+        return f"{match.group('prefix')}{_user_alias(match.group('username'))}"
+
+    def _replace_flag(match: re.Match[str]) -> str:
+        return f"{match.group('prefix')}{_user_alias(match.group('username'))}"
+
+    def _replace_parse_field(match: re.Match[str]) -> str:
+        return f"{match.group('prefix')}{_user_alias(match.group('username'))}"
+
+    def _replace_paren_username(match: re.Match[str]) -> str:
+        return f"({_user_alias(match.group('username'))})"
+
+    sanitized = SHELL_LOGIN_PATTERN.sub(_replace_shell_login, text)
+    sanitized = HOME_PATH_PATTERN.sub(_replace_home_path, sanitized)
+    sanitized = COMMAND_USER_FLAG_PATTERN.sub(_replace_flag, sanitized)
+    sanitized = PARSE_FIELD_USERNAME_PATTERN.sub(_replace_parse_field, sanitized)
+    sanitized = PAREN_USERNAME_PATTERN.sub(_replace_paren_username, sanitized)
+    return sanitized, replacements
+
+
+def _canonicalize_identity_token(value: str) -> tuple[str, str]:
+    stripped = value.strip()
+    email_match = EMAIL_PATTERN.fullmatch(stripped)
+    if email_match:
+        return "EMAIL", stripped
+    username_match = USERNAME_IN_PARENS_PATTERN.search(stripped)
+    if username_match:
+        return "USER", username_match.group("username")
+    if HEX_SYS_ID_PATTERN.fullmatch(stripped):
+        return "USER", stripped
+    return "USER", stripped
+
+
+def _sanitize_composite_identity_list(
+    text: str,
+    *,
+    salt: str,
+) -> tuple[str, int, int]:
+    sanitized_entries: list[str] = []
+    user_replacements = 0
+    email_replacements = 0
+    position = 0
+    while position < len(text):
+        match = COMPOSITE_IDENTITY_ENTRY_PATTERN.match(text, position)
+        if not match:
+            remainder = text[position:].strip()
+            if remainder:
+                kind, canonical = _canonicalize_identity_token(remainder)
+                if kind == "EMAIL":
+                    sanitized_entries.append(_build_deterministic_alias("EMAIL", canonical, salt))
+                    email_replacements += 1
+                else:
+                    sanitized_entries.append(_build_deterministic_alias("USER", canonical, salt))
+                    user_replacements += 1
+            break
+
+        if match.group("email"):
+            kind, canonical = "EMAIL", match.group("email")
+        elif match.group("wrapped_username"):
+            kind, canonical = "USER", match.group("wrapped_username")
+        elif match.group("sys_id"):
+            kind, canonical = "USER", match.group("sys_id")
+        else:
+            kind, canonical = "USER", match.group("bare_username")
+
+        if kind == "EMAIL":
+            sanitized_entries.append(_build_deterministic_alias("EMAIL", canonical, salt))
+            email_replacements += 1
+        else:
+            sanitized_entries.append(_build_deterministic_alias("USER", canonical, salt))
+            user_replacements += 1
+        position = match.end()
+
+    if not sanitized_entries:
+        return text, 0, 0
+    return ", ".join(sanitized_entries), user_replacements, email_replacements
+
+
+def sanitize_ticket_record(
+    record: Mapping[str, Any],
+    *,
+    salt: str,
+) -> tuple[dict[str, Any], SanitizationStats]:
+    """Return a deep-copied ticket record with basic identity fields sanitized."""
+    payload = json.loads(json.dumps(record))
+    stats = SanitizationStats()
+
+    def _sanitize(value: Any, key_hint: str | None = None) -> Any:
+        nonlocal stats
+        if isinstance(value, dict):
+            return {key: _sanitize(item, key) for key, item in value.items()}
+        if isinstance(value, list):
+            return [_sanitize(item, key_hint) for item in value]
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return value
+            key_name = (key_hint or "").lower()
+            if key_name in PATH_PRESERVING_FIELD_NAMES:
+                return value
+            if key_name in EMAIL_FIELD_NAMES:
+                stats = SanitizationStats(
+                    structured_user_replacements=stats.structured_user_replacements,
+                    structured_email_replacements=stats.structured_email_replacements + 1,
+                    free_text_email_replacements=stats.free_text_email_replacements,
+                    free_text_username_replacements=stats.free_text_username_replacements,
+                )
+                return _build_deterministic_alias("EMAIL", stripped, salt)
+            if key_name in COMPOSITE_USER_FIELD_NAMES:
+                sanitized_list, user_replacements, email_replacements = _sanitize_composite_identity_list(
+                    stripped,
+                    salt=salt,
+                )
+                stats = SanitizationStats(
+                    structured_user_replacements=stats.structured_user_replacements + user_replacements,
+                    structured_email_replacements=stats.structured_email_replacements + email_replacements,
+                    free_text_email_replacements=stats.free_text_email_replacements,
+                    free_text_username_replacements=stats.free_text_username_replacements,
+                )
+                return sanitized_list
+            if key_name in USER_FIELD_NAMES:
+                stats = SanitizationStats(
+                    structured_user_replacements=stats.structured_user_replacements + 1,
+                    structured_email_replacements=stats.structured_email_replacements,
+                    free_text_email_replacements=stats.free_text_email_replacements,
+                    free_text_username_replacements=stats.free_text_username_replacements,
+                )
+                return _build_deterministic_alias("USER", stripped, salt)
+            sanitized, replacements = _sanitize_free_text_emails(stripped, salt=salt)
+            username_sanitized, username_replacements = _sanitize_free_text_usernames(
+                sanitized,
+                salt=salt,
+            )
+            if replacements or username_replacements:
+                stats = SanitizationStats(
+                    structured_user_replacements=stats.structured_user_replacements,
+                    structured_email_replacements=stats.structured_email_replacements,
+                    free_text_email_replacements=stats.free_text_email_replacements + replacements,
+                    free_text_username_replacements=(
+                        stats.free_text_username_replacements + username_replacements
+                    ),
+                )
+                return username_sanitized
+        return value
+
+    return _sanitize(payload), stats
 
 
 def build_full_incident_document(

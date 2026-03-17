@@ -11,6 +11,7 @@ import logging
 from pathlib import Path
 import shutil
 from typing import Any, Iterable, Mapping
+import unicodedata
 
 from athos.utils.ticket_ingest import (
     compute_corpus_fingerprint,
@@ -187,19 +188,50 @@ def _resolve_attachment_candidate(
             return None
         return resolved
 
+    def _normalized_variants(candidate: Path) -> list[Path]:
+        text = str(candidate)
+        variants: list[Path] = []
+        seen: set[str] = set()
+        for form in ("NFC", "NFD"):
+            normalized = unicodedata.normalize(form, text)
+            if normalized not in seen:
+                seen.add(normalized)
+                variants.append(Path(normalized))
+        return variants
+
+    def _resolve_via_normalized_filename(candidate: Path) -> Path | None:
+        parent = candidate.parent
+        if not parent.exists() or not parent.is_dir():
+            return None
+        target_name_nfc = unicodedata.normalize("NFC", candidate.name)
+        target_name_nfd = unicodedata.normalize("NFD", candidate.name)
+        for child in parent.iterdir():
+            child_name_nfc = unicodedata.normalize("NFC", child.name)
+            child_name_nfd = unicodedata.normalize("NFD", child.name)
+            if child_name_nfc == target_name_nfc or child_name_nfd == target_name_nfd:
+                return _resolve_if_allowed(child)
+        return None
+
     candidate = Path(local_path)
     if candidate.is_absolute():
         return None
 
-    joined = _resolve_if_allowed(source_root / candidate)
-    if joined is not None:
-        return joined
-
+    raw_candidates = [source_root / candidate]
     parts = list(candidate.parts)
     if parts and parts[0] == source_root.name:
-        stripped = _resolve_if_allowed(source_root / Path(*parts[1:]))
-        if stripped is not None:
-            return stripped
+        raw_candidates.append(source_root / Path(*parts[1:]))
+
+    for raw_candidate in raw_candidates:
+        joined = _resolve_if_allowed(raw_candidate)
+        if joined is not None:
+            return joined
+        for normalized_candidate in _normalized_variants(raw_candidate):
+            resolved = _resolve_if_allowed(normalized_candidate)
+            if resolved is not None:
+                return resolved
+        filename_match = _resolve_via_normalized_filename(raw_candidate)
+        if filename_match is not None:
+            return filename_match
     return None
 
 
