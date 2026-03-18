@@ -31,8 +31,8 @@ The filesystem MCP surface used in ATHOS is read-oriented but coarse-grained:
 It does not provide line-range seeking into a large file. That makes a single
 multi-thousand-record JSONL awkward for agentic file search:
 
-- `search_files` can find a hit, but
-- `read_file` then has to read the entire large file, and
+- a file search can find a hit, but
+- a file read may then need to read the entire large file, and
 - the agent has no natural per-record unit to inspect
 
 For that reason, the derived pipeline can now also materialize one Markdown file
@@ -46,8 +46,8 @@ Example pilot or full run:
 ```bash
 python scripts/build_derived_ticket_corpus.py \
   --selected-corpus-manifest data/manifests/servicenow_tickets_balanced_v0_20260306_retrieval_lt_20260101_filter.json \
-  --output-jsonl data/manifests/derived_ticket_retrieval.jsonl \
-  --materialize-dir data/manifests/derived_ticket_retrieval_files \
+  --output-jsonl data/derived_ticket_corpus/derived_ticket_retrieval.jsonl \
+  --materialize-dir data/derived_ticket_corpus/derived_ticket_retrieval_files \
   --model cborg_coder \
   --allow-transform-errors -v
 ```
@@ -70,7 +70,7 @@ Example:
 
 ```bash
 python scripts/build_tickets_chroma.py \
-  --derived-jsonl data/manifests/derived_ticket_retrieval.jsonl \
+  --derived-jsonl data/derived_ticket_corpus/derived_ticket_retrieval.jsonl \
   --persist-dir data/chroma/derived_tickets \
   --collection-name tickets_derived_v1
 ```
@@ -89,7 +89,7 @@ python scripts/build_workspace.py \
   --workspace-dir workspace \
   --fs-docs-dir data/docs/docs \
   --fs-consulting-docs-dir data/consulting_docs/docs \
-  --fs-tickets-dir data/manifests/derived_ticket_retrieval_files \
+  --fs-tickets-dir data/derived_ticket_corpus/derived_ticket_retrieval_files \
   --fs-include-tickets \
   --build-fs-index
 ```
@@ -99,7 +99,7 @@ This keeps the filesystem agent’s ticket surface:
 - compact
 - one-record-per-file
 - readable without JSON parsing
-- narrow enough for `search_files` + `read_file`
+- narrow enough for generic file-search and file-read workflows
 
 ## Current Status
 
