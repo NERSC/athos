@@ -7,6 +7,7 @@ from athos.utils.derived_ticket_corpus import (
     coerce_derived_payload,
     build_derived_ticket_document,
     contains_email_like_pii,
+    contains_phone_like_pii,
     derived_ticket_materialized_relpath,
     extract_json_object,
     find_derived_payload_violations,
@@ -166,6 +167,16 @@ def test_email_detector_ignores_linker_symbol_false_positive():
         "__cudaRegisterFatBinary@libcudart.so.11.0"
     )
     assert contains_email_like_pii("contact user@example.com for access")
+
+
+def test_phone_detector_ignores_numeric_ids_and_log_numbers():
+    assert contains_phone_like_pii("call 510-555-1212 after environment rebuild")
+    assert contains_phone_like_pii("call (510) 555-1212 after environment rebuild")
+    assert not contains_phone_like_pii("REQ#1000564612")
+    assert not contains_phone_like_pii(
+        "libfabric:105156:1715405018::cxi:core:cxip_fc_notify_cb():4366<warn>"
+    )
+    assert not contains_phone_like_pii("Out of memory allocating 1146880000 bytes")
 
 
 def test_extract_json_object_supports_fenced_output():

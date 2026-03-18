@@ -31,7 +31,20 @@ DEFAULT_ATTACHMENT_TEXT_EXTENSIONS = {
 
 EMAIL_PATTERN = re.compile(r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", re.IGNORECASE)
 PHONE_PATTERN = re.compile(
-    r"(?<!\w)(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)\d{3}[-.\s]?\d{4}(?!\w)"
+    r"""
+    (?<!\w)
+    (?:
+        \+?1[-.\s]?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}
+        |
+        \(\d{3}\)\s*\d{3}[-.\s]?\d{4}
+        |
+        \d{3}[-.]\d{3}[-.]\d{4}
+        |
+        \d{3}\s\d{3}\s\d{4}
+    )
+    (?!\w)
+    """,
+    re.VERBOSE,
 )
 JSON_FENCE_PATTERN = re.compile(r"```(?:json)?\s*(\{.*\})\s*```", re.DOTALL)
 HIGH_SIGNAL_ATTACHMENT_PATTERNS = [
@@ -671,6 +684,11 @@ def contains_email_like_pii(text: str) -> bool:
     return False
 
 
+def contains_phone_like_pii(text: str) -> bool:
+    """Return True for plausible phone numbers, excluding generic numeric identifiers."""
+    return PHONE_PATTERN.search(text) is not None
+
+
 def find_derived_payload_violations(
     payload: Mapping[str, Any],
     *,
@@ -721,7 +739,7 @@ def find_derived_payload_violations(
         value = _stringify(payload.get(field))
         if contains_email_like_pii(value):
             violations.append(f"{field} contains email address")
-        if PHONE_PATTERN.search(value):
+        if contains_phone_like_pii(value):
             violations.append(f"{field} contains phone number")
 
     for list_field in ("retrieval_keywords", "evidence_snippets"):
@@ -733,7 +751,7 @@ def find_derived_payload_violations(
             if contains_email_like_pii(text):
                 violations.append(f"{list_field} contains email address")
                 break
-            if PHONE_PATTERN.search(text):
+            if contains_phone_like_pii(text):
                 violations.append(f"{list_field} contains phone number")
                 break
 
