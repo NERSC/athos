@@ -61,6 +61,11 @@ HIGH_SIGNAL_ATTACHMENT_PATTERNS = [
     )
 ]
 
+LIB_SYMBOL_EMAIL_FALSE_POSITIVE_PATTERN = re.compile(
+    r"@[A-Za-z0-9_.+-]+\.so(?:\.\d+)*\b",
+    re.IGNORECASE,
+)
+
 
 @dataclass(frozen=True)
 class AttachmentSnippet:
@@ -633,6 +638,39 @@ def normalize_derived_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def coerce_derived_payload(
+    payload: Mapping[str, Any],
+    *,
+    limits: DerivedFieldLimits,
+) -> dict[str, Any]:
+    """Apply deterministic, auditable coercions that do not rewrite semantic content."""
+    normalized = normalize_derived_payload(payload)
+
+    keywords = normalized.get("retrieval_keywords")
+    if isinstance(keywords, list):
+        normalized["retrieval_keywords"] = [
+            _stringify(item) for item in keywords if _stringify(item)
+        ][: limits.max_keywords]
+
+    snippets = normalized.get("evidence_snippets")
+    if isinstance(snippets, list):
+        normalized["evidence_snippets"] = [
+            _stringify(item) for item in snippets if _stringify(item)
+        ][: limits.max_evidence_snippets]
+
+    return normalized
+
+
+def contains_email_like_pii(text: str) -> bool:
+    """Return True for plausible email addresses, excluding common linker-symbol false positives."""
+    for match in EMAIL_PATTERN.finditer(text):
+        token = match.group(0)
+        if LIB_SYMBOL_EMAIL_FALSE_POSITIVE_PATTERN.search(token):
+            continue
+        return True
+    return False
+
+
 def find_derived_payload_violations(
     payload: Mapping[str, Any],
     *,
@@ -681,7 +719,7 @@ def find_derived_payload_violations(
 
     for field in ("incident_summary", "resolution_summary"):
         value = _stringify(payload.get(field))
-        if EMAIL_PATTERN.search(value):
+        if contains_email_like_pii(value):
             violations.append(f"{field} contains email address")
         if PHONE_PATTERN.search(value):
             violations.append(f"{field} contains phone number")
@@ -692,7 +730,7 @@ def find_derived_payload_violations(
             continue
         for item in values:
             text = _stringify(item)
-            if EMAIL_PATTERN.search(text):
+            if contains_email_like_pii(text):
                 violations.append(f"{list_field} contains email address")
                 break
             if PHONE_PATTERN.search(text):
@@ -708,6 +746,12 @@ def build_repair_prompt(rendered_input: str, raw_response: str, violations: list
         "Your previous response did not satisfy the required JSON schema.\n"
         "Return only a corrected JSON object with keys: incident_summary, "
         "resolution_summary, retrieval_keywords, evidence_snippets.\n"
+        "Repair instructions:\n"
+        "- If a summary contains any email address, phone number, username, account name, login identifier, or other PII, rewrite the sentence with generic wording instead of copying the identifier.\n"
+        "- If any retrieval_keywords item or evidence_snippets item contains an email address, phone number, username, account name, login identifier, or other PII, remove that item entirely rather than paraphrasing it.\n"
+        "- If retrieval_keywords has more than the allowed number of items, keep only the most useful normalized terms.\n"
+        "- If evidence_snippets has more than the allowed number of items, keep only the most useful short technical strings.\n"
+        "- Do not repeat the previous invalid output unchanged.\n"
         f"Validation errors:\n- " + "\n- ".join(violations) + "\n\n"
         f"Original ticket input:\n{rendered_input}\n\n"
         f"Previous invalid response:\n{raw_response}\n"

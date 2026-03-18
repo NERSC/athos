@@ -19,6 +19,7 @@ from athos.utils.derived_ticket_corpus import (
     DEFAULT_ATTACHMENT_TEXT_EXTENSIONS,
     DerivedFieldLimits,
     build_repair_prompt,
+    coerce_derived_payload,
     derived_ticket_materialized_relpath,
     build_transform_prompt,
     render_derived_ticket_markdown,
@@ -34,6 +35,27 @@ logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "athos.derived_ticket_record.v2"
 PROMPT_VERSION = "athos.derived_ticket_prompt.v1"
+
+
+class TransformValidationError(ValueError):
+    """Raised when a ticket transform remains invalid after retries."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        last_raw_response: str | None = None,
+        last_payload: Mapping[str, Any] | None = None,
+        last_normalized_payload: Mapping[str, Any] | None = None,
+        violations: list[str] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.last_raw_response = last_raw_response
+        self.last_payload = dict(last_payload) if last_payload is not None else None
+        self.last_normalized_payload = (
+            dict(last_normalized_payload) if last_normalized_payload is not None else None
+        )
+        self.violations = list(violations or [])
 
 
 def _positive_int(value: str) -> int:
@@ -78,6 +100,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--failures-out",
         help="Path to write failed transforms as JSONL (default: <output-jsonl>.failures.jsonl)",
+    )
+    parser.add_argument(
+        "--review-out",
+        help="Path to write near-miss failed transform payloads for manual review (default: <output-jsonl>.review.jsonl)",
     )
     parser.add_argument(
         "--resume",
@@ -322,6 +348,9 @@ def _transform_ticket(
     attempts = 0
     current_prompt = prompt
     last_violations: list[str] = []
+    last_raw_response: str | None = None
+    last_payload: dict[str, Any] | None = None
+    last_normalized_payload: dict[str, Any] | None = None
 
     while attempts <= max_retries:
         attempts += 1
@@ -330,25 +359,46 @@ def _transform_ticket(
             model_cfg=model_cfg,
             prompt=current_prompt,
         )
+        last_raw_response = raw_response
         try:
             payload = json.loads(extract_json_object(raw_response))
+            last_payload = payload if isinstance(payload, dict) else None
         except Exception as exc:
             last_violations = [f"invalid_json: {exc}"]
             if attempts > max_retries:
-                raise ValueError("; ".join(last_violations)) from exc
+                raise TransformValidationError(
+                    "; ".join(last_violations),
+                    last_raw_response=last_raw_response,
+                    last_payload=last_payload,
+                    last_normalized_payload=last_normalized_payload,
+                    violations=last_violations,
+                ) from exc
             current_prompt = build_repair_prompt(rendered_input, raw_response, last_violations)
             continue
 
-        normalized = normalize_derived_payload(payload)
+        normalized = coerce_derived_payload(payload, limits=limits)
+        last_normalized_payload = normalized
         violations = find_derived_payload_violations(normalized, limits=limits)
         if not violations:
             return normalized, attempts
         last_violations = violations
         if attempts > max_retries:
-            raise ValueError("; ".join(violations))
+            raise TransformValidationError(
+                "; ".join(violations),
+                last_raw_response=last_raw_response,
+                last_payload=last_payload,
+                last_normalized_payload=last_normalized_payload,
+                violations=violations,
+            )
         current_prompt = build_repair_prompt(rendered_input, raw_response, violations)
 
-    raise ValueError("; ".join(last_violations) if last_violations else "unknown transform failure")
+    raise TransformValidationError(
+        "; ".join(last_violations) if last_violations else "unknown transform failure",
+        last_raw_response=last_raw_response,
+        last_payload=last_payload,
+        last_normalized_payload=last_normalized_payload,
+        violations=last_violations,
+    )
 
 
 def _append_jsonl(path: Path, payload: Mapping[str, Any]) -> None:
@@ -376,6 +426,28 @@ def _load_completed_incident_numbers(path: Path) -> set[str]:
                 if isinstance(incident_number, str) and incident_number.strip():
                     completed.add(incident_number.strip())
     return completed
+
+
+def _count_jsonl_records(path: Path) -> int:
+    if not path.exists():
+        return 0
+    count = 0
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if line.strip():
+                count += 1
+    return count
+
+
+def _count_materialized_markdown_files(root: Path) -> int:
+    if not root.exists():
+        return 0
+    count = 0
+    for path in root.rglob("*.md"):
+        if path.name == "INDEX.md":
+            continue
+        count += 1
+    return count
 
 
 def _write_materialized_ticket(root: Path, record: Mapping[str, Any]) -> Path:
@@ -406,19 +478,28 @@ def main() -> None:
         if args.failures_out
         else output_jsonl.with_suffix(output_jsonl.suffix + ".failures.jsonl")
     )
+    review_out = (
+        Path(args.review_out).resolve()
+        if args.review_out
+        else output_jsonl.with_suffix(output_jsonl.suffix + ".review.jsonl")
+    )
     materialize_dir = Path(args.materialize_dir).resolve() if args.materialize_dir else None
     output_jsonl.parent.mkdir(parents=True, exist_ok=True)
     failures_out.parent.mkdir(parents=True, exist_ok=True)
+    review_out.parent.mkdir(parents=True, exist_ok=True)
     if args.resume:
         completed_incident_numbers = _load_completed_incident_numbers(output_jsonl)
         if not output_jsonl.exists():
             output_jsonl.write_text("", encoding="utf-8")
         if not failures_out.exists():
             failures_out.write_text("", encoding="utf-8")
+        if not review_out.exists():
+            review_out.write_text("", encoding="utf-8")
     else:
         completed_incident_numbers = set()
         output_jsonl.write_text("", encoding="utf-8")
         failures_out.write_text("", encoding="utf-8")
+        review_out.write_text("", encoding="utf-8")
     materialized_records = 0
     if materialize_dir is not None:
         materialize_dir.mkdir(parents=True, exist_ok=True)
@@ -545,6 +626,20 @@ def main() -> None:
                     "error": str(exc),
                 },
             )
+            if isinstance(exc, TransformValidationError):
+                _append_jsonl(
+                    review_out,
+                    {
+                        "ticket_path": str(ticket_file),
+                        "incident_number": incident_number,
+                        "stage": "transform",
+                        "error": str(exc),
+                        "violations": exc.violations,
+                        "last_raw_response": exc.last_raw_response,
+                        "last_payload": exc.last_payload,
+                        "last_normalized_payload": exc.last_normalized_payload,
+                    },
+                )
             failed_records += 1
             transform_failures += 1
 
@@ -556,6 +651,7 @@ def main() -> None:
         "selected_corpus_manifest": str(selected_manifest_path),
         "output_jsonl": str(output_jsonl),
         "failures_out": str(failures_out),
+        "review_out": str(review_out),
         "materialize_dir": str(materialize_dir) if materialize_dir is not None else None,
         "git_sha": _get_git_sha(),
         "config": {
@@ -600,6 +696,13 @@ def main() -> None:
             "sha256": fingerprint.sha256,
         },
     }
+    manifest["counts"]["output_records_total"] = _count_jsonl_records(output_jsonl)
+    manifest["counts"]["failure_records_total"] = _count_jsonl_records(failures_out)
+    manifest["counts"]["review_records_total"] = _count_jsonl_records(review_out)
+    if materialize_dir is not None:
+        manifest["counts"]["materialized_records_total"] = _count_materialized_markdown_files(
+            materialize_dir
+        )
     if materialize_dir is not None:
         index_lines = [
             "# Derived Ticket Corpus",
@@ -627,7 +730,7 @@ def main() -> None:
                 "generated_from_jsonl": str(output_jsonl),
                 "selected_corpus_manifest": str(selected_manifest_path),
                 "materialize_dir": str(materialize_dir),
-                "record_count": materialized_records,
+                "record_count": _count_materialized_markdown_files(materialize_dir),
                 "git_sha": _get_git_sha(),
             },
         )

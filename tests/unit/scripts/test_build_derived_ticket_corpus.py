@@ -184,6 +184,13 @@ def test_build_derived_ticket_corpus_raises_on_transform_failure(tmp_path: Path,
     assert derived_manifest["counts"]["successful_records"] == 0
     assert derived_manifest["counts"]["failed_records"] == 1
     assert derived_manifest["counts"]["transform_failures"] == 1
+    review_path = output_jsonl.with_suffix(output_jsonl.suffix + ".review.jsonl")
+    review_lines = review_path.read_text(encoding="utf-8").strip().splitlines()
+    assert len(review_lines) == 1
+    review = json.loads(review_lines[0])
+    assert review["stage"] == "transform"
+    assert review["last_raw_response"] is not None
+    assert review["violations"]
 
 
 def test_build_derived_ticket_corpus_materializes_markdown_files(tmp_path: Path, monkeypatch):
@@ -313,3 +320,69 @@ def test_build_derived_ticket_corpus_resume_skips_existing_records(tmp_path: Pat
         output_jsonl.with_suffix(output_jsonl.suffix + ".manifest.json").read_text(encoding="utf-8")
     )
     assert derived_manifest["counts"]["resumed_skipped"] == 1
+    assert derived_manifest["counts"]["output_records_total"] == 1
+
+
+def test_build_derived_ticket_corpus_materialized_manifest_counts_total_records_on_resume(
+    tmp_path: Path, monkeypatch
+):
+    source_root = tmp_path / "filtered"
+    source_root.mkdir()
+    ticket_path = source_root / "ticket.json"
+    ticket_path.write_text(json.dumps(_record()), encoding="utf-8")
+    manifest_path = tmp_path / "selected_manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "athos.ticket_filter_manifest.v1",
+                "source_path": str(source_root),
+                "selected_files": ["ticket.json"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_jsonl = tmp_path / "derived.jsonl"
+    output_jsonl.write_text(
+        json.dumps({"incident_number": "INC0001", "incident_summary": "existing"}) + "\n",
+        encoding="utf-8",
+    )
+    materialize_dir = tmp_path / "materialized"
+    existing_path = materialize_dir / "INC000" / "00" / "1.md"
+    existing_path.parent.mkdir(parents=True)
+    existing_path.write_text("# INC0001\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        build_derived_ticket_corpus_mod.ConfigLoader,
+        "load_config",
+        staticmethod(lambda _: _athos_config()),
+    )
+    monkeypatch.setattr(build_derived_ticket_corpus_mod, "_build_openai_client", lambda _: object())
+    monkeypatch.setattr(
+        build_derived_ticket_corpus_mod,
+        "_invoke_model_json",
+        lambda client, model_cfg, prompt: (_ for _ in ()).throw(
+            AssertionError("transform should not be invoked for resumed existing record")
+        ),
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_derived_ticket_corpus.py",
+            "--selected-corpus-manifest",
+            str(manifest_path),
+            "--output-jsonl",
+            str(output_jsonl),
+            "--materialize-dir",
+            str(materialize_dir),
+            "--resume",
+            "--allow-transform-errors",
+        ],
+    )
+
+    build_derived_ticket_corpus_mod.main()
+
+    materialized_manifest = json.loads(
+        (materialize_dir / "manifest.json").read_text(encoding="utf-8")
+    )
+    assert materialized_manifest["record_count"] == 1

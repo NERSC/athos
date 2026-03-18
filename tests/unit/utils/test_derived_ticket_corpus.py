@@ -4,7 +4,9 @@ from pathlib import Path
 from athos.utils.derived_ticket_corpus import (
     DerivedFieldLimits,
     build_attachment_context,
+    coerce_derived_payload,
     build_derived_ticket_document,
+    contains_email_like_pii,
     derived_ticket_materialized_relpath,
     extract_json_object,
     find_derived_payload_violations,
@@ -119,6 +121,28 @@ def test_normalize_and_validate_payload():
     assert violations == []
 
 
+def test_coerce_payload_only_trims_lists():
+    payload = coerce_derived_payload(
+        {
+            "incident_summary": "contact user@example.com about the import failure",
+            "resolution_summary": "call 510-555-1212 after environment rebuild",
+            "retrieval_keywords": ["numpy"] * 20,
+            "evidence_snippets": [
+                "ModuleNotFoundError",
+                "user@example.com",
+                "510-555-1212",
+                "second useful snippet",
+            ],
+        },
+        limits=DerivedFieldLimits(max_keywords=3, max_evidence_snippets=2),
+    )
+
+    assert payload["incident_summary"] == "contact user@example.com about the import failure"
+    assert payload["resolution_summary"] == "call 510-555-1212 after environment rebuild"
+    assert payload["retrieval_keywords"] == ["numpy", "numpy", "numpy"]
+    assert payload["evidence_snippets"] == ["ModuleNotFoundError", "user@example.com"]
+
+
 def test_validate_payload_rejects_pii_and_limit_overruns():
     payload = {
         "incident_summary": "x" * 1201,
@@ -135,6 +159,13 @@ def test_validate_payload_rejects_pii_and_limit_overruns():
     assert "incident_summary exceeds 1200 chars" in violations
     assert "resolution_summary contains email address" in violations
     assert "retrieval_keywords exceeds 12 items" in violations
+
+
+def test_email_detector_ignores_linker_symbol_false_positive():
+    assert not contains_email_like_pii(
+        "__cudaRegisterFatBinary@libcudart.so.11.0"
+    )
+    assert contains_email_like_pii("contact user@example.com for access")
 
 
 def test_extract_json_object_supports_fenced_output():
