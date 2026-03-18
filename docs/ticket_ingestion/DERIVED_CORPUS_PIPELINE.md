@@ -21,12 +21,11 @@ tooling and bundle-backed file retrieval.
 
 ## Why not use one giant JSONL for filesystem retrieval?
 
-The filesystem MCP surface used in ATHOS is read-oriented but coarse-grained:
+The filesystem surface used in ATHOS is read-oriented but coarse-grained:
 
-- `search_files`
-- `read_file`
-- `read_multiple_files`
-- `list_directory`
+- file search
+- file read
+- directory listing
 
 It does not provide line-range seeking into a large file. That makes a single
 multi-thousand-record JSONL awkward for agentic file search:
@@ -45,21 +44,21 @@ Example pilot or full run:
 
 ```bash
 python scripts/build_derived_ticket_corpus.py \
-  --selected-corpus-manifest data/manifests/servicenow_tickets_balanced_v0_20260306_retrieval_lt_20260101_filter.json \
-  --output-jsonl data/derived_ticket_corpus/derived_ticket_retrieval.jsonl \
-  --materialize-dir data/derived_ticket_corpus/derived_ticket_retrieval_files \
+  --selected-corpus-manifest data/manifests/servicenow_tickets_balanced_v0_20260306_retrieval_lt_20250901_filter.json \
+  --output-jsonl data/derived_ticket_corpus/derived_ticket_retrieval_lt_20250901_v2.jsonl \
+  --materialize-dir data/derived_ticket_corpus/derived_ticket_retrieval_lt_20250901_v2_files \
   --model cborg_coder \
   --allow-transform-errors -v
 ```
 
 Primary outputs:
 
-- `derived_ticket_retrieval.jsonl`
-- `derived_ticket_retrieval.jsonl.manifest.json`
-- `derived_ticket_retrieval.jsonl.failures.jsonl`
-- `derived_ticket_retrieval_files/INDEX.md`
-- `derived_ticket_retrieval_files/manifest.json`
-- one Markdown file per incident under `derived_ticket_retrieval_files/`
+- `derived_ticket_retrieval_lt_20250901_v2.jsonl`
+- `derived_ticket_retrieval_lt_20250901_v2.jsonl.manifest.json`
+- `derived_ticket_retrieval_lt_20250901_v2.jsonl.failures.jsonl`
+- `derived_ticket_retrieval_lt_20250901_v2_files/INDEX.md`
+- `derived_ticket_retrieval_lt_20250901_v2_files/manifest.json`
+- one Markdown file per incident under `derived_ticket_retrieval_lt_20250901_v2_files/`
 
 ## Build Chroma from the Derived Corpus
 
@@ -70,9 +69,9 @@ Example:
 
 ```bash
 python scripts/build_tickets_chroma.py \
-  --derived-jsonl data/derived_ticket_corpus/derived_ticket_retrieval.jsonl \
-  --persist-dir data/chroma/derived_tickets \
-  --collection-name tickets_derived_v1
+  --derived-jsonl data/derived_ticket_corpus/derived_ticket_retrieval_lt_20250901_v2.jsonl \
+  --persist-dir data/chroma/derived_ticket_retrieval_lt_20250901_v2 \
+  --collection-name tickets_derived_retrieval_lt_20250901_v2
 ```
 
 The derived Chroma surface renders deterministic retrieval text from the
@@ -89,7 +88,7 @@ python scripts/build_workspace.py \
   --workspace-dir workspace \
   --fs-docs-dir data/docs/docs \
   --fs-consulting-docs-dir data/consulting_docs/docs \
-  --fs-tickets-dir data/derived_ticket_corpus/derived_ticket_retrieval_files \
+  --fs-tickets-dir data/derived_ticket_corpus/derived_ticket_retrieval_lt_20250901_v2_files \
   --fs-include-tickets \
   --build-fs-index
 ```
@@ -103,11 +102,13 @@ This keeps the filesystem agent’s ticket surface:
 
 ## Current Status
 
-- Derived JSONL generation is working on the paper retrieval corpus.
-- Chroma ingestion from derived JSONL is implemented.
+- Canonical paper-facing retrieval cutoff is `lt_2025-09-01` and the corrected
+  derived retrieval corpus matches the original retrieval split exactly
+  (`7187` tickets).
+- Chroma ingestion from derived JSONL is implemented and validated.
 - Materialized per-ticket Markdown output is implemented for filesystem use.
 - Deterministic text-attachment extraction has been exercised on targeted tickets
-  with `.txt` and `.log` attachments; the pipeline rendered attachment snippets
-  and whole small text files as intended.
-- The remaining quality work is mostly around output-policy hardening and
-  broader-scale evaluation, not core mechanics.
+  with `.txt` and `.log` attachments, and also appeared in the broader corpus
+  build.
+- The derived corpus is now available both as a ticket-only Chroma DB and inside
+  an aggregate DB with `docs`, `consulting_docs`, and derived `tickets`.

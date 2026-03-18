@@ -218,6 +218,41 @@ Status (2026-03-10):
 - Complete.
 - M1 remains a useful small-dataset validation baseline and may be reused for focused follow-on analyses.
 
+### Milestone M4: Derived Ticket Retrieval Corpus
+
+Goal:
+- Replace raw-ticket retrieval surfaces with a derived ticket corpus that is
+  more compact, retrieval-oriented, and usable for both semantic retrieval and
+  file-based retrieval.
+
+Scope:
+- Transform historical ServiceNow tickets into structured derived records.
+- Materialize one Markdown file per incident for filesystem retrieval.
+- Build matching Chroma collections and aggregate DBs from the derived corpus.
+- Preserve strict retrieval/candidate date-split provenance.
+
+Deliverables:
+- `Derived Ticket Corpus v2`: canonical derived retrieval corpus for the paper
+  retrieval cutoff (`lt_2025-09-01`).
+- `Derived Ticket File Corpus v1`: per-ticket Markdown retrieval surface for
+  filesystem tools.
+- `Derived Ticket Aggregate DB v1`: docs + consulting docs + derived tickets.
+- `Workspace Assembly Update v1`: bundle assembly paths and guidance updated for
+  the new ticket representation.
+
+Exit criteria:
+- Corrected `lt_2025-09-01` retrieval corpus is built and matches the original
+  retrieval split count.
+- Chroma and filesystem retrieval both work against the derived representation.
+- Retrieval experiments can point at a versioned aggregate manifest built from
+  the derived ticket corpus.
+
+Status update (2026-03-18):
+- Complete for infrastructure/buildout.
+- Canonical corrected retrieval workspace is
+  `workspace_derived_retrieval_lt_20250901`.
+- Remaining work is evaluation and manuscript integration, not corpus mechanics.
+
 ### Milestone M2: Expanded Study v1
 
 Goal:
