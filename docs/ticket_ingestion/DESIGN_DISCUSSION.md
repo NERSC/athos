@@ -1,4 +1,9 @@
-# Ticket Ingestion Pipeline Design Discussion
+# Ticket Ingestion Pipeline Design Discussion (Historical)
+
+This document captures early design thinking for the layered raw-ticket
+ingestion approach. It is retained for background context. For the current
+derived retrieval pipeline, see
+[`DERIVED_CORPUS_PIPELINE.md`](./DERIVED_CORPUS_PIPELINE.md).
 
 ## Goal
 
@@ -147,4 +152,3 @@ servicenow_tickets_v0
 ## Recommendation
 
 Proceed with Layer 1 immediately, with chunk fallback and stable metadata conventions designed to support Layers 2 and 3 without schema churn.
-
