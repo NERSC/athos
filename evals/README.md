@@ -223,6 +223,48 @@ python evals/summarize_results.py \
 Summary aggregates include `run_count`, `scored_count`, `skipped_count`,
 `skipped_by_reason`, and score/pass metrics computed from scored judgments only.
 
+## CUG wrapper note
+
+[`scripts/run_cug_eval.sh`](/Users/sfarrell/Work/agentic-ops/athos/scripts/run_cug_eval.sh)
+provides a higher-level wrapper around execution, scoring, and summarization for
+the CUG paper workflows.
+
+Useful modes:
+
+- Execution only:
+  ```bash
+  ./scripts/run_cug_eval.sh \
+    --dataset-profile mini \
+    --flow-profile lang_chroma_gptoss_opt \
+    --experiment-id cug_example \
+    --skip-scoring
+  ```
+- Score + summarize only:
+  ```bash
+  ./scripts/run_cug_eval.sh \
+    --dataset-profile mini \
+    --flow-profile lang_chroma_gptoss_opt \
+    --experiment-id cug_example \
+    --skip-execution
+  ```
+
+Debugging/logging helpers:
+- `--debug-shell` enables shell tracing.
+- Stage logs are written under the experiment directory:
+  - `run_evaluations.log`
+  - `score_runs.log`
+  - `summarize_results.log`
+
+Known issue (2026-03-19):
+- For `cug_lang_chroma_gptoss_opt`, the combined wrapper path
+  (execution followed immediately by scoring in the same wrapper invocation) can
+  intermittently produce a zero-byte judgments file even though
+  `evals/score_runs.py` reports successful scoring.
+- The reliable workaround is to run the wrapper in two phases:
+  1. execution only with `--skip-scoring`
+  2. scoring/summarization only with `--skip-execution`
+- Direct `evals/score_runs.py` invocation also works as a fallback.
+
 ## Available test cases
 
 Current examples included in this repo:

@@ -99,6 +99,18 @@ Status update (2026-03-15):
   - `llama_4_maverick` rescoring completed for canonical main, filesystem, harness, variance, and external mini result dirs,
   - retry pass cleared transient `skipped_judge_error` cases; remaining skips are execution-status related.
 
+Status update (2026-03-19):
+- New intent-based CUG wrapper is available at
+  [`scripts/run_cug_eval.sh`](../../scripts/run_cug_eval.sh).
+- Current known limitation: for `cug_lang_chroma_gptoss_opt`, the combined
+  wrapper path (execution immediately followed by scoring in the same wrapper
+  invocation) can intermittently produce an empty judgments JSONL even when
+  `score_runs.py` reports successful scoring.
+- Current workaround for paper runs:
+  1. run execution with `--skip-scoring`
+  2. run scoring/summarization with `--skip-execution`
+- Direct `evals/score_runs.py` remains a reliable fallback when needed.
+
 ## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
 
 Purpose:
