@@ -252,6 +252,8 @@ Status update (2026-03-18):
 - Canonical corrected retrieval workspace is
   `workspace_derived_retrieval_lt_20250901`.
 - Remaining work is evaluation and manuscript integration, not corpus mechanics.
+- Operational details for the derived retrieval build are documented in
+  [`../ticket_ingestion/DERIVED_CORPUS_PIPELINE.md`](../ticket_ingestion/DERIVED_CORPUS_PIPELINE.md).
 
 ### Milestone M2: Expanded Study v1
 
