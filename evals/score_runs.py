@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -273,9 +274,14 @@ def main() -> None:
                 }
             )
 
-    temp_output_path = output_path.with_name(f"{output_path.name}.tmp")
     write_count = 0
-    with temp_output_path.open("w", encoding="utf-8") as handle:
+    temp_fd, temp_output_str = tempfile.mkstemp(
+        dir=output_path.parent,
+        prefix=output_path.stem + ".",
+        suffix=".tmp",
+    )
+    temp_output_path = Path(temp_output_str)
+    with os.fdopen(temp_fd, "w", encoding="utf-8") as handle:
         for run_path in run_paths:
             run_payload = json.loads(run_path.read_text())
             run_id = run_payload.get("run_id")
@@ -465,17 +471,25 @@ def main() -> None:
 
         handle.flush()
         os.fsync(handle.fileno())
-
     temp_output_path.replace(output_path)
 
     if skips_output_path:
-        temp_skips_output_path = skips_output_path.with_name(f"{skips_output_path.name}.tmp")
-        with temp_skips_output_path.open("w", encoding="utf-8") as skip_handle:
-            for skip in skips:
-                skip_handle.write(json.dumps(skip) + "\n")
-            skip_handle.flush()
-            os.fsync(skip_handle.fileno())
-        temp_skips_output_path.replace(skips_output_path)
+        skip_fd, skip_temp_str = tempfile.mkstemp(
+            dir=skips_output_path.parent,
+            prefix=skips_output_path.stem + ".",
+            suffix=".tmp",
+        )
+        skip_temp_path = Path(skip_temp_str)
+        try:
+            with os.fdopen(skip_fd, "w", encoding="utf-8") as skip_handle:
+                for skip in skips:
+                    skip_handle.write(json.dumps(skip) + "\n")
+                skip_handle.flush()
+                os.fsync(skip_handle.fileno())
+            skip_temp_path.replace(skips_output_path)
+        except BaseException:
+            skip_temp_path.unlink(missing_ok=True)
+            raise
 
     try:
         output_size = output_path.stat().st_size

@@ -255,15 +255,14 @@ Debugging/logging helpers:
   - `score_runs.log`
   - `summarize_results.log`
 
-Known issue (2026-03-19):
-- For `cug_lang_chroma_gptoss_opt`, the combined wrapper path
-  (execution followed immediately by scoring in the same wrapper invocation) can
-  intermittently produce a zero-byte judgments file even though
-  `evals/score_runs.py` reports successful scoring.
-- The reliable workaround is to run the wrapper in two phases:
-  1. execution only with `--skip-scoring`
-  2. scoring/summarization only with `--skip-execution`
-- Direct `evals/score_runs.py` invocation also works as a fallback.
+Fixed (2026-03-19):
+- The combined wrapper path (execution + scoring in one invocation) was
+  intermittently producing a zero-byte judgments file. The root symptom was
+  that the predictable `.tmp` file path (`<judge_id>.jsonl.tmp`) was being
+  replaced by an empty file between `open()` and `flush()` in `score_runs.py`.
+- Fixed by switching from a predictable `.tmp` filename to `tempfile.mkstemp()`
+  with a randomly-generated name in the same directory, making it impossible
+  for anything to accidentally collide with the temp path.
 
 ## Available test cases
 
