@@ -554,6 +554,20 @@ Status update (2026-03-15):
 
 ### Manuscript Status Snapshot
 
+Status update (2026-03-21):
+- All sections are written with substantial prose:
+  - Introduction, Related Work, ATHOS Toolkit Design, Experimental Design
+  - Results (all subsections: main findings, model quality, token cost, latency,
+    HPC operating points, variance study, harness comparison, external
+    coding-agent comparison, judge sensitivity)
+  - Conclusion
+- Maverick-judged tables/figures/narrative are frozen for current submission.
+- Appendix benchmark example (prompt + reference solution) was not added; treat
+  as deferred — the appendix section in `main.tex` is currently empty.
+- Remaining publication polish for camera ready:
+  - ACM front matter placeholders (copyright year, DOI, conference title, ISBN)
+  - caption and bibliography revisions as needed
+
 Status update (2026-03-11):
 - Manuscript repo: `../athos_cug_2026_paper`
 - Main draft file: `main.tex`
@@ -604,30 +618,28 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-15)
+## Immediate Next Steps (Updated 2026-03-21)
 
 Execution track:
-1. Freeze the scoped paper experiment set as complete and keep any further runs explicitly out of scope unless they are needed to repair a documented artifact.
-2. Carry forward the completed M1 harness comparison:
-   - `langchain + claude_sonnet` was strongest,
-   - `smolagents + claude_sonnet` was competitive but weaker and more token-expensive,
-   - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
-3. Preserve the bundle-backed filesystem setup as the canonical paper lineage and use the stitched Sonnet artifact as the paper-facing filesystem source.
-4. For quota-sensitive Sonnet filesystem runs, prefer bounded reruns over full reruns when the artifact pattern shows a likely provider-exhaustion tail.
-5. Keep alternate-judge rescoring frozen for submission unless a documented artifact repair is needed.
-6. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
-7. Treat the focused external coding-agent mini comparison as complete for paper scope; keep any further coding-agent runs explicitly out of scope unless needed to repair artifacts.
+1. Complete M4 Sonnet retrieval reruns against the derived corpus (all
+   paper-facing retrieval rows and auxiliary evidence); incorporate into the
+   paper in a single pass once the artifact set is frozen.
+2. All other experiment execution is frozen for current submission scope.
 
 Writing track:
-1. Keep the current Maverick-aligned tables/figures/narrative frozen unless a documented artifact repair is needed.
-2. Build and sanity-check the final PDF against current paper artifacts (tables/figures/narrative all Maverick-aligned).
-3. Do a final manuscript pass for ACM metadata/front matter polish, captions, and references.
-4. If space allows, add one representative benchmark example (prompt + reference solution; optional appendix with model/judge excerpt).
-5. Preserve the short judge-sensitivity subsection as a robustness check:
-   - motivation: reduce judge overlap risk and test headline stability,
-   - method: rescore fixed stored outputs under alternate judge(s),
-   - current status: two alternate full-scope judges (`mistral_large_3`, `llama_4_maverick`) completed and summarized.
-6. Keep filesystem and SmolAgents rows framed as secondary/diagnostic comparisons relative to the main six-row LangChain table.
+1. Complete ACM front matter (copyright year, DOI, conference title, ISBN) for
+   camera ready.
+2. Revise captions and bibliography as needed for camera ready.
+3. Regenerate paper tables/figures/narrative once M4 Sonnet retrieval artifacts
+   are frozen, then do a final consistency pass.
+
+Previously completed (2026-03-15):
+- Maverick-aligned tables/figures/narrative frozen for submission.
+- Results narrative and Conclusion written.
+- Judge-sensitivity subsection integrated.
+- External coding-agent mini comparison complete and in manuscript.
+- Filesystem and SmolAgents rows framed as secondary/diagnostic comparisons.
+- Benchmark appendix example deferred (appendix remains empty).
 
 Post-deadline follow-up candidate (not required for current submission deadline):
 - Human adjudication mini-study:
