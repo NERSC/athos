@@ -19,6 +19,13 @@ This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) an
   - canonical runs are rescored with both `mistral_large_3` and `llama_4_maverick`,
   - paper tables/figures and main narrative are now aligned to Maverick-scored artifacts,
   - wrapper defaults are now paper-ready for reproducible rerenders without large command overrides.
+- M4 derived-ticket corpus migration is still in progress at the paper-results
+  layer:
+  - corpus/buildout work is complete,
+  - `results/cug_m4` / `docs/cug_m4_20260321_review.md` records one completed
+    GPT-OSS retrieval rerun subset against the derived aggregate DB,
+  - M4 is not complete until all paper-facing retrieval rows affected by the
+    corpus change are rerun or explicitly retired from paper scope.
 
 ## 0. Scope and Configuration Working Points
 
@@ -236,6 +243,9 @@ Goal:
 - Replace raw-ticket retrieval surfaces with a derived ticket corpus that is
   more compact, retrieval-oriented, and usable for both semantic retrieval and
   file-based retrieval.
+- Refresh all paper-facing retrieval-backed evidence so the manuscript no
+  longer mixes pre-M4 raw-ticket retrieval results with post-M4 derived-ticket
+  retrieval results.
 
 Scope:
 - Transform historical ServiceNow tickets into structured derived records.
@@ -251,6 +261,11 @@ Deliverables:
 - `Derived Ticket Aggregate DB v1`: docs + consulting docs + derived tickets.
 - `Workspace Assembly Update v1`: bundle assembly paths and guidance updated for
   the new ticket representation.
+- `Paper Retrieval Rerun Set v1`: rerun artifacts for all paper-facing
+  retrieval-dependent rows that should reflect the derived corpus.
+- `Paper Retrieval Refresh v1`: updated summaries, judge rescoring outputs,
+  tables, and narrative text for all manuscript evidence that depends on the
+  retrieval corpus.
 
 Exit criteria:
 - Corrected `lt_2025-09-01` retrieval corpus is built and matches the original
@@ -258,14 +273,99 @@ Exit criteria:
 - Chroma and filesystem retrieval both work against the derived representation.
 - Retrieval experiments can point at a versioned aggregate manifest built from
   the derived ticket corpus.
+- All paper-facing retrieval-backed results affected by the ticket-corpus
+  change are refreshed to the derived corpus condition, or are explicitly
+  removed from paper scope.
+
+Paper-facing retrieval-backed results affected by the M4 corpus change:
+
+Main comparative retrieval rows:
+
+- `lang_gptoss_filesystem` (pre-M4 source: `results/cug_m3_20260313_080148`)
+- `lang_sonnet_filesystem` (pre-M4 source: `results/cug_m3_fs_sonnet_stitched_20260314`)
+- `lang_gptoss_chroma` (pre-M4 source from M2 baseline row)
+- `lang_sonnet_chroma` (pre-M4 source from M2 baseline row)
+- `lang_gptoss_chroma_opt` (pre-M4 source: `results/cug_m3_full_gptoss_opt_20260311_013848`)
+- `lang_sonnet_chroma_opt` (pre-M4 source: `results/cug_m3_full_sonnet_opt_20260311_081645`)
+
+Auxiliary paper evidence that is also retrieval-backed and therefore in M4
+scope under the current paper policy:
+
+- repeated-run variance study for retrieval-enabled canonical configs
+- focused harness comparison rows, because they evaluate retrieval-backed
+  systems and are discussed in the paper as comparative evidence
+- judge-sensitivity rescoring for the refreshed retrieval-backed canonical run
+  set
+
+Rows not inherently affected by the M4 retrieval-corpus change:
+
+- `lang_gptoss_base`
+- `lang_sonnet_base`
 
 Status update (2026-03-18):
 - Complete for infrastructure/buildout.
 - Canonical corrected retrieval workspace is
   `workspace_derived_retrieval_lt_20250901`.
-- Remaining work is evaluation and manuscript integration, not corpus mechanics.
+- Remaining work is retrieval-result refresh and manuscript integration, not
+  corpus mechanics.
 - Operational details for the derived retrieval build are documented in
   [`../ticket_ingestion/DERIVED_CORPUS_PIPELINE.md`](../ticket_ingestion/DERIVED_CORPUS_PIPELINE.md).
+
+Status update (2026-03-21):
+- First expanded-set paper-facing GPT-OSS retrieval rerun subset against the
+  derived aggregate DB is complete at `results/cug_m4`.
+- Execution summary is recorded in
+  [`../cug_m4_20260321_review.md`](../cug_m4_20260321_review.md).
+- Scope completed so far:
+  - `cug_lang_chroma_gptoss`
+  - `cug_lang_chroma_gptoss_opt`
+  - `cug_lang_filesystem_gptoss`
+- GPT-OSS M4 status:
+  - complete for the expanded-set GPT-OSS retrieval row subset represented in
+    `results/cug_m4`
+  - auxiliary retrieval-backed GPT-OSS refreshes are now also available:
+    - variance refresh: `results/cug_m4_var`
+    - harness refresh: `results/cug_m4_harness`
+- Remaining M4 work:
+  - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
+  - refresh the Sonnet-side retrieval-backed auxiliary paper evidence so it uses
+    the same derived-corpus condition,
+  - rerun or rescore judge-sensitivity artifacts against the refreshed
+    canonical retrieval-backed run set,
+  - regenerate paper-facing tables/figures/narrative once the canonical M4
+    retrieval-backed artifact set is frozen.
+
+GPT-OSS auxiliary refresh outcomes (2026-03-21):
+
+- Variance refresh (`results/cug_m4_var`) compared to pre-M4 GPT-OSS variance
+  artifact `results/cug_m3_var_20260312_093435`:
+  - `simple_qa`:
+    - old: `pass_rate=0.84`, `score_mean=81.0`, `skipped_count=1`
+    - new: `pass_rate=0.66`, `score_mean=74.3`, `skipped_count=4`
+  - `test_cases`:
+    - old: `pass_rate=0.7857`, `score_mean=80.5`, `skipped_count=2`
+    - new: `pass_rate=0.70`, `score_mean=73.73`, `skipped_count=3`
+  - interpretation:
+    - the derived-ticket corpus weakens the GPT-OSS repeated-run variance
+      picture relative to the pre-M4 artifact,
+    - GPT-OSS remains viable, but the post-M4 variance evidence is less
+      favorable than the current manuscript-side GPT-OSS variance artifact.
+
+- Harness refresh (`results/cug_m4_harness`) compared to pre-M4 ATHOS harness
+  artifact `results/cug_m3_var_20260311_231139`:
+  - `cug_lang_chroma_gptoss_opt`:
+    - `simple_qa`: `80.0/76.0` -> `80.0/86.0`
+    - `test_cases`: `71.4/75.0` -> `85.7/90.43`
+    - total-token means decreased on both datasets
+  - `cug_smol_chroma_gptoss`:
+    - `simple_qa`: `40.0/55.0` -> `80.0/83.0`
+    - `test_cases`: `42.9/59.29` -> `71.4/70.71`
+    - latency and total-token means increased sharply despite the quality gain
+  - interpretation:
+    - the derived-ticket corpus substantially improves the GPT-OSS ATHOS
+      harness comparison quality picture,
+    - but SmolAgents remains much more expensive/slower than LangChain even
+      after the quality gain.
 
 ### Milestone M2: Expanded Study v1
 
