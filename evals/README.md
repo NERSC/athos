@@ -223,6 +223,47 @@ python evals/summarize_results.py \
 Summary aggregates include `run_count`, `scored_count`, `skipped_count`,
 `skipped_by_reason`, and score/pass metrics computed from scored judgments only.
 
+## CUG wrapper note
+
+[`scripts/run_cug_eval.sh`](/Users/sfarrell/Work/agentic-ops/athos/scripts/run_cug_eval.sh)
+provides a higher-level wrapper around execution, scoring, and summarization for
+the CUG paper workflows.
+
+Useful modes:
+
+- Execution only:
+  ```bash
+  ./scripts/run_cug_eval.sh \
+    --dataset-profile mini \
+    --flow-profile lang_chroma_gptoss_opt \
+    --experiment-id cug_example \
+    --skip-scoring
+  ```
+- Score + summarize only:
+  ```bash
+  ./scripts/run_cug_eval.sh \
+    --dataset-profile mini \
+    --flow-profile lang_chroma_gptoss_opt \
+    --experiment-id cug_example \
+    --skip-execution
+  ```
+
+Debugging/logging helpers:
+- `--debug-shell` enables shell tracing.
+- Stage logs are written under the experiment directory:
+  - `run_evaluations.log`
+  - `score_runs.log`
+  - `summarize_results.log`
+
+Fixed (2026-03-19):
+- The combined wrapper path (execution + scoring in one invocation) was
+  intermittently producing a zero-byte judgments file. The root symptom was
+  that the predictable `.tmp` file path (`<judge_id>.jsonl.tmp`) was being
+  replaced by an empty file between `open()` and `flush()` in `score_runs.py`.
+- Fixed by switching from a predictable `.tmp` filename to `tempfile.mkstemp()`
+  with a randomly-generated name in the same directory, making it impossible
+  for anything to accidentally collide with the temp path.
+
 ## Available test cases
 
 Current examples included in this repo:

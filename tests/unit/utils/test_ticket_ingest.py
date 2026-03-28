@@ -354,3 +354,12 @@ def test_sanitize_ticket_record_preserves_attachment_local_paths():
     assert attachment["local_path"] == "servicenow_incidents/INC001/01/attachment_dir/Steps 5-6 (jdoe).png"
     assert attachment["file_name"] != "Steps 5-6 (jdoe).png"
     assert "USER_" in attachment["file_name"]
+
+
+def test_sanitize_ticket_record_preserves_close_code_parenthetical_labels():
+    record = _sample_record()
+    record["incident_fields"]["close_code"] = "Solved (Permanently)"
+
+    sanitized, _ = sanitize_ticket_record(record, salt="unit-test-salt")
+
+    assert sanitized["incident_fields"]["close_code"] == "Solved (Permanently)"

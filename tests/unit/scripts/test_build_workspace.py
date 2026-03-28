@@ -68,7 +68,7 @@ def test_build_workspace_generates_docs_only_file_retrieval_corpus(
     assert not (bundle_dir / "tickets").exists()
 
     index_text = (bundle_dir / "INDEX.md").read_text(encoding="utf-8")
-    assert "Filesystem Eval Bundle" in index_text
+    assert "# File Retrieval Corpus" in index_text
     assert "`tickets/`: not included" in index_text
 
     bundle_manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -135,7 +135,7 @@ def test_build_workspace_generates_ticket_inclusive_file_retrieval_corpus(
     index_text = (bundle_dir / "INDEX.md").read_text(encoding="utf-8")
     assert "`tickets/`: copied from" in index_text
     assert "Historical tickets and past incident examples" in index_text
-    assert "stored as JSON" in index_text
+    assert "stored as per-ticket files" in index_text
 
     bundle_manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
     assert bundle_manifest["tickets_included"] is True

@@ -218,7 +218,6 @@ The skipped case was:
 - `nersc_ai_support_group`
 
 Representative failure artifact:
-
 - `results/cug_m3_smoke_fs_gptoss_tickets_20260312_232026/athos/cug_lang_filesystem_gptoss__gptoss__57048e37/simple_qa/nersc_ai_support_group/0/run.json`
 
 That run ended with:
@@ -232,6 +231,58 @@ Interpretation:
 - adding tickets did not break the row globally
 - but the broader heterogeneous corpus did reintroduce some tool-use brittleness
 - the current filesystem row is therefore good enough to treat as meaningful paper signal, but not yet fully stable on the ticket-inclusive corpus
+
+## Expanded M4 Derived-Ticket Result (2026-03-21)
+
+We now also have a full expanded-set result against the M4 derived-ticket
+aggregate DB:
+
+- experiment:
+  - `results/cug_m4`
+- review note:
+  - `docs/cug_m4_20260321_review.md`
+
+This run used the canonical filesystem paper flow:
+
+- `cug_lang_filesystem_gptoss`
+
+and the paper-facing derived aggregate manifest:
+
+- `data/chroma/aggregates/manifests/athos_eval_bundle_20260318_derived_tickets_lt_20250901_v2.json`
+
+Observed result on expanded datasets:
+
+- `run_count=279`
+- `skipped_count=135`
+- `score_mean=44.22`
+- `pass_rate=0.441`
+
+Dataset split:
+
+- `ticket_cases`: `score_mean=42.45`, `pass_rate=0.423`, `skipped_count=82`
+- `nersc_qa.v2`: `score_mean=46.46`, `pass_rate=0.463`, `skipped_count=53`
+
+Observed failure mix:
+
+- `GraphRecursionError`: dominant (`113`)
+- `ToolException`: `16`
+- `BadRequestError`: `6`
+
+Representative non-recursion failures:
+
+- missing file path (`ENOENT`)
+- directory read attempted as file (`EISDIR`)
+- context-budget underflow (`max_tokens must be at least 1`)
+
+Interpretation:
+
+- the derived-ticket representation did not collapse the filesystem row into
+  the earlier raw-ticket failure mode,
+- but it also did not make the expanded-set filesystem row robust enough for a
+  strong operating point,
+- the current filesystem row is still useful as a paper-facing retrieval-design
+  comparison, provided it is framed as a weaker file-based baseline rather than
+  the preferred retrieval path.
 
 ### Sonnet expanded QA run
 

@@ -184,8 +184,8 @@ def _build_file_retrieval_corpus(
             index_lines.extend(
                 [
                     "- Start within `tickets/` when the question is about a past incident, workaround, or troubleshooting history.",
-                    "- Use `search_files` with a specific incident id, product name, filesystem name, or error string.",
-                    "- Ticket records are stored as JSON; prefer a narrow search first, then read only the most relevant matching file.",
+                    "- Search using a specific incident id, product name, filesystem name, or error string.",
+                    "- Ticket records are stored as per-ticket files; prefer a narrow search first, then read only the most relevant matching file.",
                     "- If the question is policy or documentation oriented rather than incident-history oriented, prefer `docs/` or `consulting_docs/` first.",
                     "",
                 ]
@@ -201,9 +201,9 @@ def _build_file_retrieval_corpus(
             [
                 "### General search fallback",
                 "",
-                "- If the topic map does not clearly apply, do one narrow `search_files` within either `docs/` or `consulting_docs/`.",
-                "- If `tickets/` is included and the question explicitly sounds incident- or workaround-oriented, do one narrow `search_files` within `tickets/` instead.",
-                "- Avoid repeating the same search across the entire bundle with only minor wording changes.",
+                "- If the topic map does not clearly apply, do one narrow search within either `docs/` or `consulting_docs/`.",
+                "- If `tickets/` is included and the question explicitly sounds incident- or workaround-oriented, do one narrow search within `tickets/` instead.",
+                "- Avoid repeating the same broad search across the entire bundle with only minor wording changes.",
                 "",
                 "## Mini QA Routing Hints",
                 "",

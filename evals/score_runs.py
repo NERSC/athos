@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -272,7 +274,14 @@ def main() -> None:
                 }
             )
 
-    with output_path.open("a", encoding="utf-8") as handle:
+    write_count = 0
+    temp_fd, temp_output_str = tempfile.mkstemp(
+        dir=output_path.parent,
+        prefix=output_path.stem + ".",
+        suffix=".tmp",
+    )
+    temp_output_path = Path(temp_output_str)
+    with os.fdopen(temp_fd, "w", encoding="utf-8") as handle:
         for run_path in run_paths:
             run_payload = json.loads(run_path.read_text())
             run_id = run_payload.get("run_id")
@@ -458,11 +467,38 @@ def main() -> None:
                 "subscores": {},
             }
             handle.write(json.dumps(judgment) + "\n")
+            write_count += 1
+
+        handle.flush()
+        os.fsync(handle.fileno())
+    temp_output_path.replace(output_path)
 
     if skips_output_path:
-        with skips_output_path.open("a", encoding="utf-8") as skip_handle:
-            for skip in skips:
-                skip_handle.write(json.dumps(skip) + "\n")
+        skip_fd, skip_temp_str = tempfile.mkstemp(
+            dir=skips_output_path.parent,
+            prefix=skips_output_path.stem + ".",
+            suffix=".tmp",
+        )
+        skip_temp_path = Path(skip_temp_str)
+        try:
+            with os.fdopen(skip_fd, "w", encoding="utf-8") as skip_handle:
+                for skip in skips:
+                    skip_handle.write(json.dumps(skip) + "\n")
+                skip_handle.flush()
+                os.fsync(skip_handle.fileno())
+            skip_temp_path.replace(skips_output_path)
+        except BaseException:
+            skip_temp_path.unlink(missing_ok=True)
+            raise
+
+    try:
+        output_size = output_path.stat().st_size
+    except FileNotFoundError:
+        output_size = None
+    print(
+        f"Judgment file stats: path={output_path} "
+        f"writes={write_count} size_bytes={output_size}"
+    )
 
     print(
         f"Wrote judgments to {output_path} "

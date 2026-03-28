@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import traceback
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Mapping, Optional, Sequence, TYPE_CHECKING, Self
 
@@ -625,8 +626,11 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 try:
                     tools = await client.get_tools()
                 except Exception as exc:  # pragma: no cover - defensive logging
+                    exception_details = self._format_exception_details(exc)
                     logger.warning(
-                        "Failed to load tools from LangGraph MCP client: %s", exc
+                        "Failed to load tools from LangGraph MCP client '%s': %s",
+                        server_name,
+                        exception_details,
                     )
                     continue
                 if tools:
@@ -645,6 +649,42 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 self._graph_needs_rebuild = True
 
             self._mcp_tools_loaded = True
+
+    def _format_exception_details(self, exc: BaseException) -> str:
+        """Return a readable single-line summary for nested async exception groups."""
+
+        lines: List[str] = []
+        self._collect_exception_lines(exc, lines, depth=0)
+        return " | ".join(lines) if lines else repr(exc)
+
+    def _collect_exception_lines(
+        self,
+        exc: BaseException,
+        lines: List[str],
+        depth: int,
+    ) -> None:
+        """Flatten nested exception groups into concise loggable lines."""
+
+        indent = ">" * depth
+        header = f"{indent}{type(exc).__name__}: {exc}"
+        lines.append(header)
+
+        nested = getattr(exc, "exceptions", None)
+        if nested:
+            for child in nested:
+                self._collect_exception_lines(child, lines, depth + 1)
+            return
+
+        cause = exc.__cause__ or exc.__context__
+        if cause is not None and cause is not exc:
+            self._collect_exception_lines(cause, lines, depth + 1)
+            return
+
+        formatted = traceback.format_exception_only(type(exc), exc)
+        if formatted:
+            tail = formatted[-1].strip()
+            if tail and tail != header:
+                lines.append(f"{indent}{tail}")
 
     def _filter_mcp_tools(
         self,

@@ -1,4 +1,8 @@
-# Ticket Ingestion Implementation Plan v0
+# Ticket Ingestion Implementation Plan v0 (Historical)
+
+This document describes the original raw-ticket ingestion implementation plan.
+It is kept as a historical reference. For the current derived retrieval
+pipeline, see [`DERIVED_CORPUS_PIPELINE.md`](./DERIVED_CORPUS_PIPELINE.md).
 
 ## Objective
 

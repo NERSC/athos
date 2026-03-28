@@ -19,6 +19,15 @@ This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) an
   - canonical runs are rescored with both `mistral_large_3` and `llama_4_maverick`,
   - paper tables/figures and main narrative are now aligned to Maverick-scored artifacts,
   - wrapper defaults are now paper-ready for reproducible rerenders without large command overrides.
+- M4 derived-ticket corpus migration is still in progress at the paper-results
+  layer:
+  - corpus/buildout work is complete,
+  - `results/cug_m4` / `docs/cug_m4_20260321_review.md` records one completed
+    GPT-OSS retrieval rerun subset against the derived aggregate DB,
+  - M4 is not complete until all paper-facing retrieval rows affected by the
+    corpus change are rerun or explicitly retired from paper scope,
+  - this includes retrieval-backed coding-agent comparison evidence, not only
+    ATHOS-run retrieval rows.
 
 ## 0. Scope and Configuration Working Points
 
@@ -98,6 +107,18 @@ Status update (2026-03-15):
   - `mistral_large_3` rescoring completed for canonical main, filesystem, harness, variance, and external mini result dirs,
   - `llama_4_maverick` rescoring completed for canonical main, filesystem, harness, variance, and external mini result dirs,
   - retry pass cleared transient `skipped_judge_error` cases; remaining skips are execution-status related.
+
+Status update (2026-03-19):
+- New intent-based CUG wrapper is available at
+  [`scripts/run_cug_eval.sh`](../../scripts/run_cug_eval.sh).
+- Current known limitation: for `cug_lang_chroma_gptoss_opt`, the combined
+  wrapper path (execution immediately followed by scoring in the same wrapper
+  invocation) can intermittently produce an empty judgments JSONL even when
+  `score_runs.py` reports successful scoring.
+- Current workaround for paper runs:
+  1. run execution with `--skip-scoring`
+  2. run scoring/summarization with `--skip-execution`
+- Direct `evals/score_runs.py` remains a reliable fallback when needed.
 
 ## 1.1 Ticket Ingestion Pipeline (Enabler Workstream)
 
@@ -217,6 +238,140 @@ Outputs:
 Status (2026-03-10):
 - Complete.
 - M1 remains a useful small-dataset validation baseline and may be reused for focused follow-on analyses.
+
+### Milestone M4: Derived Ticket Retrieval Corpus
+
+Goal:
+- Replace raw-ticket retrieval surfaces with a derived ticket corpus that is
+  more compact, retrieval-oriented, and usable for both semantic retrieval and
+  file-based retrieval.
+- Refresh all paper-facing retrieval-backed evidence so the manuscript no
+  longer mixes pre-M4 raw-ticket retrieval results with post-M4 derived-ticket
+  retrieval results.
+
+Scope:
+- Transform historical ServiceNow tickets into structured derived records.
+- Materialize one Markdown file per incident for filesystem retrieval.
+- Build matching Chroma collections and aggregate DBs from the derived corpus.
+- Preserve strict retrieval/candidate date-split provenance.
+
+Deliverables:
+- `Derived Ticket Corpus v2`: canonical derived retrieval corpus for the paper
+  retrieval cutoff (`lt_2025-09-01`).
+- `Derived Ticket File Corpus v1`: per-ticket Markdown retrieval surface for
+  filesystem tools.
+- `Derived Ticket Aggregate DB v1`: docs + consulting docs + derived tickets.
+- `Workspace Assembly Update v1`: bundle assembly paths and guidance updated for
+  the new ticket representation.
+- `Paper Retrieval Rerun Set v1`: rerun artifacts for all paper-facing
+  retrieval-dependent rows that should reflect the derived corpus.
+- `Paper Retrieval Refresh v1`: updated summaries, judge rescoring outputs,
+  tables, and narrative text for all manuscript evidence that depends on the
+  retrieval corpus.
+
+Exit criteria:
+- Corrected `lt_2025-09-01` retrieval corpus is built and matches the original
+  retrieval split count.
+- Chroma and filesystem retrieval both work against the derived representation.
+- Retrieval experiments can point at a versioned aggregate manifest built from
+  the derived ticket corpus.
+- All paper-facing retrieval-backed results affected by the ticket-corpus
+  change are refreshed to the derived corpus condition, or are explicitly
+  removed from paper scope.
+
+Paper-facing retrieval-backed results affected by the M4 corpus change:
+
+Main comparative retrieval rows:
+
+- `lang_gptoss_filesystem` (pre-M4 source: `results/cug_m3_20260313_080148`)
+- `lang_sonnet_filesystem` (pre-M4 source: `results/cug_m3_fs_sonnet_stitched_20260314`)
+- `lang_gptoss_chroma` (pre-M4 source from M2 baseline row)
+- `lang_sonnet_chroma` (pre-M4 source from M2 baseline row)
+- `lang_gptoss_chroma_opt` (pre-M4 source: `results/cug_m3_full_gptoss_opt_20260311_013848`)
+- `lang_sonnet_chroma_opt` (pre-M4 source: `results/cug_m3_full_sonnet_opt_20260311_081645`)
+
+Auxiliary paper evidence that is also retrieval-backed and therefore in M4
+scope under the current paper policy:
+
+- repeated-run variance study for retrieval-enabled canonical configs
+- focused harness comparison rows, because they evaluate retrieval-backed
+  systems and are discussed in the paper as comparative evidence
+- retrieval-backed external coding-agent comparison rows / mini-harness results
+  that are used as comparative paper evidence
+- judge-sensitivity rescoring for the refreshed retrieval-backed canonical run
+  set
+
+Rows not inherently affected by the M4 retrieval-corpus change:
+
+- `lang_gptoss_base`
+- `lang_sonnet_base`
+
+Status update (2026-03-18):
+- Complete for infrastructure/buildout.
+- Canonical corrected retrieval workspace is
+  `workspace_derived_retrieval_lt_20250901`.
+- Remaining work is retrieval-result refresh and manuscript integration, not
+  corpus mechanics.
+- Operational details for the derived retrieval build are documented in
+  [`../ticket_ingestion/DERIVED_CORPUS_PIPELINE.md`](../ticket_ingestion/DERIVED_CORPUS_PIPELINE.md).
+
+Status update (2026-03-21):
+- First expanded-set paper-facing GPT-OSS retrieval rerun subset against the
+  derived aggregate DB is complete at `results/cug_m4`.
+- Execution summary is recorded in
+  [`../cug_m4_20260321_review.md`](../cug_m4_20260321_review.md).
+- Scope completed so far:
+  - `cug_lang_chroma_gptoss`
+  - `cug_lang_chroma_gptoss_opt`
+  - `cug_lang_filesystem_gptoss`
+- GPT-OSS M4 status:
+  - complete for the expanded-set GPT-OSS retrieval row subset represented in
+    `results/cug_m4`
+  - auxiliary retrieval-backed GPT-OSS refreshes are now also available:
+    - variance refresh: `results/cug_m4_var`
+    - harness refresh: `results/cug_m4_harness`
+- Remaining M4 work:
+  - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
+  - refresh the Sonnet-side retrieval-backed auxiliary paper evidence so it uses
+    the same derived-corpus condition,
+  - rerun the retrieval-backed coding-agent comparison set against the derived
+    corpus and refresh its imported/scored artifacts,
+  - rerun or rescore judge-sensitivity artifacts against the refreshed
+    canonical retrieval-backed run set,
+  - regenerate paper-facing tables/figures/narrative once the canonical M4
+    retrieval-backed artifact set is frozen.
+
+GPT-OSS auxiliary refresh outcomes (2026-03-21):
+
+- Variance refresh (`results/cug_m4_var`) compared to pre-M4 GPT-OSS variance
+  artifact `results/cug_m3_var_20260312_093435`:
+  - `simple_qa`:
+    - old: `pass_rate=0.84`, `score_mean=81.0`, `skipped_count=1`
+    - new: `pass_rate=0.66`, `score_mean=74.3`, `skipped_count=4`
+  - `test_cases`:
+    - old: `pass_rate=0.7857`, `score_mean=80.5`, `skipped_count=2`
+    - new: `pass_rate=0.70`, `score_mean=73.73`, `skipped_count=3`
+  - interpretation:
+    - the derived-ticket corpus weakens the GPT-OSS repeated-run variance
+      picture relative to the pre-M4 artifact,
+    - GPT-OSS remains viable, but the post-M4 variance evidence is less
+      favorable than the current manuscript-side GPT-OSS variance artifact.
+
+- Harness refresh (`results/cug_m4_harness`) compared to pre-M4 ATHOS harness
+  artifact `results/cug_m3_var_20260311_231139`:
+  - `cug_lang_chroma_gptoss_opt`:
+    - `simple_qa`: `80.0/76.0` -> `80.0/86.0`
+    - `test_cases`: `71.4/75.0` -> `85.7/90.43`
+    - total-token means decreased on both datasets
+  - `cug_smol_chroma_gptoss`:
+    - `simple_qa`: `40.0/55.0` -> `80.0/83.0`
+    - `test_cases`: `42.9/59.29` -> `71.4/70.71`
+    - latency and total-token means increased sharply despite the quality gain
+  - interpretation:
+    - the derived-ticket corpus substantially improves the GPT-OSS ATHOS
+      harness comparison quality picture,
+    - but SmolAgents remains much more expensive/slower than LangChain even
+      after the quality gain.
 
 ### Milestone M2: Expanded Study v1
 
@@ -405,6 +560,20 @@ Status update (2026-03-15):
 
 ### Manuscript Status Snapshot
 
+Status update (2026-03-21):
+- All sections are written with substantial prose:
+  - Introduction, Related Work, ATHOS Toolkit Design, Experimental Design
+  - Results (all subsections: main findings, model quality, token cost, latency,
+    HPC operating points, variance study, harness comparison, external
+    coding-agent comparison, judge sensitivity)
+  - Conclusion
+- Maverick-judged tables/figures/narrative are frozen for current submission.
+- Appendix benchmark example (prompt + reference solution) was not added; treat
+  as deferred — the appendix section in `main.tex` is currently empty.
+- Remaining publication polish for camera ready:
+  - ACM front matter placeholders (copyright year, DOI, conference title, ISBN)
+  - caption and bibliography revisions as needed
+
 Status update (2026-03-11):
 - Manuscript repo: `../athos_cug_2026_paper`
 - Main draft file: `main.tex`
@@ -455,30 +624,29 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-15)
+## Immediate Next Steps (Updated 2026-03-21)
 
 Execution track:
-1. Freeze the scoped paper experiment set as complete and keep any further runs explicitly out of scope unless they are needed to repair a documented artifact.
-2. Carry forward the completed M1 harness comparison:
-   - `langchain + claude_sonnet` was strongest,
-   - `smolagents + claude_sonnet` was competitive but weaker and more token-expensive,
-   - both `gptoss` rows underperformed materially, with `smolagents + gptoss` weakest.
-3. Preserve the bundle-backed filesystem setup as the canonical paper lineage and use the stitched Sonnet artifact as the paper-facing filesystem source.
-4. For quota-sensitive Sonnet filesystem runs, prefer bounded reruns over full reruns when the artifact pattern shows a likely provider-exhaustion tail.
-5. Keep alternate-judge rescoring frozen for submission unless a documented artifact repair is needed.
-6. For external coding-agent baselines, use `scripts/score_cug_external.sh` as the canonical scorer wrapper (default paper config: `config/paper/cug_m1.yaml` for mini-harness comparisons).
-7. Treat the focused external coding-agent mini comparison as complete for paper scope; keep any further coding-agent runs explicitly out of scope unless needed to repair artifacts.
+1. Complete M4 Sonnet retrieval reruns against the derived corpus (all
+   paper-facing retrieval rows and auxiliary evidence); incorporate into the
+   paper in a single pass once the artifact set is frozen.
+2. All other experiment execution is frozen for current submission scope.
 
 Writing track:
-1. Keep the current Maverick-aligned tables/figures/narrative frozen unless a documented artifact repair is needed.
-2. Build and sanity-check the final PDF against current paper artifacts (tables/figures/narrative all Maverick-aligned).
-3. Do a final manuscript pass for ACM metadata/front matter polish, captions, and references.
-4. If space allows, add one representative benchmark example (prompt + reference solution; optional appendix with model/judge excerpt).
-5. Preserve the short judge-sensitivity subsection as a robustness check:
-   - motivation: reduce judge overlap risk and test headline stability,
-   - method: rescore fixed stored outputs under alternate judge(s),
-   - current status: two alternate full-scope judges (`mistral_large_3`, `llama_4_maverick`) completed and summarized.
-6. Keep filesystem and SmolAgents rows framed as secondary/diagnostic comparisons relative to the main six-row LangChain table.
+1. Complete ACM front matter (copyright year, DOI, conference title, ISBN) for
+   camera ready.
+2. Revise captions and bibliography as needed for camera ready.
+3. Regenerate paper tables/figures/narrative once M4 Sonnet retrieval artifacts
+   and retrieval-backed coding-agent comparison artifacts are frozen, then do a
+   final consistency pass.
+
+Previously completed (2026-03-15):
+- Maverick-aligned tables/figures/narrative frozen for submission.
+- Results narrative and Conclusion written.
+- Judge-sensitivity subsection integrated.
+- External coding-agent mini comparison complete and in manuscript.
+- Filesystem and SmolAgents rows framed as secondary/diagnostic comparisons.
+- Benchmark appendix example deferred (appendix remains empty).
 
 Post-deadline follow-up candidate (not required for current submission deadline):
 - Human adjudication mini-study:

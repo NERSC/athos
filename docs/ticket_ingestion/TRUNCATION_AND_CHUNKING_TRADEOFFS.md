@@ -1,4 +1,8 @@
-# Truncation and Chunking Tradeoffs (Open Decision Note)
+# Truncation and Chunking Tradeoffs (Historical Design Note)
+
+This document captures design tradeoffs from the raw-ticket ingestion phase.
+It is kept for rationale/history. For the current derived retrieval pipeline,
+see [`DERIVED_CORPUS_PIPELINE.md`](./DERIVED_CORPUS_PIPELINE.md).
 
 ## Context
 

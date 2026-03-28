@@ -252,3 +252,57 @@ def test_main_rejects_non_materialized_selected_manifest(tmp_path: Path, monkeyp
 
     with pytest.raises(ValueError, match="non-materialized output"):
         build_tickets_chroma_mod.main()
+
+
+def test_main_dry_run_ingests_from_derived_jsonl(tmp_path: Path, monkeypatch):
+    derived_jsonl = tmp_path / "derived.jsonl"
+    derived_jsonl.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "incident_number": "INC0196020",
+                        "sys_id": "abc123",
+                        "sys_created_on": "2023-01-02 03:30:18",
+                        "state": "Closed",
+                        "close_code": "Solved (Permanently)",
+                        "category": "Programming",
+                        "subcategory": "C/C++",
+                        "assignment_group": "Consulting",
+                        "incident_summary": "Compile failed after loading a broken GSL module.",
+                        "resolution_summary": "Support fixed the modulefile.",
+                        "retrieval_keywords": ["gsl", "module load error"],
+                        "evidence_snippets": [
+                            "fatal error: gsl/gsl_sf.h: No such file or directory"
+                        ],
+                        "schema_version": "athos.derived_ticket_record.v2",
+                        "source_json_path": "/tmp/INC0196020.json",
+                    }
+                )
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "ingest_manifest.json"
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "build_tickets_chroma.py",
+            "--derived-jsonl",
+            str(derived_jsonl),
+            "--dry-run",
+            "--manifest-out",
+            str(manifest_path),
+        ],
+    )
+
+    build_tickets_chroma_mod.main()
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["input_source_mode"] == "derived_jsonl"
+    assert manifest["derived_jsonl"] == str(derived_jsonl.resolve())
+    assert manifest["counts"]["input_records"] == 1
+    assert manifest["counts"]["documents_written"] == 1

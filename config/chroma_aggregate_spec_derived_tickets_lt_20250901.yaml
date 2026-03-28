@@ -1,0 +1,37 @@
+aggregate:
+  name: athos_eval_bundle
+  version: "20260318_derived_tickets_lt_20250901_v2"
+  description: "Local retrieval bundle (docs + consulting + derived ticket retrieval, lt 2025-09-01)"
+
+output:
+  persist_dir: data/chroma/aggregates/athos_eval_bundle_20260318_derived_tickets_lt_20250901_v2
+  manifest_out: data/chroma/aggregates/manifests/athos_eval_bundle_20260318_derived_tickets_lt_20250901_v2.json
+  overwrite: false
+
+components:
+  - logical_name: docs
+    source:
+      persist_dir: data/chroma/docs_db_20260225
+      collection: docs_v1_20260225
+      version: "20260225"
+    target_collection: docs
+
+  - logical_name: consulting_docs
+    source:
+      persist_dir: data/chroma/consulting_docs_db_20260225
+      collection: consulting_docs_v1_20260225
+      version: "20260225"
+    target_collection: consulting_docs
+
+  - logical_name: tickets
+    source:
+      persist_dir: data/chroma/derived_ticket_retrieval_lt_20250901_v2
+      collection: tickets_derived_retrieval_lt_20250901_v2
+      version: "20260318_derived_tickets_lt_20250901_v2"
+    target_collection: tickets
+
+validation:
+  require_unique_target_collections: true
+  fail_on_missing_collection: true
+  fail_on_doc_count_zero: true
+  batch_size: 500
