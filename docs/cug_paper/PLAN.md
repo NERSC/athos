@@ -25,7 +25,9 @@ This plan is organized around versioned draft deliverables (`v0`, `v1`, etc.) an
   - `results/cug_m4` / `docs/cug_m4_20260321_review.md` records one completed
     GPT-OSS retrieval rerun subset against the derived aggregate DB,
   - M4 is not complete until all paper-facing retrieval rows affected by the
-    corpus change are rerun or explicitly retired from paper scope.
+    corpus change are rerun or explicitly retired from paper scope,
+  - this includes retrieval-backed coding-agent comparison evidence, not only
+    ATHOS-run retrieval rows.
 
 ## 0. Scope and Configuration Working Points
 
@@ -294,6 +296,8 @@ scope under the current paper policy:
 - repeated-run variance study for retrieval-enabled canonical configs
 - focused harness comparison rows, because they evaluate retrieval-backed
   systems and are discussed in the paper as comparative evidence
+- retrieval-backed external coding-agent comparison rows / mini-harness results
+  that are used as comparative paper evidence
 - judge-sensitivity rescoring for the refreshed retrieval-backed canonical run
   set
 
@@ -330,6 +334,8 @@ Status update (2026-03-21):
   - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
   - refresh the Sonnet-side retrieval-backed auxiliary paper evidence so it uses
     the same derived-corpus condition,
+  - rerun the retrieval-backed coding-agent comparison set against the derived
+    corpus and refresh its imported/scored artifacts,
   - rerun or rescore judge-sensitivity artifacts against the refreshed
     canonical retrieval-backed run set,
   - regenerate paper-facing tables/figures/narrative once the canonical M4
@@ -631,7 +637,8 @@ Writing track:
    camera ready.
 2. Revise captions and bibliography as needed for camera ready.
 3. Regenerate paper tables/figures/narrative once M4 Sonnet retrieval artifacts
-   are frozen, then do a final consistency pass.
+   and retrieval-backed coding-agent comparison artifacts are frozen, then do a
+   final consistency pass.
 
 Previously completed (2026-03-15):
 - Maverick-aligned tables/figures/narrative frozen for submission.
