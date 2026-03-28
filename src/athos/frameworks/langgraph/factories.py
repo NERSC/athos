@@ -75,7 +75,12 @@ def build_tool(cfg: ToolConfig) -> BaseTool:
         )
     module = import_module(cfg.module_path)
     tool_obj = getattr(module, cfg.callable_name)
-    tool = tool_obj(**cfg.parameters) if cfg.is_class else tool_obj
+    if cfg.is_class:
+        tool = tool_obj(**cfg.parameters)
+    elif cfg.parameters:
+        tool = tool_obj(**cfg.parameters)
+    else:
+        tool = tool_obj
     logger.debug(
         "Instantiated LangGraph tool '%s.%s' (is_class=%s)",
         cfg.module_path,

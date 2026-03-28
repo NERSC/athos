@@ -96,10 +96,12 @@ mcp_servers:
 tools:
   search_file_contents:
     description: "Search file contents by pattern within an allowed directory"
-    callable_name: "search_file_contents"
+    callable_name: "create_search_file_contents_tool"
     module_path: "athos.tools.filesystem_search"
     framework: "langgraph"
     is_class: false
+    parameters:
+      allowed_root: "${ATHOS_WORKSPACE}/file_retrieval_corpus"
   chroma_list_collections:
     description: "List ChromaDB collections"
     callable_name: "chroma_list_collections"

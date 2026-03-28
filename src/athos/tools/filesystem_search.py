@@ -1,6 +1,6 @@
 """Content search tool for the filesystem eval flow.
 
-Provides grep-style file content search over an allowed directory tree.
+Provides grep-style file content search over a configured directory tree.
 Uses ripgrep when available, falls back to a pure-Python implementation.
 
 Intended for use alongside the filesystem MCP server, which only supports
@@ -20,15 +20,6 @@ from langchain_core.tools import tool
 
 _MAX_RESULTS = 20
 _CONTEXT_CHARS = 120
-_BUNDLE_DIRNAME = "file_retrieval_corpus"
-
-
-def _get_allowed_root() -> Path | None:
-    """Return the filesystem-eval bundle root when ATHOS_WORKSPACE is set."""
-    workspace = os.environ.get("ATHOS_WORKSPACE", "")
-    if not workspace:
-        return None
-    return (Path(workspace).resolve() / _BUNDLE_DIRNAME).resolve()
 
 
 def _rg_available() -> bool:
@@ -51,7 +42,7 @@ def _search_with_rg(root: Path, pattern: str, max_results: int) -> list[tuple[st
             "--ignore-case",
             "--with-filename",
             "--line-number",
-            "--max-count", "2",          # max matches per file
+            "--max-count", "2",
             "--max-filesize", "500K",
             "-e", pattern,
             str(root),
@@ -101,48 +92,57 @@ def _search_python(root: Path, pattern: str, max_results: int) -> list[tuple[str
     return hits
 
 
-@tool
-def search_file_contents(pattern: str, path: str) -> str:
-    """Search file *contents* for a pattern within an allowed directory.
+def create_search_file_contents_tool(*, allowed_root: str):
+    """Create a configured content-search tool limited to ``allowed_root``."""
+    if not allowed_root:
+        raise ValueError("search_file_contents requires a non-empty allowed_root")
 
-    Unlike search_files (which matches file names), this tool searches the
-    text inside files using a case-insensitive string or regex pattern.
+    resolved_allowed_root = Path(allowed_root).resolve()
 
-    Args:
-        pattern: Search string or regular expression to find in file content.
-        path: Directory to search under (must be within allowed directories).
+    @tool
+    def search_file_contents(pattern: str, path: str) -> str:
+        """Search file *contents* for a pattern within an allowed directory.
 
-    Returns:
-        Matching file paths with a short surrounding snippet, or a message
-        indicating no matches were found.
-    """
-    root = Path(path).resolve()
+        Unlike search_files (which matches file names), this tool searches the
+        text inside files using a case-insensitive string or regex pattern.
 
-    # Restrict content search to the same paper-eval bundle root used by filesystem_mcp.
-    allowed_root = _get_allowed_root()
-    if allowed_root is not None:
+        Args:
+            pattern: Search string or regular expression to find in file content.
+            path: Directory to search under (must be within the configured root).
+
+        Returns:
+            Matching file paths with a short surrounding snippet, or a message
+            indicating no matches were found.
+        """
+        root = Path(path).resolve()
+
         try:
-            root.relative_to(allowed_root)
+            root.relative_to(resolved_allowed_root)
         except ValueError:
-            return f"Error: path '{path}' is outside the allowed bundle root '{allowed_root}'."
+            return (
+                f"Error: path '{path}' is outside the allowed bundle root "
+                f"'{resolved_allowed_root}'."
+            )
 
-    if not root.is_dir():
-        return f"Error: '{path}' is not a directory."
+        if not root.is_dir():
+            return f"Error: '{path}' is not a directory."
 
-    use_rg = _rg_available()
-    hits = (
-        _search_with_rg(root, pattern, _MAX_RESULTS)
-        if use_rg
-        else _search_python(root, pattern, _MAX_RESULTS)
-    )
+        use_rg = _rg_available()
+        hits = (
+            _search_with_rg(root, pattern, _MAX_RESULTS)
+            if use_rg
+            else _search_python(root, pattern, _MAX_RESULTS)
+        )
 
-    if not hits:
-        return f"No matches found for '{pattern}' under {path}"
+        if not hits:
+            return f"No matches found for '{pattern}' under {path}"
 
-    lines = [f"Found {len(hits)} file(s) matching '{pattern}':"]
-    for rel, snippet in hits:
-        lines.append(f"  {rel}")
-        lines.append(f"    ...{snippet}...")
-    if len(hits) == _MAX_RESULTS:
-        lines.append(f"(results capped at {_MAX_RESULTS}; refine pattern if needed)")
-    return "\n".join(lines)
+        lines = [f"Found {len(hits)} file(s) matching '{pattern}':"]
+        for rel, snippet in hits:
+            lines.append(f"  {rel}")
+            lines.append(f"    ...{snippet}...")
+        if len(hits) == _MAX_RESULTS:
+            lines.append(f"(results capped at {_MAX_RESULTS}; refine pattern if needed)")
+        return "\n".join(lines)
+
+    return search_file_contents
