@@ -62,6 +62,34 @@ def test_path_outside_workspace(corpus, monkeypatch, tmp_path):
     result = _invoke("anything", corpus)
     assert "Error" in result
     assert "outside" in result
+    assert "allowed bundle root" in result
+
+
+def test_path_outside_bundle_root_rejected(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    bundle = workspace / "file_retrieval_corpus"
+    bundle.mkdir(parents=True)
+    outside_dir = workspace / "other"
+    outside_dir.mkdir()
+    (outside_dir / "note.md").write_text("step creation temporarily disabled\n")
+
+    monkeypatch.setenv("ATHOS_WORKSPACE", str(workspace))
+
+    result = _invoke("step creation temporarily disabled", outside_dir)
+    assert "Error" in result
+    assert "allowed bundle root" in result
+
+
+def test_path_inside_bundle_root_allowed(monkeypatch, tmp_path):
+    workspace = tmp_path / "workspace"
+    bundle_docs = workspace / "file_retrieval_corpus" / "docs"
+    bundle_docs.mkdir(parents=True)
+    (bundle_docs / "policy.md").write_text("step creation temporarily disabled\n")
+
+    monkeypatch.setenv("ATHOS_WORKSPACE", str(workspace))
+
+    result = _invoke("step creation temporarily disabled", bundle_docs)
+    assert "policy.md" in result
 
 
 def test_no_workspace_env_allows_any_path(corpus, monkeypatch):

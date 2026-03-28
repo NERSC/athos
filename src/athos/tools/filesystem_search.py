@@ -14,13 +14,21 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from langchain_core.tools import tool
 
 
 _MAX_RESULTS = 20
 _CONTEXT_CHARS = 120
+_BUNDLE_DIRNAME = "file_retrieval_corpus"
+
+
+def _get_allowed_root() -> Path | None:
+    """Return the filesystem-eval bundle root when ATHOS_WORKSPACE is set."""
+    workspace = os.environ.get("ATHOS_WORKSPACE", "")
+    if not workspace:
+        return None
+    return (Path(workspace).resolve() / _BUNDLE_DIRNAME).resolve()
 
 
 def _rg_available() -> bool:
@@ -110,13 +118,13 @@ def search_file_contents(pattern: str, path: str) -> str:
     """
     root = Path(path).resolve()
 
-    # Basic path safety: refuse to search outside ATHOS_WORKSPACE
-    workspace = os.environ.get("ATHOS_WORKSPACE", "")
-    if workspace:
+    # Restrict content search to the same paper-eval bundle root used by filesystem_mcp.
+    allowed_root = _get_allowed_root()
+    if allowed_root is not None:
         try:
-            root.relative_to(Path(workspace).resolve())
+            root.relative_to(allowed_root)
         except ValueError:
-            return f"Error: path '{path}' is outside the allowed workspace."
+            return f"Error: path '{path}' is outside the allowed bundle root '{allowed_root}'."
 
     if not root.is_dir():
         return f"Error: '{path}' is not a directory."
