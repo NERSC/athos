@@ -52,3 +52,38 @@ def test_langgraph_flow_rejects_smol_tool():
 
     with pytest.raises(ValueError, match="requires tools configured for 'langgraph'"):
         AthosConfig.model_validate(config_data)
+
+
+def test_tool_parameters_expand_env_vars(monkeypatch):
+    monkeypatch.setenv("ATHOS_WORKSPACE", "/tmp/athos-workspace")
+
+    config_data = {
+        "workspace_dir": "/tmp",
+        "models": {"m": {"model_id": "demo"}},
+        "tools": {
+            "search": {
+                "callable_name": "create_search_file_contents_tool",
+                "module_path": "athos.tools.filesystem_search",
+                "framework": "langgraph",
+                "is_class": False,
+                "parameters": {
+                    "allowed_root": "${ATHOS_WORKSPACE}/file_retrieval_corpus",
+                    "nested": {
+                        "path": "${ATHOS_WORKSPACE}/nested"
+                    },
+                },
+            }
+        },
+        "flows": {
+            "ok_langgraph": {
+                "type": "langchain_agent",
+                "model": "m",
+                "tools": ["search"],
+            }
+        },
+    }
+
+    cfg = AthosConfig.model_validate(config_data)
+
+    assert cfg.tools["search"].parameters["allowed_root"] == "/tmp/athos-workspace/file_retrieval_corpus"
+    assert cfg.tools["search"].parameters["nested"]["path"] == "/tmp/athos-workspace/nested"

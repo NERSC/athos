@@ -115,6 +115,33 @@ def test_build_tool_decorated_function(tmp_path, monkeypatch):
     assert tool("World") == "Hello World!"
 
 
+def test_build_tool_non_class_factory_receives_parameters(tmp_path, monkeypatch):
+    module_code = textwrap.dedent(
+        """
+        def make_tool(*, prefix: str):
+            def tool(name: str) -> str:
+                return f"{prefix}:{name}"
+            return tool
+        """
+    )
+    module_path = tmp_path / "langgraph_factory_module.py"
+    module_path.write_text(module_code)
+    monkeypatch.syspath_prepend(str(tmp_path))
+
+    cfg = ToolConfig(
+        callable_name="make_tool",
+        module_path="langgraph_factory_module",
+        parameters={"prefix": "cfg"},
+        is_class=False,
+        framework=ToolFramework.LANGGRAPH,
+    )
+
+    tool = factories.build_tool(cfg)
+
+    assert callable(tool)
+    assert tool("World") == "cfg:World"
+
+
 def test_build_mcp_client_stdio():
     cfg = MCPServerConfig(
         mcp_type=MCPType.MCP_STDIO,

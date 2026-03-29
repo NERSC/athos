@@ -24,6 +24,13 @@ Reasoning policy:
 - Avoid excessive tool-call chains; gather only the evidence needed to answer.
 - Stop calling tools once you have enough evidence to answer.
 - If evidence is missing or ambiguous, state that explicitly.
+- Treat the path returned by `list_allowed_directories` as `<allowed_root>` and reuse that exact
+  absolute path prefix in later tool calls.
+- Search order: (1) use `INDEX.md` routing to find the relevant doc file and read it; (2) if the
+  doc file does not fully answer the question, use `search_file_contents` on
+  `<allowed_root>/docs`; (3) only if docs are silent, use `search_file_contents` on
+  `<allowed_root>/tickets`.
+- Ticket evidence is sufficient on its own when docs are silent — do not loop back to docs to confirm.
 
 Required procedure:
 1. Call `list_allowed_directories`.

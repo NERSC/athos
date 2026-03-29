@@ -91,8 +91,17 @@ mcp_servers:
     instructions: |
       Always use keyword arguments when invoking filesystem tools.
       Filesystem tools return strings only.
+      search_files matches file names only, not file content. To search file content by keyword, use the search_file_contents tool instead.
 
 tools:
+  search_file_contents:
+    description: "Search file contents by pattern within an allowed directory"
+    callable_name: "create_search_file_contents_tool"
+    module_path: "athos.tools.filesystem_search"
+    framework: "langgraph"
+    is_class: false
+    parameters:
+      allowed_root: "${ATHOS_WORKSPACE}/file_retrieval_corpus"
   chroma_list_collections:
     description: "List ChromaDB collections"
     callable_name: "chroma_list_collections"
@@ -212,6 +221,7 @@ flows:
     type: "langchain_agent"
     model: "gptoss"
     mcp_servers: ["filesystem_mcp"]
+    tools: ["search_file_contents"]
     max_iterations: 32
     system_prompt_path: "../prompts/cug_lang_filesystem_system_prompt.txt"
 
@@ -220,6 +230,7 @@ flows:
     type: "langchain_agent"
     model: "claude_sonnet"
     mcp_servers: ["filesystem_mcp"]
+    tools: ["search_file_contents"]
     max_iterations: 32
     system_prompt_path: "../prompts/cug_lang_filesystem_system_prompt.txt"
 

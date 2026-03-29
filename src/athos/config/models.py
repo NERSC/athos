@@ -32,6 +32,17 @@ def expand_env(value: Optional[str]) -> Optional[str]:
     return os.path.expandvars(DEFAULT_ENV_VAR_PATTERN.sub(repl, value))
 
 
+def expand_nested_env(value: Any) -> Any:
+    """Recursively expand environment variables in nested config values."""
+    if isinstance(value, str):
+        return expand_env(value)
+    if isinstance(value, list):
+        return [expand_nested_env(item) for item in value]
+    if isinstance(value, dict):
+        return {key: expand_nested_env(item) for key, item in value.items()}
+    return value
+
+
 class MCPType(str, Enum):
     """Supported MCP server types"""
     MCP_STDIO = "mcp_stdio"
@@ -214,6 +225,12 @@ class ToolConfig(BaseModel):
             if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', component):
                 raise ValueError('module_path must be a valid Python module path')
         return v
+
+    @field_validator('parameters', mode='before')
+    @classmethod
+    def expand_parameter_env_vars(cls, v: Any) -> Any:
+        """Expand environment variables in nested tool parameters."""
+        return expand_nested_env(v)
 
 
 class BaseFlowConfig(BaseModel):

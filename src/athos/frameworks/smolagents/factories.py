@@ -42,6 +42,8 @@ def build_tool(cfg: ToolConfig) -> Tool:
     tool_obj = getattr(module, cfg.callable_name)
     if cfg.is_class:
         return tool_obj(**cfg.parameters)
+    if cfg.parameters:
+        return tool_obj(**cfg.parameters)
     return tool_obj
 
 
