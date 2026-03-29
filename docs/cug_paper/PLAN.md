@@ -334,8 +334,6 @@ Status update (2026-03-21):
   - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
   - refresh the Sonnet-side retrieval-backed auxiliary paper evidence so it uses
     the same derived-corpus condition,
-  - rerun the retrieval-backed coding-agent comparison set against the derived
-    corpus and refresh its imported/scored artifacts,
   - rerun or rescore judge-sensitivity artifacts against the refreshed
     canonical retrieval-backed run set,
   - regenerate paper-facing tables/figures/narrative once the canonical M4
@@ -727,6 +725,38 @@ Post-deadline follow-up candidate (not required for current submission deadline)
     - `results/cug_codex_external_mini_20260313_232712/aggregates/summary.json`
   - implementation note:
     - wrapper summarizes from `--judgment-file` (single judge output) to avoid mixed-judge collisions when `judgments/` contains older judge files.
+- External coding-agent full comparison refresh (M4 canonical artifacts):
+  - status:
+    - retrieval-backed coding-agent comparison refresh is complete for the current M4 paper scope
+    - these full imported/scored artifacts supersede the earlier mini-only external comparison rows as the canonical paper-facing external baseline set
+  - Codex:
+    - experiment: `cug_codex_external_full_20260329`
+    - runs path: `results/cug_codex_external_full_20260329`
+    - raw external input: `results/external_runs/codex_fs_bundle_v1.full_20260329_002402.jsonl`
+    - judgment artifact: `results/cug_codex_external_full_20260329/judgments/llama_4_maverick_rubric_v1.jsonl`
+    - summary artifact: `results/cug_codex_external_full_20260329/aggregates/summary.json`
+    - summary highlights:
+      - `simple_qa`: `run_count=5`, `pass_rate=1.0`, `score_mean=90.0`, `tokens_total_mean=350975.0`, `latency_ms_mean=34139.4`
+      - `test_cases`: `run_count=7`, `pass_rate=0.8571`, `score_mean=86.43`, `tokens_total_mean=471784.14`, `latency_ms_mean=57299.43`
+    - notable case outcomes:
+      - passed all `simple_qa` cases under Maverick judgment
+      - only failing ticket case was `salloc-account-error` (`score=60`)
+  - Claude Code:
+    - experiment: `cug_claude_external_full_20260329`
+    - runs path: `results/cug_claude_external_full_20260329`
+    - raw external input: `results/external_runs/claude_code_fs_bundle_v1.full_fixed_20260329_100814.jsonl`
+    - judgment artifact: `results/cug_claude_external_full_20260329/judgments/llama_4_maverick_rubric_v1.jsonl`
+    - summary artifact: `results/cug_claude_external_full_20260329/aggregates/summary.json`
+    - summary highlights:
+      - `simple_qa`: `run_count=5`, `pass_rate=0.8`, `score_mean=89.0`, `tokens_total_mean=121212.8`, `latency_ms_mean=22519.8`
+      - `test_cases`: `run_count=7`, `pass_rate=0.8571`, `score_mean=82.14`, `tokens_total_mean=181142.29`, `latency_ms_mean=49172.43`
+    - notable case outcomes:
+      - failed `simple_qa/nersc_ai_support_group` under Maverick judgment (`score=70`)
+      - also failed `test_cases/salloc-account-error` (`score=0`)
+  - interpretation:
+    - Codex is slightly stronger overall on the full M4 filesystem-bundle comparison
+    - both external coding agents tie on ticket-case pass rate (`0.8571`)
+    - the main separation comes from `simple_qa/nersc_ai_support_group`, which Codex passes and Claude Code fails
 - External Claude Code mini baseline (imported run scoring path):
   - experiment: `cug_claude_external_mini_20260314`
   - runs path: `results/cug_claude_external_mini_20260314`
