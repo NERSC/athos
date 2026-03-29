@@ -333,7 +333,7 @@ Status update (2026-03-21):
 - Remaining M4 work:
   - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
   - refresh the Sonnet-side retrieval-backed auxiliary paper evidence so it uses
-    the same derived-corpus condition,
+    the same derived-corpus condition (remaining major item: Sonnet variance refresh),
   - rerun or rescore judge-sensitivity artifacts against the refreshed
     canonical retrieval-backed run set,
   - regenerate paper-facing tables/figures/narrative once the canonical M4
@@ -370,6 +370,30 @@ GPT-OSS auxiliary refresh outcomes (2026-03-21):
       harness comparison quality picture,
     - but SmolAgents remains much more expensive/slower than LangChain even
       after the quality gain.
+
+Sonnet auxiliary refresh outcomes (2026-03-29):
+
+- Harness refresh (new canonical Sonnet M4 mini harness artifacts):
+  - LangChain Sonnet:
+    - experiment: `cug_m4_harness_lang_sonnet_opt_mini_20260329`
+    - runs path: `results/cug_m4_harness_lang_sonnet_opt_mini_20260329`
+    - flow: `cug_lang_chroma_sonnet_opt`
+    - `simple_qa`: `run_count=5`, `pass_rate=1.0`, `score_mean=95.0`, `tokens_total_mean=39649.6`
+    - `test_cases`: `run_count=7`, `pass_rate=0.8571`, `score_mean=83.57`, `tokens_total_mean=59166.14`
+    - case note: only failure remains `test_cases/salloc-account-error` (`score=0`)
+  - SmolAgents Sonnet:
+    - experiment: `cug_m4_harness_smol_sonnet_mini_20260329`
+    - runs path: `results/cug_m4_harness_smol_sonnet_mini_20260329`
+    - flow: `cug_smol_chroma_sonnet`
+    - `simple_qa`: `run_count=5`, `pass_rate=0.8`, `score_mean=74.0`, `tokens_total_mean=48894.8`
+    - `test_cases`: `run_count=7`, `pass_rate=0.8571`, `score_mean=82.14`, `tokens_total_mean=153811.43`
+    - case notes:
+      - `simple_qa/nersc_ai_support_group` failed (`score=20`)
+      - `test_cases/salloc-account-error` failed (`score=0`)
+  - interpretation:
+    - the M4 Sonnet harness picture remains directionally stable relative to the pre-M4 harness artifact,
+    - LangChain Sonnet remains clearly stronger overall, with the main separation on `simple_qa`,
+    - `test_cases` performance is close across harnesses, but SmolAgents remains materially more token-expensive.
 
 ### Milestone M2: Expanded Study v1
 
