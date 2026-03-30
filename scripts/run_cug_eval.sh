@@ -43,7 +43,7 @@ Options:
   --results-root <dir>            Results root. Default: results
   --config <path>                 Config path. Default: config/paper/cug_m1.yaml
   --aggregate-manifest <path>     Aggregate manifest for provenance.
-  --judge-model <name>            Judge model. Default: gptoss
+  --judge-model <name>            Judge model. Default: llama_4_maverick
   --judge-prompt-version <name>   Judge prompt version. Default: rubric_v1
   --passing-score <n>             Passing score threshold. Default: 80
   --strict-dataset-paths <0|1>    Require dataset paths to exist. Default: 1
