@@ -63,7 +63,22 @@ def _read_git_sha(repo_root: Path) -> str | None:
     return sha or None
 
 
-def _extract_answer_and_sidecar(result_text: str) -> tuple[str | None, dict[str, Any]]:
+def _extract_answer_and_sidecar(result_payload: dict[str, Any]) -> tuple[str | None, dict[str, Any]]:
+    structured_output = result_payload.get("structured_output")
+    if isinstance(structured_output, dict):
+        answer = structured_output.get("answer")
+        if isinstance(answer, str) and answer.strip():
+            sidecar = {
+                key: value
+                for key, value in structured_output.items()
+                if key not in {"answer"}
+            }
+            return answer.strip(), sidecar
+
+    result_text = result_payload.get("result")
+    if not isinstance(result_text, str):
+        return None, {}
+
     stripped = result_text.strip()
     if not stripped:
         return None, {}
@@ -195,7 +210,7 @@ def _build_success_record(
     git_sha: str | None,
 ) -> dict[str, Any]:
     result_text = result_payload.get("result")
-    answer, sidecar = _extract_answer_and_sidecar(result_text if isinstance(result_text, str) else "")
+    answer, sidecar = _extract_answer_and_sidecar(result_payload)
     response_output = answer or (result_text if isinstance(result_text, str) else "")
     return {
         "run_id": str(uuid.uuid4()),
