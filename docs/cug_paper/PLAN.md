@@ -332,8 +332,8 @@ Status update (2026-03-21):
     - harness refresh: `results/cug_m4_harness`
 - Remaining M4 work:
   - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
-  - refresh the Sonnet-side retrieval-backed auxiliary paper evidence so it uses
-    the same derived-corpus condition (remaining major item: Sonnet variance refresh),
+  - refresh or rescore any remaining Sonnet-side retrieval-backed auxiliary
+    paper evidence so it uses the same derived-corpus condition,
   - rerun or rescore judge-sensitivity artifacts against the refreshed
     canonical retrieval-backed run set,
   - regenerate paper-facing tables/figures/narrative once the canonical M4
@@ -394,6 +394,22 @@ Sonnet auxiliary refresh outcomes (2026-03-29):
     - the M4 Sonnet harness picture remains directionally stable relative to the pre-M4 harness artifact,
     - LangChain Sonnet remains clearly stronger overall, with the main separation on `simple_qa`,
     - `test_cases` performance is close across harnesses, but SmolAgents remains materially more token-expensive.
+
+Sonnet variance refresh (completed 2026-04-06):
+
+- Variance refresh (`results/cug_m4_var`) for `cug_lang_chroma_sonnet_opt`
+  is now complete at the intended `run_count=10` per mini case:
+  - `simple_qa`:
+    - `run_count=50`, `skipped_count=0`, `pass_rate=0.66`,
+      `score_mean=66.3`, `score_stddev=42.84`,
+      `tokens_total_mean=41391.92`
+  - `test_cases`:
+    - `run_count=70`, `skipped_count=0`, `pass_rate=0.8571`,
+      `score_mean=84.54`, `score_stddev=31.05`,
+      `tokens_total_mean=61858.19`
+  - Compared with the pre-M4 Sonnet variance artifact
+    `results/cug_m3_var_20260312_130318`, post-M4 `test_cases` is broadly
+    stable while `simple_qa` is materially weaker.
 
 ### Milestone M2: Expanded Study v1
 
@@ -646,12 +662,12 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-21)
+## Immediate Next Steps (Updated 2026-04-06)
 
 Execution track:
 1. Complete M4 Sonnet retrieval reruns against the derived corpus (all
-   paper-facing retrieval rows and auxiliary evidence); incorporate into the
-   paper in a single pass once the artifact set is frozen.
+   remaining paper-facing retrieval rows); incorporate into the paper in a
+   single pass once the artifact set is frozen.
 2. All other experiment execution is frozen for current submission scope.
 
 Writing track:
