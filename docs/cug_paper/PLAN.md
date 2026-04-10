@@ -330,14 +330,41 @@ Status update (2026-03-21):
   - auxiliary retrieval-backed GPT-OSS refreshes are now also available:
     - variance refresh: `results/cug_m4_var`
     - harness refresh: `results/cug_m4_harness`
+
+Status update (2026-04-09):
+- The paper-facing Sonnet retrieval reruns against the derived corpus are now
+  complete in `results/cug_m4`.
+- Completed Sonnet rows:
+  - `cug_lang_chroma_sonnet__claude_sonnet__228d8f84`
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=6`,
+      `pass_rate=0.8374`, `score_mean=84.72`,
+      `tokens_total_mean=50711.56`
+    - `ticket_cases`: `run_count=156`, `skipped_count=4`,
+      `pass_rate=0.9359`, `score_mean=90.58`,
+      `tokens_total_mean=58465.70`
+  - `cug_lang_chroma_sonnet_opt__claude_sonnet__c5902b01`
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=0`,
+      `pass_rate=0.8780`, `score_mean=86.22`,
+      `tokens_total_mean=37564.37`
+    - `ticket_cases`: `run_count=156`, `skipped_count=0`,
+      `pass_rate=0.9487`, `score_mean=92.48`,
+      `tokens_total_mean=42194.26`
+  - `cug_lang_filesystem_sonnet__claude_sonnet__fae319fc`
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=0`,
+      `pass_rate=0.8374`, `score_mean=85.57`,
+      `tokens_total_mean=33325.50`
+    - `ticket_cases`: `run_count=156`, `skipped_count=3`,
+      `pass_rate=0.9359`, `score_mean=90.44`,
+      `tokens_total_mean=44535.35`
+- Canonical M4 retrieval-backed ATHOS rows are now frozen across both GPT-OSS
+  and Sonnet retrieval conditions.
 - Remaining M4 work:
-  - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
-  - refresh or rescore any remaining Sonnet-side retrieval-backed auxiliary
-    paper evidence so it uses the same derived-corpus condition,
-  - rerun or rescore judge-sensitivity artifacts against the refreshed
-    canonical retrieval-backed run set,
-  - regenerate paper-facing tables/figures/narrative once the canonical M4
-    retrieval-backed artifact set is frozen.
+  - refresh or rescore judge-sensitivity artifacts against the frozen M4
+    retrieval-backed run set,
+  - update paper-facing tables/figures/narrative to use the finalized M4
+    summary artifacts,
+  - make any explicit paper-scope retirement decisions for older pre-M4
+    retrieval-backed comparison artifacts that are no longer needed.
 
 GPT-OSS auxiliary refresh outcomes (2026-03-21):
 
