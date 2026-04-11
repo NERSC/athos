@@ -330,14 +330,49 @@ Status update (2026-03-21):
   - auxiliary retrieval-backed GPT-OSS refreshes are now also available:
     - variance refresh: `results/cug_m4_var`
     - harness refresh: `results/cug_m4_harness`
+
+Status update (2026-04-09):
+- The paper-facing Sonnet retrieval reruns against the derived corpus are now
+  complete in `results/cug_m4`.
+- Completed Sonnet rows:
+  - `cug_lang_chroma_sonnet__claude_sonnet__228d8f84`
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=6`,
+      `pass_rate=0.8374`, `score_mean=84.72`,
+      `tokens_total_mean=50711.56`
+    - `ticket_cases`: `run_count=156`, `skipped_count=4`,
+      `pass_rate=0.9359`, `score_mean=90.58`,
+      `tokens_total_mean=58465.70`
+  - `cug_lang_chroma_sonnet_opt__claude_sonnet__c5902b01`
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=0`,
+      `pass_rate=0.8780`, `score_mean=86.22`,
+      `tokens_total_mean=37564.37`
+    - `ticket_cases`: `run_count=156`, `skipped_count=0`,
+      `pass_rate=0.9487`, `score_mean=92.48`,
+      `tokens_total_mean=42194.26`
+  - `cug_lang_filesystem_sonnet__claude_sonnet__fae319fc`
+    - `nersc_qa.v2`: `run_count=123`, `skipped_count=0`,
+      `pass_rate=0.8374`, `score_mean=85.57`,
+      `tokens_total_mean=33325.50`
+    - `ticket_cases`: `run_count=156`, `skipped_count=3`,
+      `pass_rate=0.9359`, `score_mean=90.44`,
+      `tokens_total_mean=44535.35`
+- Canonical M4 retrieval-backed ATHOS rows are now frozen across both GPT-OSS
+  and Sonnet retrieval conditions.
+- Judge-sensitivity rescoring for the M4 paper-facing retrieval-backed artifact
+  set is now complete across all three judges:
+  - Maverick canonical judgments remain in place,
+  - Mistral rescoring completed for `results/cug_m4`,
+    `results/cug_m4_var`, `results/cug_m4_harness`, the two Sonnet mini
+    harness dirs, and both full external coding-agent comparison dirs,
+  - GPT-OSS rescoring completed for the same M4 paper-scope target set after
+    restoring the working CBORG model alias (`lbl/cborg-coder`),
+  - final GPT-OSS summaries contain only inherited
+    `skipped_execution_status` rows, with no residual `skipped_judge_error`.
 - Remaining M4 work:
-  - rerun the paper-facing Sonnet retrieval rows against the derived corpus,
-  - refresh the Sonnet-side retrieval-backed auxiliary paper evidence so it uses
-    the same derived-corpus condition (remaining major item: Sonnet variance refresh),
-  - rerun or rescore judge-sensitivity artifacts against the refreshed
-    canonical retrieval-backed run set,
-  - regenerate paper-facing tables/figures/narrative once the canonical M4
-    retrieval-backed artifact set is frozen.
+  - update paper-facing tables/figures/narrative to use the finalized M4
+    three-judge M4 summary artifacts,
+  - make any explicit paper-scope retirement decisions for older pre-M4
+    retrieval-backed comparison artifacts that are no longer needed.
 
 GPT-OSS auxiliary refresh outcomes (2026-03-21):
 
@@ -394,6 +429,22 @@ Sonnet auxiliary refresh outcomes (2026-03-29):
     - the M4 Sonnet harness picture remains directionally stable relative to the pre-M4 harness artifact,
     - LangChain Sonnet remains clearly stronger overall, with the main separation on `simple_qa`,
     - `test_cases` performance is close across harnesses, but SmolAgents remains materially more token-expensive.
+
+Sonnet variance refresh (completed 2026-04-06):
+
+- Variance refresh (`results/cug_m4_var`) for `cug_lang_chroma_sonnet_opt`
+  is now complete at the intended `run_count=10` per mini case:
+  - `simple_qa`:
+    - `run_count=50`, `skipped_count=0`, `pass_rate=0.66`,
+      `score_mean=66.3`, `score_stddev=42.84`,
+      `tokens_total_mean=41391.92`
+  - `test_cases`:
+    - `run_count=70`, `skipped_count=0`, `pass_rate=0.8571`,
+      `score_mean=84.54`, `score_stddev=31.05`,
+      `tokens_total_mean=61858.19`
+  - Compared with the pre-M4 Sonnet variance artifact
+    `results/cug_m3_var_20260312_130318`, post-M4 `test_cases` is broadly
+    stable while `simple_qa` is materially weaker.
 
 ### Milestone M2: Expanded Study v1
 
@@ -623,7 +674,7 @@ Status update (2026-03-11):
   - the paper emphasizes Q&A and single-turn ticket-style cases and does not yet establish performance on broader multi-turn, live-operations, or human-in-the-loop workflows.
 - Judge-model coverage:
   - paper-facing outputs now use a non-overlapping Maverick judge for scoring instead of GPT-OSS judging GPT-OSS,
-  - two alternate full-scope judges (`mistral_large_3`, `llama_4_maverick`) have been run, but broader judge diversity and human adjudication are still future work.
+  - two alternate full-scope judges (`mistral_large_3`, `gptoss`) have now been run against the refreshed M4 paper-facing retrieval-backed set, but broader judge diversity and human adjudication are still future work.
 - Retrieval corpus bias:
   - retrieval results depend in part on corpus construction choices, including what documentation/tickets were included, how they were filtered, and how they were chunked/indexed,
   - observed gains or failures should therefore be interpreted as model-plus-retrieval-stack behavior, not as model capability in isolation.
@@ -646,20 +697,18 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-03-21)
+## Immediate Next Steps (Updated 2026-04-11)
 
 Execution track:
-1. Complete M4 Sonnet retrieval reruns against the derived corpus (all
-   paper-facing retrieval rows and auxiliary evidence); incorporate into the
-   paper in a single pass once the artifact set is frozen.
-2. All other experiment execution is frozen for current submission scope.
+1. All experiment execution is frozen for current paper scope unless a specific
+   artifact needs repair.
 
 Writing track:
 1. Complete ACM front matter (copyright year, DOI, conference title, ISBN) for
    camera ready.
 2. Revise captions and bibliography as needed for camera ready.
-3. Regenerate paper tables/figures/narrative once M4 Sonnet retrieval artifacts
-   and retrieval-backed coding-agent comparison artifacts are frozen, then do a
+3. Regenerate paper tables/figures/narrative from the finalized M4
+   retrieval-backed artifacts and three-judge sensitivity summaries, then do a
    final consistency pass.
 
 Previously completed (2026-03-15):
