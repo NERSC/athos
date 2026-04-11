@@ -358,11 +358,19 @@ Status update (2026-04-09):
       `tokens_total_mean=44535.35`
 - Canonical M4 retrieval-backed ATHOS rows are now frozen across both GPT-OSS
   and Sonnet retrieval conditions.
+- Judge-sensitivity rescoring for the M4 paper-facing retrieval-backed artifact
+  set is now complete across all three judges:
+  - Maverick canonical judgments remain in place,
+  - Mistral rescoring completed for `results/cug_m4`,
+    `results/cug_m4_var`, `results/cug_m4_harness`, the two Sonnet mini
+    harness dirs, and both full external coding-agent comparison dirs,
+  - GPT-OSS rescoring completed for the same M4 paper-scope target set after
+    restoring the working CBORG model alias (`lbl/cborg-coder`),
+  - final GPT-OSS summaries contain only inherited
+    `skipped_execution_status` rows, with no residual `skipped_judge_error`.
 - Remaining M4 work:
-  - refresh or rescore judge-sensitivity artifacts against the frozen M4
-    retrieval-backed run set,
   - update paper-facing tables/figures/narrative to use the finalized M4
-    summary artifacts,
+    three-judge M4 summary artifacts,
   - make any explicit paper-scope retirement decisions for older pre-M4
     retrieval-backed comparison artifacts that are no longer needed.
 
@@ -666,7 +674,7 @@ Status update (2026-03-11):
   - the paper emphasizes Q&A and single-turn ticket-style cases and does not yet establish performance on broader multi-turn, live-operations, or human-in-the-loop workflows.
 - Judge-model coverage:
   - paper-facing outputs now use a non-overlapping Maverick judge for scoring instead of GPT-OSS judging GPT-OSS,
-  - two alternate full-scope judges (`mistral_large_3`, `llama_4_maverick`) have been run, but broader judge diversity and human adjudication are still future work.
+  - two alternate full-scope judges (`mistral_large_3`, `gptoss`) have now been run against the refreshed M4 paper-facing retrieval-backed set, but broader judge diversity and human adjudication are still future work.
 - Retrieval corpus bias:
   - retrieval results depend in part on corpus construction choices, including what documentation/tickets were included, how they were filtered, and how they were chunked/indexed,
   - observed gains or failures should therefore be interpreted as model-plus-retrieval-stack behavior, not as model capability in isolation.
@@ -689,20 +697,18 @@ Policy:
 - Preserve previous milestone artifacts for traceability.
 - Do not silently replace milestone outputs.
 
-## Immediate Next Steps (Updated 2026-04-06)
+## Immediate Next Steps (Updated 2026-04-11)
 
 Execution track:
-1. Complete M4 Sonnet retrieval reruns against the derived corpus (all
-   remaining paper-facing retrieval rows); incorporate into the paper in a
-   single pass once the artifact set is frozen.
-2. All other experiment execution is frozen for current submission scope.
+1. All experiment execution is frozen for current paper scope unless a specific
+   artifact needs repair.
 
 Writing track:
 1. Complete ACM front matter (copyright year, DOI, conference title, ISBN) for
    camera ready.
 2. Revise captions and bibliography as needed for camera ready.
-3. Regenerate paper tables/figures/narrative once M4 Sonnet retrieval artifacts
-   and retrieval-backed coding-agent comparison artifacts are frozen, then do a
+3. Regenerate paper tables/figures/narrative from the finalized M4
+   retrieval-backed artifacts and three-judge sensitivity summaries, then do a
    final consistency pass.
 
 Previously completed (2026-03-15):

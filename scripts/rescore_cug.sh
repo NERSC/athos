@@ -17,6 +17,7 @@ JUDGE_MAX_ATTEMPTS="${JUDGE_MAX_ATTEMPTS:-3}"
 JUDGE_RETRY_DELAY_MS="${JUDGE_RETRY_DELAY_MS:-1000}"
 CHECK_BUDGET="${CHECK_BUDGET:-1}"
 TICKET_CASES_DIR="${TICKET_CASES_DIR:-./data/ticket_cases}"
+TARGET_SET="${TARGET_SET:-m4_paper_sensitivity}"
 
 if [[ ! -f "${SCORING_CONFIG_PATH}" ]]; then
   echo "ERROR: scoring config not found: ${SCORING_CONFIG_PATH}" >&2
@@ -45,15 +46,56 @@ fi
 #  exit 2
 #fi
 
-TARGETS=(
-  "results/cug_m2_canonical|expanded"
-  "results/cug_m3_full_gptoss_opt_20260311_013848|expanded"
-  "results/cug_m3_full_sonnet_opt_20260311_081645|expanded"
-  "results/cug_m3_20260313_080148|expanded"
-  "results/cug_m3_fs_sonnet_stitched_20260314|expanded"
-  "results/cug_codex_external_mini_20260313_232712|mini"
-  "results/cug_claude_external_mini_20260314|mini"
-)
+TARGETS=()
+
+set_targets() {
+  case "${TARGET_SET}" in
+    m4)
+      TARGETS=(
+        "results/cug_m4|expanded"
+      )
+      ;;
+    m4_paper_sensitivity)
+      TARGETS=(
+        "results/cug_m4|expanded"
+        "results/cug_m4_var|mini"
+        "results/cug_m4_harness|mini"
+        "results/cug_m4_harness_lang_sonnet_opt_mini_20260329|mini"
+        "results/cug_m4_harness_smol_sonnet_mini_20260329|mini"
+        "results/cug_codex_external_full_20260329|mini"
+        "results/cug_claude_external_full_20260329|mini"
+      )
+      ;;
+    legacy_paper)
+      TARGETS=(
+        "results/cug_m2_canonical|expanded"
+        "results/cug_m3_full_gptoss_opt_20260311_013848|expanded"
+        "results/cug_m3_full_sonnet_opt_20260311_081645|expanded"
+        "results/cug_m3_20260313_080148|expanded"
+        "results/cug_m3_fs_sonnet_stitched_20260314|expanded"
+        "results/cug_codex_external_mini_20260313_232712|mini"
+        "results/cug_claude_external_mini_20260314|mini"
+      )
+      ;;
+    all_paper)
+      TARGETS=(
+        "results/cug_m4|expanded"
+        "results/cug_m2_canonical|expanded"
+        "results/cug_m3_full_gptoss_opt_20260311_013848|expanded"
+        "results/cug_m3_full_sonnet_opt_20260311_081645|expanded"
+        "results/cug_m3_20260313_080148|expanded"
+        "results/cug_m3_fs_sonnet_stitched_20260314|expanded"
+        "results/cug_codex_external_mini_20260313_232712|mini"
+        "results/cug_claude_external_mini_20260314|mini"
+      )
+      ;;
+    *)
+      echo "ERROR: unknown TARGET_SET='${TARGET_SET}'" >&2
+      echo "Valid options: m4, m4_paper_sensitivity, legacy_paper, all_paper" >&2
+      exit 2
+      ;;
+  esac
+}
 
 print_budget() {
   if [[ "${CHECK_BUDGET}" != "1" ]]; then
@@ -65,9 +107,14 @@ print_budget() {
   fi
 }
 
+set_targets
+echo "==> target_set=${TARGET_SET}"
+
 score_target() {
   local runs_dir="$1"
   local mode="$2"
+  local target_index="$3"
+  local target_total="$4"
   local label
   label="$(basename "${runs_dir}")"
   local judge_id="${JUDGE_ID_PREFIX}_${label}"
@@ -121,9 +168,12 @@ score_target() {
 }
 
 print_budget
+target_total=${#TARGETS[@]}
+target_index=0
 for target in "${TARGETS[@]}"; do
+  target_index=$((target_index + 1))
   IFS="|" read -r runs_dir mode <<< "${target}"
-  score_target "${runs_dir}" "${mode}"
+  score_target "${runs_dir}" "${mode}" "${target_index}" "${target_total}"
   print_budget
 done
 

@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -214,6 +215,12 @@ def main() -> None:
         help="JSON Lines file with question/answer pairs (can be used multiple times)",
     )
     parser.add_argument("--output", required=True, help="Judgments JSONL output file path")
+    parser.add_argument(
+        "--progress-every",
+        type=int,
+        default=25,
+        help="Emit progress log every N runs processed (0 disables periodic logs).",
+    )
     args = parser.parse_args()
 
     if not args.runs_dir and not args.runs_manifest:
@@ -235,6 +242,19 @@ def main() -> None:
         raise ValueError(f"Judge model '{args.judge_model}' not found in config models")
     judge_model_instance = smolagents_factories.build_model(cfg.models[args.judge_model])
     judge_id = args.judge_id or f"{args.judge_model}:{args.judge_prompt_version}"
+    judge_cfg = cfg.models[args.judge_model]
+
+    print(
+        "Scoring config: "
+        f"runs={len(run_paths)} "
+        f"judge_model={args.judge_model} "
+        f"judge_id={judge_id} "
+        f"model_id={getattr(judge_cfg, 'model_id', None)} "
+        f"api_base={getattr(judge_cfg, 'api_base', None)} "
+        f"output={args.output} "
+        f"skips_output={args.skips_output}",
+        flush=True,
+    )
 
     reference_map, fallback_case_map = _build_reference_map(args.cases_dir, args.qa_file)
 
@@ -249,6 +269,7 @@ def main() -> None:
     skipped_count = 0
     skipped_reasons: dict[str, int] = {}
     skips: list[dict] = []
+    started_at = time.time()
 
     def _record_skip(
         *,
@@ -282,7 +303,7 @@ def main() -> None:
     )
     temp_output_path = Path(temp_output_str)
     with os.fdopen(temp_fd, "w", encoding="utf-8") as handle:
-        for run_path in run_paths:
+        for idx, run_path in enumerate(run_paths, start=1):
             run_payload = json.loads(run_path.read_text())
             run_id = run_payload.get("run_id")
             run_path_str = str(run_path.resolve())
@@ -402,6 +423,20 @@ def main() -> None:
                             f"attempt={attempt}/{args.judge_max_attempts} "
                             f"non_numeric_score={score!r}"
                         )
+                        print(
+                            f"[judge-retry] run={idx}/{len(run_paths)} "
+                            f"case_id={case_id or '<unknown>'} "
+                            f"attempt={attempt}/{args.judge_max_attempts} "
+                            f"detail={last_error_detail}",
+                            flush=True,
+                        )
+                    if last_error_detail and attempt == args.judge_max_attempts:
+                        print(
+                            f"[judge-failed] run={idx}/{len(run_paths)} "
+                            f"case_id={case_id or '<unknown>'} "
+                            f"detail={last_error_detail}",
+                            flush=True,
+                        )
 
                     if (
                         attempt < args.judge_max_attempts
@@ -468,6 +503,19 @@ def main() -> None:
             }
             handle.write(json.dumps(judgment) + "\n")
             write_count += 1
+            if args.progress_every and (
+                idx == 1 or idx == len(run_paths) or idx % args.progress_every == 0
+            ):
+                elapsed = time.time() - started_at
+                print(
+                    f"[progress] processed={idx}/{len(run_paths)} "
+                    f"scored={scored_count} "
+                    f"skipped={skipped_count} "
+                    f"last_status={judgment_status} "
+                    f"last_case={case_id or '<unknown>'} "
+                    f"elapsed_s={elapsed:.1f}",
+                    flush=True,
+                )
 
         handle.flush()
         os.fsync(handle.fileno())
@@ -504,7 +552,8 @@ def main() -> None:
         f"Wrote judgments to {output_path} "
         f"(scored={scored_count}, zero_scored_failures={zero_scored_failure_count}, "
         f"skipped={skipped_count}, total={len(run_paths)}, "
-        f"skip_reasons={skipped_reasons})"
+        f"skip_reasons={skipped_reasons})",
+        flush=True,
     )
 
     if args.fail_on_skip and skipped_count > 0:
