@@ -647,6 +647,29 @@ Status update (2026-03-21):
   - ACM front matter placeholders (copyright year, DOI, conference title, ISBN)
   - caption and bibliography revisions as needed
 
+Content additions recommended for completeness/value (2026-04-12):
+- Derived ticket retrieval corpus writeup:
+  - add a short methodological subsection in the paper that explains the M4
+    ticket-corpus update as a privacy-aware, retrieval-oriented transformation
+    pipeline rather than only as raw ticket ingestion,
+  - explicitly describe that raw ServiceNow tickets/attachments are processed
+    on-prem into a structured derived representation used for both semantic and
+    filesystem retrieval,
+  - explain the goals: reduce noise, preserve provenance/date-split semantics,
+    and remove or mask personally identifiable information before retrieval use.
+- Benchmark/examples material:
+  - add a compact appendix or in-text table with 2--4 example benchmark items
+    (at minimum one Q&A example and one ticket example),
+  - if space permits, add one success example and one failure example with
+    prompt, model answer summary, judge outcome, and short explanation.
+- Human validation mini-study:
+  - review a small stratified subset of predictions and automated judgments by
+    hand,
+  - target ~40--60 outputs spanning datasets, model families, retrieval modes,
+    and near-threshold cases,
+  - report human-versus-automated pass/fail agreement and note disagreement
+    patterns (for example partial-credit cases or rubric-boundary cases).
+
 Status update (2026-03-11):
 - Manuscript repo: `../athos_cug_2026_paper`
 - Main draft file: `main.tex`
@@ -710,6 +733,16 @@ Writing track:
 3. Regenerate paper tables/figures/narrative from the finalized M4
    retrieval-backed artifacts and three-judge sensitivity summaries, then do a
    final consistency pass.
+4. Add a dedicated derived-ticket retrieval-corpus subsection to Experimental
+   Design, including the on-prem structured-ticket transformation step,
+   privacy/PII handling, and the relationship between the derived records,
+   filesystem retrieval surface, and Chroma ingestion.
+5. Add a compact benchmark/examples artifact (appendix or short in-text table)
+   showing representative Q&A and ticket cases; if space allows, include one
+   success example and one failure example with judge outcome.
+6. If time permits, run a lightweight human-validation audit over a stratified
+   subset of predictions/judgments and report agreement as an eval-validity
+   check.
 
 Previously completed (2026-03-15):
 - Maverick-aligned tables/figures/narrative frozen for submission.
