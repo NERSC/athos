@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import re
 
 
 def _parse_ts(value: Any) -> datetime | None:
@@ -92,6 +93,15 @@ def parse_args() -> argparse.Namespace:
         required=True,
         help="Output directory for rendered LaTeX tables.",
     )
+    parser.add_argument(
+        "--source-config-filter",
+        action="append",
+        default=[],
+        help=(
+            "Per-summary-index config filter in the form "
+            "index::substring[,substring...]. Applies only to summary_<index>.json."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -100,6 +110,23 @@ def main() -> None:
     summary_root = Path(args.summary_root)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    source_filters: dict[int, list[str]] = {}
+    for spec in args.source_config_filter:
+        index_str, sep, filter_blob = spec.partition("::")
+        if not sep or not index_str.strip() or not filter_blob.strip():
+            raise SystemExit(
+                "--source-config-filter must be index::substring[,substring...]"
+            )
+        try:
+            index = int(index_str)
+        except ValueError as exc:
+            raise SystemExit("--source-config-filter index must be an integer") from exc
+        filters = [item.strip() for item in filter_blob.split(",") if item.strip()]
+        if not filters:
+            raise SystemExit(
+                "--source-config-filter must include at least one non-empty substring"
+            )
+        source_filters[index] = filters
 
     judge_labels = {
         "gptoss": "GPT-OSS",
@@ -114,12 +141,21 @@ def main() -> None:
             raise SystemExit(f"Missing judge summary dir: {judge_dir}")
         rows_by_key: dict[tuple[str, str], dict[str, Any]] = {}
         for path in sorted(judge_dir.glob("summary_*.json")):
+            match = re.fullmatch(r"summary_(\d+)\.json", path.name)
+            source_index = int(match.group(1)) if match else None
+            summary_specific_filters = (
+                source_filters.get(source_index, []) if source_index is not None else []
+            )
             payload = json.loads(path.read_text())
             generated_at = payload.get("generated_at_utc")
             for row in payload.get("aggregates", []):
                 if not isinstance(row, dict):
                     continue
                 item = dict(row)
+                if summary_specific_filters and not any(
+                    token in str(item.get("config_id", "")) for token in summary_specific_filters
+                ):
+                    continue
                 item["_summary_generated_at_utc"] = generated_at
                 key = (str(item.get("config_id", "")), str(item.get("dataset_id", "")))
                 existing = rows_by_key.get(key)

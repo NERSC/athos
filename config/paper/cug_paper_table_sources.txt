@@ -2,7 +2,4 @@
 # Format per line: runs_dir::judgments_dir
 
 results/cug_m2_canonical::results/cug_m2_canonical/judgments
-results/cug_m3_full_gptoss_opt_20260311_013848::results/cug_m3_full_gptoss_opt_20260311_013848/judgments
-results/cug_m3_full_sonnet_opt_20260311_081645::results/cug_m3_full_sonnet_opt_20260311_081645/judgments
-results/cug_m3_20260313_080148::results/cug_m3_20260313_080148/judgments
-results/cug_m3_fs_sonnet_stitched_20260314::results/cug_m3_fs_sonnet_stitched_20260314/judgments
+results/cug_m4::results/cug_m4/judgments

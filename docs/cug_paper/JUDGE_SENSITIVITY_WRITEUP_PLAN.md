@@ -11,8 +11,11 @@ The goal is to show trend robustness without a heavy methodological detour.
 
 Use paper-facing result artifacts already scored under all three judges:
 - main table sources (`config/paper/cug_paper_table_sources.txt`),
-- harness mini comparison (`results/cug_m3_var_20260311_231139` + external mini dirs),
-- variance pair (`results/cug_m3_var_20260312_093435`, `results/cug_m3_var_20260312_130318`) as optional qualitative support.
+- harness comparison (`results/cug_m4_harness`,
+  `results/cug_m4_harness_lang_sonnet_opt_mini_20260329`,
+  `results/cug_m4_harness_smol_sonnet_mini_20260329`,
+  and full external comparison dirs),
+- variance pair from `results/cug_m4_var` as optional qualitative support.
 
 ## Output 1: Leniency Ladder (Table)
 
@@ -36,7 +39,8 @@ Purpose:
 - Show whether key comparative conclusions change with judge choice.
 
 Minimal content:
-- limit to the main paper configurations (the six LangChain rows; optionally include filesystem rows).
+- limit to the main paper configurations in Table 2 (all eight rows, including
+  the filesystem comparisons).
 - for each judge:
   - per-config rank by `score_mean` (and optionally by `pass_rate`),
   - top-1 and bottom-1 consistency note.

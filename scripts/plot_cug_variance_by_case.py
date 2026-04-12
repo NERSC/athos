@@ -18,6 +18,11 @@ def parse_args() -> argparse.Namespace:
         help="Path to a judgments JSONL file for one config/run set.",
     )
     parser.add_argument(
+        "--config-substring",
+        default="",
+        help="Optional substring filter applied to config_id parsed from run_path.",
+    )
+    parser.add_argument(
         "--output",
         required=True,
         help="Output image path, e.g. results/cug_m3_variance_by_case.png",
@@ -115,6 +120,7 @@ def _build_case_order(
 def _load_panel(
     judgment_path: Path,
     dataset_order: list[str],
+    config_substring: str,
 ) -> dict[str, Any]:
     rows = _load_judgments(judgment_path)
     by_case: dict[tuple[str, str], list[float]] = defaultdict(list)
@@ -130,11 +136,14 @@ def _load_panel(
         if parsed is None:
             continue
         config_id, dataset_id, case_id = parsed
+        if config_substring and config_substring not in config_id:
+            continue
         config_ids.add(config_id)
         by_case[(dataset_id, case_id)].append(float(score))
 
     if not by_case:
-        raise ValueError(f"No usable scored judgments found in {judgment_path}")
+        detail = f" matching config substring '{config_substring}'" if config_substring else ""
+        raise ValueError(f"No usable scored judgments found in {judgment_path}{detail}")
     if len(config_ids) != 1:
         raise ValueError(
             f"Expected one config_id in {judgment_path}, found {sorted(config_ids)}"
@@ -162,7 +171,11 @@ def main() -> None:
             "matplotlib is required for plot_cug_variance_by_case.py"
         ) from exc
 
-    panel = _load_panel(Path(args.judgments_jsonl), args.dataset_order)
+    panel = _load_panel(
+        Path(args.judgments_jsonl),
+        args.dataset_order,
+        args.config_substring,
+    )
     try:
         fig_width, fig_height = [float(x.strip()) for x in args.figsize.split(",", 1)]
     except Exception as exc:

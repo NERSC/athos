@@ -131,6 +131,13 @@ for summary_path in "${summary_paths[@]}"; do
   render_cmd+=(--summary-json "${summary_path}")
 done
 
+if [[ ${#summary_paths[@]} -ge 2 ]]; then
+  render_cmd+=(
+    --summary-config-filter "${summary_paths[0]}::base"
+    --summary-config-filter "${summary_paths[1]}::filesystem,chroma"
+  )
+fi
+
 read -r -a include_dataset_arr <<< "${INCLUDE_DATASETS}"
 for dataset_id in "${include_dataset_arr[@]}"; do
   [[ -z "${dataset_id}" ]] && continue

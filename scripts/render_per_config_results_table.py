@@ -63,6 +63,16 @@ def parse_args() -> argparse.Namespace:
         help="Only include configs whose config_id contains any provided substring.",
     )
     parser.add_argument(
+        "--summary-config-filter",
+        action="append",
+        default=[],
+        help=(
+            "Per-summary config filter in the form "
+            "summary_path::substring[,substring...]. Only rows from that summary "
+            "whose config_id contains at least one substring are kept."
+        ),
+    )
+    parser.add_argument(
         "--exclude-zero-scored",
         action="store_true",
         help="Drop rows with scored_count == 0.",
@@ -231,6 +241,19 @@ def main() -> None:
     args = parse_args()
     include_dataset = set(args.include_dataset)
     include_config_substrings = args.include_config_substring
+    summary_filters: dict[str, list[str]] = {}
+    for spec in args.summary_config_filter:
+        path_str, sep, filter_blob = spec.partition("::")
+        if not sep or not path_str.strip() or not filter_blob.strip():
+            raise SystemExit(
+                "--summary-config-filter must be summary_path::substring[,substring...]"
+            )
+        filters = [item.strip() for item in filter_blob.split(",") if item.strip()]
+        if not filters:
+            raise SystemExit(
+                "--summary-config-filter must include at least one non-empty substring"
+            )
+        summary_filters[str(Path(path_str).resolve())] = filters
 
     rows_by_key: dict[tuple[str, str], dict[str, Any]] = {}
     loaded_summaries = 0
@@ -238,6 +261,7 @@ def main() -> None:
 
     for summary_path_str in args.summary_json:
         summary_path = Path(summary_path_str)
+        summary_path_resolved = str(summary_path.resolve())
         payload = json.loads(summary_path.read_text())
         aggregates = payload.get("aggregates")
         if not isinstance(aggregates, list):
@@ -249,8 +273,13 @@ def main() -> None:
             if not isinstance(row, dict):
                 continue
             row = dict(row)
-            row["_summary_path"] = str(summary_path.resolve())
+            row["_summary_path"] = summary_path_resolved
             row["_summary_generated_at_utc"] = generated_at
+            summary_specific_filters = summary_filters.get(summary_path_resolved, [])
+            if summary_specific_filters and not any(
+                token in str(row.get("config_id", "")) for token in summary_specific_filters
+            ):
+                continue
             if not _include_row(row, include_dataset, include_config_substrings, args.exclude_zero_scored):
                 continue
             key = (str(row.get("config_id", "")), str(row.get("dataset_id", "")))

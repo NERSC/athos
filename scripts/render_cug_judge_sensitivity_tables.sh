@@ -48,6 +48,12 @@ echo "  summary_root: ${SUMMARY_ROOT}"
 echo "  table_out_dir: ${TABLE_OUT_DIR}"
 echo
 
+for judge in "${judge_arr[@]}"; do
+  judge_dir="${SUMMARY_ROOT}/${judge}"
+  mkdir -p "${judge_dir}"
+  rm -f "${judge_dir}"/summary_*.json
+done
+
 # 1) Build per-judge summaries.
 source_index=0
 for source_spec in "${source_arr[@]}"; do
@@ -69,7 +75,6 @@ for source_spec in "${source_arr[@]}"; do
 
   for judge in "${judge_arr[@]}"; do
     judge_dir="${SUMMARY_ROOT}/${judge}"
-    mkdir -p "${judge_dir}"
     out="${judge_dir}/summary_${source_index}.json"
 
     echo "Summarizing source ${source_index} for judge=${judge}"
@@ -90,6 +95,8 @@ render_cmd=(
   python3 scripts/render_judge_sensitivity_tables.py
   --summary-root "${SUMMARY_ROOT}"
   --output-dir "${TABLE_OUT_DIR}"
+  --source-config-filter "0::base"
+  --source-config-filter "1::filesystem,chroma"
 )
 for judge in "${judge_arr[@]}"; do
   render_cmd+=(--judge "${judge}")
