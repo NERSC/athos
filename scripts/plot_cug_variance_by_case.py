@@ -259,15 +259,36 @@ def main() -> None:
                 (-span + (2 * span * i / (len(values) - 1))) for i in range(len(values))
             ]
         dataset_id, _ = key
-        ax.scatter(
-            [pos + off for off in offsets],
-            values,
-            s=26,
-            color=point_facecolors.get(dataset_id, "#333333"),
-            alpha=0.85,
-            linewidths=0,
-            zorder=3,
-        )
+        point_color = point_facecolors.get(dataset_id, "#333333")
+        nonzero_points = [
+            (pos + off, value) for off, value in zip(offsets, values) if value != 0.0
+        ]
+        zero_points = [
+            (pos + off, value) for off, value in zip(offsets, values) if value == 0.0
+        ]
+        if nonzero_points:
+            xs, ys = zip(*nonzero_points)
+            ax.scatter(
+                xs,
+                ys,
+                s=26,
+                color=point_color,
+                alpha=0.85,
+                linewidths=0,
+                zorder=3,
+            )
+        if zero_points:
+            xs, ys = zip(*zero_points)
+            ax.scatter(
+                xs,
+                ys,
+                s=70,
+                facecolors="white",
+                edgecolors=point_color,
+                alpha=0.95,
+                linewidths=1.4,
+                zorder=4,
+            )
 
     if args.show_failure_counts:
         labels = []
