@@ -633,6 +633,14 @@ Status update (2026-03-15):
 
 ### Manuscript Status Snapshot
 
+Status update (2026-04-19):
+- The full ACM ICPS review packet is now preserved in-repo as
+  [cug_reviews2_full.md](/Users/sfarrell/Work/agentic-ops/athos/docs/cug_paper/cug_reviews2_full.md).
+- A dedicated reviewer-comment action tracker now lives in
+  [REVIEW_COMMENT_RESOLUTION_PLAN.md](/Users/sfarrell/Work/agentic-ops/athos/docs/cug_paper/REVIEW_COMMENT_RESOLUTION_PLAN.md).
+- Keep this main plan focused on experiment/manuscript status; use the
+  dedicated resolution plan for camera-ready reviewer closure work.
+
 Status update (2026-03-21):
 - All sections are written with substantial prose:
   - Introduction, Related Work, ATHOS Toolkit Design, Experimental Design
