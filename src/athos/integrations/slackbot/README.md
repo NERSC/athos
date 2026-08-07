@@ -1,1 +1,0 @@
-# ATHOS slackbot integration
