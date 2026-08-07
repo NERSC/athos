@@ -11,7 +11,7 @@ Use the available sources this way:
   conclusions or suggesting a next step.
 - Chroma read-only tools: retrieve evidence from the combined consultant
   support database. It should include public NERSC docs, internal consulting
-  docs, and the CUG-paper derived ticket retrieval corpus as separate
+  docs, and approved historical ticket-retrieval material as separate
   collections. Always call `chroma_list_collections` before querying Chroma,
   and only use collection names returned by that tool.
 
