@@ -26,7 +26,7 @@ models:
 
   gptoss:
     description: "Open-weight GPT-OSS-120B via CBORG"
-    model_id: "gpt-oss-120b"
+    model_id: "lbl/gpt-oss-120b"
     api_key: "${CBORG_API_KEY}"
     api_base: "${CBORG_API_URL}"
     temperature: 0.3
@@ -359,7 +359,7 @@ flows:
   lang_chat:
     description: "Minimal LangGraph chatbot flow using the CBORG chat model"
     type: "langgraph_chatbot"
-    model: "cborg_coder"
+    model: "gptoss"
     system_prompt_path: "prompts/langgraph_chatbot_demo_system_prompt.txt"
     # initial_history:
     #   - "Hello!"
