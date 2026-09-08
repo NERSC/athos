@@ -329,7 +329,7 @@ def chroma_add_documents(
 def chroma_query_documents(
     collection_name: str,
     query_texts: List[str],
-    n_results: int = 5,
+    n_results: int = 10,
     where: Dict | None = None,
     where_document: Dict | None = None,
     include: List[str] = ["documents", "metadatas", "distances"]
