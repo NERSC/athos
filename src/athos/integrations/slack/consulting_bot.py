@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,37 @@ def slack_session_id(request: SlackMessageRequest) -> str:
     """Return a stable conversation ID for a Slack thread."""
     return f"{request.channel}:{request.thread_ts or request.event_ts or 'unknown'}"
 
+def normalize_slack_mrkdwn(text: str) -> str:
+    text = re.sub(
+        r"&#x20;|&#32;|&nbsp;",
+        " ",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    # \### -> ###, \*\* -> **, 1\. -> 1.
+    text = re.sub(r"\\([#*_~.\-])", r"\1", text)
+
+    # ### Heading -> *Heading*
+    text = re.sub(
+        r"(?m)^\s*#{1,6}\s+(.+?)\s*$",
+        lambda match: f"*{match.group(1).strip()}*",
+        text,
+    )
+
+    # **text** -> *text*
+    text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)
+
+    # [label](URL) -> <URL|label>
+    text = re.sub(
+        r"\[([^\]]+)\]\((https?://[^)]+)\)",
+        r"<\2|\1>",
+        text,
+    )
+
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
 
 class AthosConsultingSlackAdapter:
     """Bridge Slack requests to a configured ATHOS consulting flow."""
@@ -74,7 +106,7 @@ class AthosConsultingSlackAdapter:
                 text=":warning: I could not complete that consulting request. Please check the bot logs or try again shortly."
             )
 
-        response_text = result.output.content
+        response_text = normalize_slack_mrkdwn(result.output.content)
         feedback_value = json.dumps(
             {
                 "session_id": session_id,
