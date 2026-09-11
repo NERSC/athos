@@ -9,7 +9,7 @@ def test_hpc_consulting_agent_uses_read_only_context_sources(monkeypatch):
     flow = cfg.flows["lang_hpc_consulting_agent"]
     assert flow.type == "langchain_agent"
     assert flow.model == "gptoss"
-    assert cfg.models["gptoss"].model_id == "gpt-oss-120b"
+    assert cfg.models["gptoss"].model_id == "lbl/gpt-oss-120b"
     assert flow.mcp_servers == [
         "servicenow_ro_mcp",
         "consulting_chroma_ro_mcp",
