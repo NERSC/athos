@@ -15,7 +15,12 @@ class FakeRunner:
 
 
 def test_consulting_adapter_uses_the_slack_thread_as_session():
-    runner = FakeRunner(SimpleNamespace(success=True, output=SimpleNamespace(content="Consultant answer")))
+    runner = FakeRunner(
+        SimpleNamespace(
+            success=True,
+            output=SimpleNamespace(content="Consultant answer", metadata={}),
+        )
+    )
     adapter = AthosConsultingSlackAdapter(runner)
     request = SlackMessageRequest(
         channel="C123",
@@ -43,7 +48,12 @@ def test_consulting_adapter_uses_the_slack_thread_as_session():
 
 
 def test_consulting_adapter_splits_long_answers_from_feedback_controls():
-    runner = FakeRunner(SimpleNamespace(success=True, output=SimpleNamespace(content="x" * 3001)))
+    runner = FakeRunner(
+        SimpleNamespace(
+            success=True,
+            output=SimpleNamespace(content="x" * 3001, metadata={}),
+        )
+    )
     adapter = AthosConsultingSlackAdapter(runner)
 
     response = adapter.handle_question(
@@ -57,6 +67,26 @@ def test_consulting_adapter_splits_long_answers_from_feedback_controls():
 
 def test_consulting_adapter_returns_a_safe_message_when_the_flow_fails():
     runner = FakeRunner(SimpleNamespace(success=False, output=None, error="credential details must not reach Slack"))
+    adapter = AthosConsultingSlackAdapter(runner)
+
+    response = adapter.handle_question(
+        SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "help")
+    )
+
+    assert "could not complete" in response.text
+    assert "credential details" not in response.text
+
+
+def test_consulting_adapter_returns_a_safe_message_for_error_output():
+    runner = FakeRunner(
+        SimpleNamespace(
+            success=True,
+            output=SimpleNamespace(
+                content="Error: credential details must not reach Slack",
+                metadata={"error": True},
+            ),
+        )
+    )
     adapter = AthosConsultingSlackAdapter(runner)
 
     response = adapter.handle_question(

@@ -101,7 +101,11 @@ class AthosConsultingSlackAdapter:
                 metadata={"slack_channel": request.channel, "slack_thread_ts": request.thread_ts},
             )
         )
-        if not result.success or result.output is None:
+        if (
+            not result.success
+            or result.output is None
+            or result.output.metadata.get("error")
+        ):
             return SlackMessageResponse(
                 text=":warning: I could not complete that consulting request. Please check the bot logs or try again shortly."
             )
