@@ -1,8 +1,8 @@
 # ATHOS Slack consulting integration
 
 This package runs an ATHOS flow as a Slack Socket Mode application. It handles
-app mentions, direct messages, and the `/athos-consulting` command, keeping
-conversation history scoped to a Slack thread.
+app mentions and direct messages, keeping conversation history scoped to a
+Slack thread.
 
 The default flow is `lang_hpc_consulting_agent`, which is configured with
 read-only ServiceNow and Chroma MCP servers in `config/config.yaml`.

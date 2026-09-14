@@ -74,8 +74,6 @@ class AthosConsultingSlackAdapter:
     """Bridge Slack requests to a configured ATHOS consulting flow."""
 
     app_name = "athos-consulting"
-    command_name = "/athos-consulting"
-    default_question = "What incident or consulting question can I help with?"
     empty_prompt = "Mention an incident number or ask a consulting question in this thread."
 
     def __init__(

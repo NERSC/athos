@@ -80,8 +80,6 @@ class SlackViewSubmissionResponse:
 
 class SlackAppAdapter(Protocol):
     app_name: str
-    command_name: str | None
-    default_question: str
     empty_prompt: str
 
     def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse: ...
@@ -97,8 +95,6 @@ class FunctionSlackAdapter:
         handler: Callable[[SlackMessageRequest], str | SlackMessageResponse],
         *,
         app_name: str,
-        command_name: str | None = None,
-        default_question: str = "How can I help?",
         empty_prompt: str = "Ask me a question and I will respond in this thread.",
         on_interaction: Callable[[SlackInteractionRequest], SlackInteractionResponse | None] | None = None,
         on_view_submission: Callable[[SlackViewSubmissionRequest], SlackViewSubmissionResponse | None] | None = None,
@@ -107,8 +103,6 @@ class FunctionSlackAdapter:
         self._on_interaction = on_interaction
         self._on_view_submission = on_view_submission
         self.app_name = app_name
-        self.command_name = command_name
-        self.default_question = default_question
         self.empty_prompt = empty_prompt
 
     def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse:
@@ -233,16 +227,10 @@ def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
             _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=SlackMessageResponse(f":warning: I hit an error while answering this question:\n`{exc}`"))
 
     def process(client, envelope) -> None:
-        if envelope.type not in {"events_api", "slash_commands", "interactive"}:
+        if envelope.type not in {"events_api", "interactive"}:
             return
         client.send_socket_mode_response(SocketModeResponse(envelope_id=envelope.envelope_id))
         payload = envelope.payload
-        if envelope.type == "slash_commands":
-            if adapter.command_name and payload.get("command") != adapter.command_name:
-                return
-            request = SlackMessageRequest(payload["channel_id"], None, None, payload.get("user_id"), (payload.get("text") or "").strip() or adapter.default_question, context={"payload": payload})
-            threading.Thread(target=handle_request, args=(request,), daemon=True).start()
-            return
         if envelope.type == "interactive":
             threading.Thread(
                 target=_process_interaction,
