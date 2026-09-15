@@ -1,12 +1,22 @@
 import asyncio
+import json
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 
 import pytest
 from anyio.from_thread import start_blocking_portal
 
-from athos.integrations.slack.consulting_bot import AthosConsultingSlackAdapter, slack_session_id
-from athos.integrations.slack.runtime import REQUEST_FAILURE_TEXT, SlackMessageRequest
+from athos.integrations.slack.consulting_bot import (
+    BUTTON_VALUE_MAX_LEN,
+    PRIVATE_METADATA_MAX_LEN,
+    AthosConsultingSlackAdapter,
+    slack_session_id,
+)
+from athos.integrations.slack.runtime import (
+    REQUEST_FAILURE_TEXT,
+    SlackInteractionRequest,
+    SlackMessageRequest,
+)
 
 
 class FakeRunner:
@@ -83,6 +93,55 @@ def test_consulting_adapter_splits_long_answers_from_feedback_controls(portal):
     assert response.blocks is None
     assert response.followup_posts[0].text == "Was this response helpful?"
     assert response.followup_posts[0].blocks[0]["type"] == "actions"
+    value = response.followup_posts[0].blocks[0]["elements"][0]["value"]
+    payload = json.loads(value)
+    assert len(value) <= BUTTON_VALUE_MAX_LEN
+    assert payload["detached"] is True
+
+    interaction = adapter.handle_interaction(
+        SlackInteractionRequest(
+            "C123",
+            "171234.000100",
+            "171234.000300",
+            "U123",
+            "feedback_up",
+            value,
+            context={"message": {"text": "Was this response helpful?"}},
+        )
+    )
+
+    assert interaction.replace_original.text == "Thanks for the feedback! 👍"
+    assert interaction.replace_original.blocks is None
+
+
+def test_feedback_keeps_the_full_slack_message_and_valid_metadata(portal):
+    answer = '"quoted"\n' * 250
+    runner = FakeRunner(
+        SimpleNamespace(success=True, output=SimpleNamespace(content=answer, metadata={}))
+    )
+    adapter = AthosConsultingSlackAdapter(runner, portal=portal)
+    response = adapter.handle_question(
+        SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "q" * 500)
+    )
+    value = response.blocks[1]["elements"][0]["value"]
+
+    interaction = adapter.handle_interaction(
+        SlackInteractionRequest(
+            "C123",
+            "171234.000100",
+            "171234.000300",
+            "U123",
+            "feedback_down",
+            value,
+            context={"message": {"text": response.text}},
+        )
+    )
+
+    assert "response_text" not in json.loads(value)
+    assert interaction.replace_original.text == response.text
+    metadata = interaction.open_view["private_metadata"]
+    assert len(metadata) <= PRIVATE_METADATA_MAX_LEN
+    assert json.loads(metadata)["session_id"] == "C123:171234.000100"
 
 
 def test_consulting_adapter_returns_a_safe_message_when_the_flow_fails(portal):

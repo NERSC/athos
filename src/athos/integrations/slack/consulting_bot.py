@@ -34,11 +34,29 @@ from .runtime import (
 
 FEEDBACK_MODAL_CALLBACK_ID = "athos_consulting_feedback_detail"
 FEEDBACK_TEXT_ACTION_ID = "feedback_text_input"
+BUTTON_VALUE_MAX_LEN = 2000
+PRIVATE_METADATA_MAX_LEN = 3000
 
 
 def slack_session_id(request: SlackMessageRequest) -> str:
     """Return a stable conversation ID for a Slack thread."""
     return f"{request.channel}:{request.thread_ts or request.event_ts or 'unknown'}"
+
+
+def _bounded_json(data: dict[str, Any], max_length: int, *shrink_fields: str) -> str:
+    """Serialize valid JSON, shortening selected text fields to fit."""
+    data = data.copy()
+    while len(encoded := json.dumps(data, separators=(",", ":"), ensure_ascii=False)) > max_length:
+        overflow = len(encoded) - max_length
+        for field in shrink_fields:
+            value = data.get(field)
+            if isinstance(value, str) and value:
+                data[field] = value[: max(0, len(value) - overflow)]
+                break
+        else:
+            raise ValueError("Feedback metadata exceeds Slack's size limit")
+    return encoded
+
 
 def normalize_slack_mrkdwn(text: str) -> str:
     text = re.sub(
@@ -112,14 +130,21 @@ class AthosConsultingSlackAdapter:
             return SlackMessageResponse(text=REQUEST_FAILURE_TEXT)
 
         response_text = normalize_slack_mrkdwn(result.output.content)
-        feedback_value = json.dumps(
-            {
-                "session_id": session_id,
-                "question": request.question[:500],
-                "response_text": response_text[:1500],
-            }
-        )[:2000]
-        if len(response_text) > MAX_BLOCK_TEXT_LEN:
+        detached = len(response_text) > MAX_BLOCK_TEXT_LEN
+        feedback_payload = {
+            "session_id": session_id,
+            "question": request.question[:500],
+            "detached": detached,
+        }
+        if detached:
+            feedback_payload["response_text"] = response_text
+        feedback_value = _bounded_json(
+            feedback_payload,
+            BUTTON_VALUE_MAX_LEN,
+            "response_text",
+            "question",
+        )
+        if detached:
             return SlackMessageResponse(
                 text=response_text,
                 followup_posts=[
@@ -176,7 +201,8 @@ class AthosConsultingSlackAdapter:
             payload = {}
         rating = "up" if request.action_id == "feedback_up" else "down"
         message = request.context.get("message") or {}
-        response_text = payload.get("response_text") or message.get("text", "")
+        detached = bool(payload.get("detached"))
+        response_text = payload.get("response_text", "") if detached else message.get("text", "")
         self._record_feedback(
             {
                 "rating": rating,
@@ -192,28 +218,39 @@ class AthosConsultingSlackAdapter:
             }
         )
         if rating == "up":
+            if detached:
+                return SlackInteractionResponse(
+                    replace_original=SlackMessagePost("Thanks for the feedback! 👍")
+                )
             blocks = [
                 {"type": "section", "text": {"type": "mrkdwn", "text": response_text}},
                 {"type": "context", "elements": [{"type": "mrkdwn", "text": "Thanks for the feedback! 👍"}]},
             ]
             return SlackInteractionResponse(replace_original=SlackMessagePost(response_text, blocks))
 
-        metadata = json.dumps(
+        metadata = _bounded_json(
             {
                 "channel": request.channel,
                 "message_ts": request.message_ts,
                 "thread_ts": request.thread_ts,
                 "session_id": payload.get("session_id"),
                 "question": payload.get("question"),
-                "response_text": response_text[:1500],
-            }
-        )[:3000]
-        blocks = [
-            {"type": "section", "text": {"type": "mrkdwn", "text": response_text}},
-            {"type": "context", "elements": [{"type": "mrkdwn", "text": "Thanks for the feedback. Tell us more in the form if useful. ✏️"}]},
-        ]
+                "response_text": response_text,
+            },
+            PRIVATE_METADATA_MAX_LEN,
+            "response_text",
+            "question",
+        )
+        acknowledgement = "Thanks for the feedback. Tell us more in the form if useful. ✏️"
+        replacement = SlackMessagePost(acknowledgement)
+        if not detached:
+            blocks = [
+                {"type": "section", "text": {"type": "mrkdwn", "text": response_text}},
+                {"type": "context", "elements": [{"type": "mrkdwn", "text": acknowledgement}]},
+            ]
+            replacement = SlackMessagePost(response_text, blocks)
         return SlackInteractionResponse(
-            replace_original=SlackMessagePost(response_text, blocks),
+            replace_original=replacement,
             open_view={
                 "type": "modal",
                 "callback_id": FEEDBACK_MODAL_CALLBACK_ID,
