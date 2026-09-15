@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Collection
 from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
@@ -36,6 +37,7 @@ FEEDBACK_MODAL_CALLBACK_ID = "athos_consulting_feedback_detail"
 FEEDBACK_TEXT_ACTION_ID = "feedback_text_input"
 BUTTON_VALUE_MAX_LEN = 2000
 PRIVATE_METADATA_MAX_LEN = 3000
+UNAUTHORIZED_USER_TEXT = ":no_entry: You are not authorized to use this ATHOS app."
 
 
 def slack_session_id(request: SlackMessageRequest) -> str:
@@ -101,6 +103,7 @@ class AthosConsultingSlackAdapter:
         runner: FlowRunner,
         *,
         portal: BlockingPortal,
+        allowed_users: Collection[str],
         flow_name: str = "lang_hpc_consulting_agent",
         feedback_store: FeedbackStore | None = None,
     ) -> None:
@@ -108,8 +111,13 @@ class AthosConsultingSlackAdapter:
         self._portal = portal
         self._flow_name = flow_name
         self._feedback_store = feedback_store
+        self._allowed_users = frozenset(user.strip() for user in allowed_users if user.strip())
+        if not self._allowed_users:
+            raise ValueError("ATHOS_SLACK_ALLOWED_USERS must contain at least one Slack user ID")
 
     def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse:
+        if request.user_id not in self._allowed_users:
+            return SlackMessageResponse(text=UNAUTHORIZED_USER_TEXT)
         session_id = slack_session_id(request)
         result = self._portal.call(
             partial(
@@ -299,11 +307,13 @@ def main() -> None:
     config_path = os.getenv("ATHOS_CONFIG_PATH", "config/config.yaml")
     flow_name = os.getenv("ATHOS_FLOW_NAME", "lang_hpc_consulting_agent")
     feedback_db = Path(os.getenv("ATHOS_FEEDBACK_DB", "data/slack/feedback.db"))
+    allowed_users = os.getenv("ATHOS_SLACK_ALLOWED_USERS", "").split(",")
     runner = FlowRunner(build_config(config_path))
     with start_blocking_portal(backend="asyncio", name="athos-slack-asyncio") as portal:
         adapter = AthosConsultingSlackAdapter(
             runner,
             portal=portal,
+            allowed_users=allowed_users,
             flow_name=flow_name,
             feedback_store=FeedbackStore(feedback_db),
         )

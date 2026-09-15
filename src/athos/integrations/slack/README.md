@@ -17,7 +17,12 @@ pip install -e '.[slack]'
 scripts/run_slack_consulting_bot.sh
 ```
 
-The launcher accepts environment overrides for `ATHOS_CONFIG_PATH`,
+Set `ATHOS_SLACK_ALLOWED_USERS` to the comma-separated Slack member IDs that
+may use the bot. The bot refuses to start with an empty allowlist and sends a
+fixed denial response without running the flow for any other user. Keep the
+deployment's actual IDs in `.env`; only the example belongs in the repository.
+
+The launcher also accepts environment overrides for `ATHOS_CONFIG_PATH`,
 `ATHOS_FLOW_NAME`, and `ATHOS_FEEDBACK_DB`. It never stores credentials.
 
 The bot records thumbs-up/down feedback in the configured SQLite database.

@@ -9,6 +9,7 @@ from anyio.from_thread import start_blocking_portal
 from athos.integrations.slack.consulting_bot import (
     BUTTON_VALUE_MAX_LEN,
     PRIVATE_METADATA_MAX_LEN,
+    UNAUTHORIZED_USER_TEXT,
     AthosConsultingSlackAdapter,
     slack_session_id,
 )
@@ -44,6 +45,14 @@ def portal():
         yield value
 
 
+def make_adapter(runner, portal):
+    return AthosConsultingSlackAdapter(
+        runner,
+        portal=portal,
+        allowed_users={"U123", "U456"},
+    )
+
+
 def test_consulting_adapter_uses_the_slack_thread_as_session(portal):
     runner = FakeRunner(
         SimpleNamespace(
@@ -51,7 +60,7 @@ def test_consulting_adapter_uses_the_slack_thread_as_session(portal):
             output=SimpleNamespace(content="Consultant answer", metadata={}),
         )
     )
-    adapter = AthosConsultingSlackAdapter(runner, portal=portal)
+    adapter = make_adapter(runner, portal)
     slack_request = SlackMessageRequest(
         channel="C123",
         thread_ts="171234.000100",
@@ -77,6 +86,25 @@ def test_consulting_adapter_uses_the_slack_thread_as_session(portal):
     assert response.blocks[1]["elements"][0]["action_id"] == "feedback_up"
 
 
+def test_consulting_adapter_rejects_users_outside_the_allowlist(portal):
+    runner = FakeRunner(
+        SimpleNamespace(success=True, output=SimpleNamespace(content="secret", metadata={}))
+    )
+    adapter = make_adapter(runner, portal)
+
+    response = adapter.handle_question(
+        SlackMessageRequest("C123", "171234.000100", "171234.000200", "U999", "help")
+    )
+
+    assert response.text == UNAUTHORIZED_USER_TEXT
+    assert runner.calls == []
+
+
+def test_consulting_adapter_requires_an_allowlist(portal):
+    with pytest.raises(ValueError, match="ATHOS_SLACK_ALLOWED_USERS"):
+        AthosConsultingSlackAdapter(FakeRunner(None), portal=portal, allowed_users=[])
+
+
 def test_consulting_adapter_splits_long_answers_from_feedback_controls(portal):
     runner = FakeRunner(
         SimpleNamespace(
@@ -84,7 +112,7 @@ def test_consulting_adapter_splits_long_answers_from_feedback_controls(portal):
             output=SimpleNamespace(content="x" * 3001, metadata={}),
         )
     )
-    adapter = AthosConsultingSlackAdapter(runner, portal=portal)
+    adapter = make_adapter(runner, portal)
 
     response = adapter.handle_question(
         SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "help")
@@ -119,7 +147,7 @@ def test_feedback_keeps_the_full_slack_message_and_valid_metadata(portal):
     runner = FakeRunner(
         SimpleNamespace(success=True, output=SimpleNamespace(content=answer, metadata={}))
     )
-    adapter = AthosConsultingSlackAdapter(runner, portal=portal)
+    adapter = make_adapter(runner, portal)
     response = adapter.handle_question(
         SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "q" * 500)
     )
@@ -146,7 +174,7 @@ def test_feedback_keeps_the_full_slack_message_and_valid_metadata(portal):
 
 def test_consulting_adapter_returns_a_safe_message_when_the_flow_fails(portal):
     runner = FakeRunner(SimpleNamespace(success=False, output=None, error="credential details must not reach Slack"))
-    adapter = AthosConsultingSlackAdapter(runner, portal=portal)
+    adapter = make_adapter(runner, portal)
 
     response = adapter.handle_question(
         SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "help")
@@ -166,7 +194,7 @@ def test_consulting_adapter_returns_a_safe_message_for_error_output(portal):
             ),
         )
     )
-    adapter = AthosConsultingSlackAdapter(runner, portal=portal)
+    adapter = make_adapter(runner, portal)
 
     response = adapter.handle_question(
         SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "help")
@@ -183,7 +211,7 @@ def test_consulting_adapter_uses_one_event_loop_for_concurrent_requests(portal):
             output=SimpleNamespace(content="Consultant answer", metadata={}),
         )
     )
-    adapter = AthosConsultingSlackAdapter(runner, portal=portal)
+    adapter = make_adapter(runner, portal)
     requests = [
         SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "first"),
         SlackMessageRequest("C123", "171234.000300", "171234.000400", "U456", "second"),
