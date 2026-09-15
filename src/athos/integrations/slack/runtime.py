@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import threading
@@ -13,6 +14,9 @@ from typing import Any, Callable, Protocol
 MAX_MESSAGE_LEN = 3500
 MAX_BLOCK_TEXT_LEN = 3000
 DEDUP_TTL_SECONDS = 120.0
+REQUEST_FAILURE_TEXT = ":warning: I could not complete that request. Please try again shortly."
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -207,6 +211,24 @@ def _post_response(web_client, *, channel: str, thread_ts: str | None, response:
     return posted_ts
 
 
+def _handle_message_request(
+    adapter: SlackAppAdapter, web_client, request: SlackMessageRequest
+) -> None:
+    try:
+        response = adapter.handle_question(request)
+        posted_ts = _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=response)
+        for post in response.followup_posts:
+            _post(web_client, channel=request.channel, thread_ts=post.thread_ts or request.thread_ts or posted_ts, post=post)
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to handle Slack message request")
+        _post_response(
+            web_client,
+            channel=request.channel,
+            thread_ts=request.thread_ts,
+            response=SlackMessageResponse(REQUEST_FAILURE_TEXT),
+        )
+
+
 def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
     """Connect an adapter to Slack Socket Mode and dispatch requests in threads."""
     WebClient, SocketModeClient, SocketModeResponse = _import_slack()
@@ -216,15 +238,6 @@ def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
     socket_client = SocketModeClient(app_token=_require_env("SLACK_APP_TOKEN"), web_client=web_client)
     recent: dict[str, float] = {}
     recent_lock = threading.Lock()
-
-    def handle_request(request: SlackMessageRequest) -> None:
-        try:
-            response = adapter.handle_question(request)
-            posted_ts = _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=response)
-            for post in response.followup_posts:
-                _post(web_client, channel=request.channel, thread_ts=post.thread_ts or request.thread_ts or posted_ts, post=post)
-        except Exception as exc:  # noqa: BLE001
-            _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=SlackMessageResponse(f":warning: I hit an error while answering this question:\n`{exc}`"))
 
     def process(client, envelope) -> None:
         if envelope.type not in {"events_api", "interactive"}:
@@ -254,7 +267,11 @@ def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
             _post_response(web_client, channel=event["channel"], thread_ts=thread_ts, response=SlackMessageResponse(adapter.empty_prompt))
             return
         request = SlackMessageRequest(event["channel"], thread_ts, event.get("ts"), event.get("user"), question, event.get("text"), {"payload": payload, "event": event})
-        threading.Thread(target=handle_request, args=(request,), daemon=True).start()
+        threading.Thread(
+            target=_handle_message_request,
+            args=(adapter, web_client, request),
+            daemon=True,
+        ).start()
 
     socket_client.socket_mode_request_listeners.append(process)
     socket_client.connect()

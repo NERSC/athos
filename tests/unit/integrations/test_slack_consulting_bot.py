@@ -6,7 +6,7 @@ import pytest
 from anyio.from_thread import start_blocking_portal
 
 from athos.integrations.slack.consulting_bot import AthosConsultingSlackAdapter, slack_session_id
-from athos.integrations.slack.runtime import SlackMessageRequest
+from athos.integrations.slack.runtime import REQUEST_FAILURE_TEXT, SlackMessageRequest
 
 
 class FakeRunner:
@@ -93,7 +93,7 @@ def test_consulting_adapter_returns_a_safe_message_when_the_flow_fails(portal):
         SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "help")
     )
 
-    assert "could not complete" in response.text
+    assert response.text == REQUEST_FAILURE_TEXT
     assert "credential details" not in response.text
 
 
@@ -113,7 +113,7 @@ def test_consulting_adapter_returns_a_safe_message_for_error_output(portal):
         SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "help")
     )
 
-    assert "could not complete" in response.text
+    assert response.text == REQUEST_FAILURE_TEXT
     assert "credential details" not in response.text
 
 

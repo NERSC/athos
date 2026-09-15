@@ -19,6 +19,7 @@ from athos.runtime.runner import FlowRunner
 from .feedback import FeedbackStore
 from .runtime import (
     MAX_BLOCK_TEXT_LEN,
+    REQUEST_FAILURE_TEXT,
     SlackInteractionRequest,
     SlackInteractionResponse,
     SlackMessagePost,
@@ -108,9 +109,7 @@ class AthosConsultingSlackAdapter:
             or result.output is None
             or result.output.metadata.get("error")
         ):
-            return SlackMessageResponse(
-                text=":warning: I could not complete that consulting request. Please check the bot logs or try again shortly."
-            )
+            return SlackMessageResponse(text=REQUEST_FAILURE_TEXT)
 
         response_text = normalize_slack_mrkdwn(result.output.content)
         feedback_value = json.dumps(
