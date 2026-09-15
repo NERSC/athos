@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
 from datetime import datetime, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any
 
+from anyio.from_thread import BlockingPortal, start_blocking_portal
 from dotenv import load_dotenv
 
 from athos.runtime.builder import build_config
@@ -80,17 +81,20 @@ class AthosConsultingSlackAdapter:
         self,
         runner: FlowRunner,
         *,
+        portal: BlockingPortal,
         flow_name: str = "lang_hpc_consulting_agent",
         feedback_store: FeedbackStore | None = None,
     ) -> None:
         self._runner = runner
+        self._portal = portal
         self._flow_name = flow_name
         self._feedback_store = feedback_store
 
     def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse:
         session_id = slack_session_id(request)
-        result = asyncio.run(
-            self._runner.execute(
+        result = self._portal.call(
+            partial(
+                self._runner.execute,
                 flow_name=self._flow_name,
                 message=request.question,
                 session_id=session_id,
@@ -259,12 +263,18 @@ def main() -> None:
     config_path = os.getenv("ATHOS_CONFIG_PATH", "config/config.yaml")
     flow_name = os.getenv("ATHOS_FLOW_NAME", "lang_hpc_consulting_agent")
     feedback_db = Path(os.getenv("ATHOS_FEEDBACK_DB", "data/slack/feedback.db"))
-    adapter = AthosConsultingSlackAdapter(
-        FlowRunner(build_config(config_path)),
-        flow_name=flow_name,
-        feedback_store=FeedbackStore(feedback_db),
-    )
-    run_socket_mode_app(adapter)
+    runner = FlowRunner(build_config(config_path))
+    with start_blocking_portal(backend="asyncio", name="athos-slack-asyncio") as portal:
+        adapter = AthosConsultingSlackAdapter(
+            runner,
+            portal=portal,
+            flow_name=flow_name,
+            feedback_store=FeedbackStore(feedback_db),
+        )
+        try:
+            run_socket_mode_app(adapter)
+        finally:
+            portal.call(runner.cleanup)
 
 
 if __name__ == "__main__":
