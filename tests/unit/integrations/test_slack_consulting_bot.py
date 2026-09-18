@@ -26,14 +26,19 @@ class FakeRunner:
         self.calls = []
         self.loop_ids = []
         self.cleanup_loop_id = None
-        self._execute_lock = asyncio.Lock()
+        self.active_calls = 0
+        self.max_active_calls = 0
 
     async def execute(self, **kwargs):
-        async with self._execute_lock:
+        self.active_calls += 1
+        self.max_active_calls = max(self.max_active_calls, self.active_calls)
+        try:
             self.calls.append(kwargs)
             self.loop_ids.append(id(asyncio.get_running_loop()))
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.05)
             return self.result
+        finally:
+            self.active_calls -= 1
 
     async def cleanup(self):
         self.cleanup_loop_id = id(asyncio.get_running_loop())
@@ -228,3 +233,27 @@ def test_consulting_adapter_uses_one_event_loop_for_concurrent_requests(portal):
     ]
     assert len(set(runner.loop_ids)) == 1
     assert runner.cleanup_loop_id == runner.loop_ids[0]
+    assert runner.max_active_calls == 2
+
+
+def test_consulting_adapter_serializes_requests_in_the_same_slack_thread(portal):
+    runner = FakeRunner(
+        SimpleNamespace(
+            success=True,
+            output=SimpleNamespace(content="Consultant answer", metadata={}),
+        )
+    )
+    adapter = make_adapter(runner, portal)
+    requests = [
+        SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "first"),
+        SlackMessageRequest("C123", "171234.000100", "171234.000300", "U456", "second"),
+    ]
+
+    with ThreadPoolExecutor(max_workers=2) as callers:
+        responses = list(callers.map(adapter.handle_question, requests))
+
+    assert [response.text for response in responses] == [
+        "Consultant answer",
+        "Consultant answer",
+    ]
+    assert runner.max_active_calls == 1

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -111,17 +112,15 @@ class AthosConsultingSlackAdapter:
         self._portal = portal
         self._flow_name = flow_name
         self._feedback_store = feedback_store
+        self._session_locks: dict[str, asyncio.Lock] = {}
         self._allowed_users = frozenset(user.strip() for user in allowed_users if user.strip())
         if not self._allowed_users:
             raise ValueError("ATHOS_SLACK_ALLOWED_USERS must contain at least one Slack user ID")
 
-    def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse:
-        if request.user_id not in self._allowed_users:
-            return SlackMessageResponse(text=UNAUTHORIZED_USER_TEXT)
-        session_id = slack_session_id(request)
-        result = self._portal.call(
-            partial(
-                self._runner.execute,
+    async def _execute(self, request: SlackMessageRequest, session_id: str):
+        lock = self._session_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            return await self._runner.execute(
                 flow_name=self._flow_name,
                 message=request.question,
                 session_id=session_id,
@@ -129,7 +128,12 @@ class AthosConsultingSlackAdapter:
                 interface="slack",
                 metadata={"slack_channel": request.channel, "slack_thread_ts": request.thread_ts},
             )
-        )
+
+    def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse:
+        if request.user_id not in self._allowed_users:
+            return SlackMessageResponse(text=UNAUTHORIZED_USER_TEXT)
+        session_id = slack_session_id(request)
+        result = self._portal.call(partial(self._execute, request, session_id))
         if (
             not result.success
             or result.output is None
