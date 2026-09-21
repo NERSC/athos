@@ -15,6 +15,7 @@ MAX_MESSAGE_LEN = 3500
 MAX_BLOCK_TEXT_LEN = 3000
 DEDUP_TTL_SECONDS = 120.0
 REQUEST_FAILURE_TEXT = ":warning: I could not complete that request. Please try again shortly."
+PROCESSING_REACTION = "hourglass_flowing_sand"
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,6 @@ class SlackMessageResponse:
     text: str
     blocks: list[dict[str, Any]] | None = None
     followup_posts: list[SlackMessagePost] = field(default_factory=list)
-    terminal_fields: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -64,7 +64,6 @@ class SlackInteractionResponse:
     replace_original: SlackMessagePost | None = None
     thread_posts: list[SlackMessagePost] = field(default_factory=list)
     open_view: dict[str, Any] | None = None
-    terminal_fields: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -79,7 +78,6 @@ class SlackViewSubmissionRequest:
 @dataclass(slots=True)
 class SlackViewSubmissionResponse:
     thread_posts: list[SlackMessagePost] = field(default_factory=list)
-    terminal_fields: dict[str, Any] = field(default_factory=dict)
 
 
 class SlackAppAdapter(Protocol):
@@ -211,9 +209,26 @@ def _post_response(web_client, *, channel: str, thread_ts: str | None, response:
     return posted_ts
 
 
+def _set_processing_reaction(
+    web_client, request: SlackMessageRequest, *, active: bool
+) -> None:
+    if not request.event_ts:
+        return
+    try:
+        method = web_client.reactions_add if active else web_client.reactions_remove
+        method(
+            channel=request.channel,
+            name=PROCESSING_REACTION,
+            timestamp=request.event_ts,
+        )
+    except Exception:  # noqa: BLE001 - a cosmetic reaction must not break replies
+        logger.debug("Could not update Slack processing reaction", exc_info=True)
+
+
 def _handle_message_request(
     adapter: SlackAppAdapter, web_client, request: SlackMessageRequest
 ) -> None:
+    _set_processing_reaction(web_client, request, active=True)
     try:
         response = adapter.handle_question(request)
         posted_ts = _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=response)
@@ -227,6 +242,8 @@ def _handle_message_request(
             thread_ts=request.thread_ts,
             response=SlackMessageResponse(REQUEST_FAILURE_TEXT),
         )
+    finally:
+        _set_processing_reaction(web_client, request, active=False)
 
 
 def run_socket_mode_app(adapter: SlackAppAdapter) -> None:

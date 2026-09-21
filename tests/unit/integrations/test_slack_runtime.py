@@ -12,10 +12,18 @@ from athos.integrations.slack.runtime import (
 class FakeWebClient:
     def __init__(self):
         self.calls = []
+        self.events = []
 
     def chat_postMessage(self, **kwargs):
         self.calls.append(kwargs)
+        self.events.append("post")
         return {"ts": "123.456"}
+
+    def reactions_add(self, **kwargs):
+        self.events.append(("reaction_add", kwargs))
+
+    def reactions_remove(self, **kwargs):
+        self.events.append(("reaction_remove", kwargs))
 
 
 def test_runtime_drops_invalid_long_blocks_and_delivers_the_answer():
@@ -47,3 +55,39 @@ def test_runtime_logs_handler_errors_without_exposing_details(monkeypatch):
 
     log_exception.assert_called_once_with("Failed to handle Slack message request")
     assert client.calls[0]["text"] == REQUEST_FAILURE_TEXT
+    assert [event[0] if isinstance(event, tuple) else event for event in client.events] == [
+        "reaction_add",
+        "post",
+        "reaction_remove",
+    ]
+
+
+def test_runtime_marks_a_question_as_processing_until_the_reply_is_posted():
+    class Adapter:
+        def handle_question(self, request):
+            return SlackMessageResponse("answer")
+
+    client = FakeWebClient()
+    request = SlackMessageRequest("C123", "123.000", "123.001", "U123", "help")
+
+    _handle_message_request(Adapter(), client, request)
+
+    assert client.events == [
+        (
+            "reaction_add",
+            {
+                "channel": "C123",
+                "name": "hourglass_flowing_sand",
+                "timestamp": "123.001",
+            },
+        ),
+        "post",
+        (
+            "reaction_remove",
+            {
+                "channel": "C123",
+                "name": "hourglass_flowing_sand",
+                "timestamp": "123.001",
+            },
+        ),
+    ]

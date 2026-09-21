@@ -165,12 +165,10 @@ class AthosConsultingSlackAdapter:
                         blocks=self._feedback_blocks(feedback_value),
                     )
                 ],
-                terminal_fields={"channel": request.channel, "thread_ts": request.thread_ts, "user_id": request.user_id},
             )
         return SlackMessageResponse(
             text=response_text,
             blocks=self._feedback_blocks(feedback_value, response_text=response_text),
-            terminal_fields={"channel": request.channel, "thread_ts": request.thread_ts, "user_id": request.user_id},
         )
 
     @staticmethod
