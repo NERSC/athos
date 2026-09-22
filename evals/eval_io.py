@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -108,7 +109,10 @@ def load_qa_cases(path: Path) -> List[Dict[str, Any]]:
                 }
             )
             valid += 1
-    print(f"Loaded QA dataset {path}: total={total}, valid={valid}, rejected={rejected}")
+    print(
+        f"Loaded QA dataset {path}: total={total}, valid={valid}, rejected={rejected}",
+        file=sys.stderr,
+    )
     return cases
 
 

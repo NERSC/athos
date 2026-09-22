@@ -15,16 +15,37 @@ spec.loader.exec_module(run_claude_code_eval_mod)
 
 def test_extract_answer_and_sidecar_from_json_result():
     answer, sidecar = run_claude_code_eval_mod._extract_answer_and_sidecar(
-        json.dumps(
-            {
-                "answer": "Use regular QOS for an 8 hour job.",
-                "citations": ["workspace/file_retrieval_corpus/docs/jobs/policy.md"],
-                "notes": "debug has a 30 minute limit",
-            }
-        )
+        {
+            "result": json.dumps(
+                {
+                    "answer": "Use regular QOS for an 8 hour job.",
+                    "citations": ["workspace/file_retrieval_corpus/docs/jobs/policy.md"],
+                    "notes": "debug has a 30 minute limit",
+                }
+            )
+        }
     )
     assert answer == "Use regular QOS for an 8 hour job."
     assert sidecar["citations"] == ["workspace/file_retrieval_corpus/docs/jobs/policy.md"]
+
+
+def test_extract_answer_and_sidecar_from_structured_output():
+    answer, sidecar = run_claude_code_eval_mod._extract_answer_and_sidecar(
+        {
+            "result": "",
+            "structured_output": {
+                "answer": "Use regular QOS for an 8 hour job.",
+                "citations": ["workspace/file_retrieval_corpus/docs/jobs/policy.md"],
+                "notes": "debug has a 30 minute limit",
+            },
+        }
+    )
+
+    assert answer == "Use regular QOS for an 8 hour job."
+    assert sidecar == {
+        "citations": ["workspace/file_retrieval_corpus/docs/jobs/policy.md"],
+        "notes": "debug has a 30 minute limit",
+    }
 
 
 def test_build_metrics_uses_claude_json_fields():
@@ -89,5 +110,6 @@ def test_dry_run_filters_cases(monkeypatch, tmp_path, capsys):
     )
 
     run_claude_code_eval_mod.main()
-    out = capsys.readouterr().out.strip().splitlines()
-    assert out == ["test_cases/sbatch-qos-error"]
+    captured = capsys.readouterr()
+    assert captured.out.strip().splitlines() == ["test_cases/sbatch-qos-error"]
+    assert "Loaded QA dataset" in captured.err

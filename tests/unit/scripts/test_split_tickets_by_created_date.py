@@ -219,6 +219,19 @@ def test_split_materializes_json_and_attachments(tmp_path: Path, monkeypatch):
         / "candidate_20260212_012659_attachements"
         / "extra.txt"
     ).exists()
+    assert (retrieval_root / "INC010" / "99" / "retrieval.json").exists()
+    assert not (retrieval_root / "INC010" / "99" / "candidate.json").exists()
+
+    candidate_obj = json.loads(candidate_manifest.read_text(encoding="utf-8"))
+    retrieval_obj = json.loads(retrieval_manifest.read_text(encoding="utf-8"))
+    assert candidate_obj["source_path"] == str(candidate_root.resolve())
+    assert retrieval_obj["source_path"] == str(retrieval_root.resolve())
+    assert candidate_obj["counts"]["selected_files"] == 1
+    assert retrieval_obj["counts"]["selected_files"] == 1
+    assert candidate_obj["counts"]["attachments_copied"] == 2
+    assert retrieval_obj["counts"]["attachments_copied"] == 0
+    assert candidate_obj["selected_files"] == ["INC010/99/candidate.json"]
+    assert retrieval_obj["selected_files"] == ["INC010/99/retrieval.json"]
 
 
 def test_split_resolves_unicode_normalized_attachment_paths(tmp_path: Path, monkeypatch):
@@ -226,7 +239,7 @@ def test_split_resolves_unicode_normalized_attachment_paths(tmp_path: Path, monk
     incident_dir = source_root / "INC010" / "99"
     incident_dir.mkdir(parents=True)
 
-    attachment_dir = incident_dir / "candidate_20260212_012659_attachements"
+    attachment_dir = incident_dir / "normalized_names"
     attachment_dir.mkdir()
     composed_name = "스크린샷 2024-03-08 181537.png"
     decomposed_name = unicodedata.normalize("NFD", composed_name)
@@ -238,7 +251,7 @@ def test_split_resolves_unicode_normalized_attachment_paths(tmp_path: Path, monk
                 incident_number="INC9001",
                 created_on="2026-02-10 11:00:00",
                 local_paths=[
-                    f"filtered/INC010/99/candidate_20260212_012659_attachements/{composed_name}"
+                    f"filtered/INC010/99/normalized_names/{composed_name}"
                 ],
             )
         ),
@@ -284,20 +297,22 @@ def test_split_resolves_unicode_normalized_attachment_paths(tmp_path: Path, monk
 
     split_tickets_by_created_date_mod.main()
 
-    assert (candidate_root / "INC010" / "99" / "candidate_20260212_012659_attachements" / decomposed_name).exists()
-    assert (retrieval_root / "INC010" / "99" / "retrieval.json").exists()
-    assert not (retrieval_root / "INC010" / "99" / "candidate.json").exists()
+    assert (candidate_root / "INC010" / "99" / "candidate.json").exists()
+    assert (
+        candidate_root / "INC010" / "99" / "normalized_names" / decomposed_name
+    ).exists()
 
     candidate_obj = json.loads(candidate_manifest.read_text(encoding="utf-8"))
     retrieval_obj = json.loads(retrieval_manifest.read_text(encoding="utf-8"))
     assert candidate_obj["source_path"] == str(candidate_root.resolve())
     assert retrieval_obj["source_path"] == str(retrieval_root.resolve())
     assert candidate_obj["counts"]["selected_files"] == 1
-    assert retrieval_obj["counts"]["selected_files"] == 1
-    assert candidate_obj["counts"]["attachments_copied"] == 2
+    assert retrieval_obj["counts"]["selected_files"] == 0
+    assert candidate_obj["counts"]["attachments_copied"] == 1
     assert retrieval_obj["counts"]["attachments_copied"] == 0
+    assert candidate_obj["counts"]["unresolved_attachment_local_paths"] == 0
     assert candidate_obj["selected_files"] == ["INC010/99/candidate.json"]
-    assert retrieval_obj["selected_files"] == ["INC010/99/retrieval.json"]
+    assert retrieval_obj["selected_files"] == []
 
 
 def test_split_rejects_non_materialized_parent_manifest(tmp_path: Path, monkeypatch):
