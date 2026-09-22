@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
 from fastmcp import FastMCP
 
@@ -218,6 +218,9 @@ class ServiceNowMCPServer:
             category: Optional[str] = None,
             query: Optional[str] = None,
             incident_number: Optional[str] = None,
+            sort: Optional[
+                Literal["created_asc", "created_desc", "updated_asc", "updated_desc"]
+            ] = None,
             include_comments_and_work_notes: bool = False,
         ) -> Dict[str, Any]:
             """List incidents from ServiceNow.
@@ -230,6 +233,7 @@ class ServiceNowMCPServer:
                 category: Filter by category.
                 query: Filter by short description or title.
                 incident_number: Filter by incident number.
+                sort: Sort order. Use created_desc for most recently created incidents.
                 include_comments_and_work_notes: Include raw
                     u_comments_and_work_notes field in each incident.
 
@@ -244,6 +248,7 @@ class ServiceNowMCPServer:
                 category=category,
                 query=query,
                 incident_number=incident_number,
+                sort=sort,
                 include_comments_and_work_notes=include_comments_and_work_notes,
             )
             try:

@@ -24,6 +24,14 @@ models:
     temperature: 0.7
     max_tokens: 2048
 
+  gptoss:
+    description: "Open-weight GPT-OSS-120B via CBORG"
+    model_id: "lbl/gpt-oss-120b"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
+    temperature: 0.3
+    max_tokens: 16384
+
   # CBORG chat model
   cborg_chat:
     description: "CBORG chat model tuned for conversational support"
@@ -81,6 +89,34 @@ mcp_servers:
       SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
       SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
 
+  servicenow_ro_mcp:
+    description: "Read-only ServiceNow MCP server for consultant support context"
+    mcp_type: "mcp_stdio"
+    command: "servicenow-mcp"
+    args: ["--read-only"]
+    env:
+      SERVICENOW_INSTANCE_URL: "${SERVICENOW_INSTANCE_URL}"
+      SERVICENOW_USERNAME: "${SERVICENOW_USERNAME}"
+      SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
+    allowed_tools:
+      - "list_incidents"
+      - "view_incident_logs"
+      - "get_incident_attachments"
+      - "download_attachment"
+      - "get_user"
+      - "list_users"
+    blocked_tools:
+      - "create_incident"
+      - "update_incident"
+      - "add_comment"
+      - "resolve_incident"
+    instructions: |
+      This ServiceNow connection is read-only. Use it to inspect tickets,
+      ticket activity, attachments, and user records. Do not attempt to update
+      ticket fields, add comments, add work notes, assign incidents, or resolve
+      incidents. If a response should be posted to ServiceNow, draft the exact
+      suggested comment or work note for a human consultant to review.
+
   sfapi_mcp:
     description: "NERSC Superfacility API MCP server"
     mcp_type: "mcp_stdio"
@@ -127,6 +163,35 @@ mcp_servers:
       "--client-type", "persistent",
       "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
+
+  consulting_chroma_ro_mcp:
+    description: "Read-only ChromaDB MCP server for combined tickets, NERSC docs, and consulting docs retrieval"
+    mcp_type: "mcp_stdio"
+    command: "chroma-mcp"
+    args: [
+      "--client-type", "persistent",
+      "--data-dir", "data/chroma/aggregates/athos_eval_bundle_20260318_derived_tickets_v2"
+    ]
+    allowed_tools:
+      - "chroma_list_collections"
+      - "chroma_get_collection_info"
+      - "chroma_get_collection_count"
+      - "chroma_query_documents"
+      - "chroma_get_documents"
+    blocked_tools:
+      - "chroma_create_collection"
+      - "chroma_modify_collection"
+      - "chroma_fork_collection"
+      - "chroma_delete_collection"
+      - "chroma_add_documents"
+      - "chroma_update_documents"
+      - "chroma_delete_documents"
+    instructions: |
+      Use Chroma as read-only retrieval over the combined consultant support
+      database. It contains separate collections for public NERSC docs,
+      internal consulting docs, and the derived ticket retrieval corpus. Before
+      querying, list collections and choose collection names only from the
+      returned list.
 
 
 # Regular and custom tools (non-MCP)
@@ -294,7 +359,7 @@ flows:
   lang_chat:
     description: "Minimal LangGraph chatbot flow using the CBORG chat model"
     type: "langgraph_chatbot"
-    model: "cborg_coder"
+    model: "gptoss"
     system_prompt_path: "prompts/langgraph_chatbot_demo_system_prompt.txt"
     # initial_history:
     #   - "Hello!"
@@ -368,6 +433,16 @@ flows:
       You are a ChromaDB assistant.
       Use the available MCP tools to inspect collections, query documents, and manage records.
       Prefer read operations before making changes, and clearly summarize any writes you perform.
+
+  lang_hpc_consulting_agent:
+    description: "Prototype read-only NERSC consultant support agent using ServiceNow and combined Chroma retrieval"
+    type: "langchain_agent"
+    model: "gptoss"
+    mcp_servers:
+      - "servicenow_ro_mcp"
+      - "consulting_chroma_ro_mcp"
+    max_iterations: 32
+    system_prompt_path: "prompts/hpc_consulting_agent_system_prompt.txt"
 
   # Known issue: in the current SmolAgents MCP adapter path, some MCP tool
   # responses with multiple content items can be truncated to the first item.

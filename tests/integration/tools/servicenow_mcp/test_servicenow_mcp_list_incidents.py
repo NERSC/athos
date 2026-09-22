@@ -38,3 +38,28 @@ def test_list_incidents_includes_assignment_group(monkeypatch):
     result = list_incidents(config, auth_manager, params)
 
     assert result["incidents"][0]["assignment_group"] == "Group1"
+
+
+def test_list_incidents_sorts_by_most_recent_creation(monkeypatch):
+    auth_cfg = AuthConfig(type=AuthType.BASIC, basic=BasicAuthConfig(username="u", password="p"))
+    config = ServerConfig(instance_url="https://example.com", auth=auth_cfg)
+    auth_manager = AuthManager(config.auth)
+
+    mock_response = Mock()
+    mock_response.json.return_value = {"result": []}
+    mock_response.raise_for_status.return_value = None
+    get = Mock(return_value=mock_response)
+    monkeypatch.setattr(incident_tools.requests, "get", get)
+
+    result = list_incidents(
+        config,
+        auth_manager,
+        ListIncidentsParams(limit=3, sort="created_desc"),
+    )
+
+    assert result["success"] is True
+    assert get.call_args.kwargs["params"]["sysparm_limit"] == 3
+    assert (
+        get.call_args.kwargs["params"]["sysparm_query"]
+        == "ORDERBYDESCsys_created_on"
+    )

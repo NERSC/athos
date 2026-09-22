@@ -6,7 +6,7 @@ This module provides tools for managing incidents in ServiceNow.
 
 import logging
 import os
-from typing import Optional
+from typing import Literal, Optional
 from pathlib import Path
 from email.message import Message
 from email.utils import collapse_rfc2231_value
@@ -101,6 +101,15 @@ class ListIncidentsParams(BaseModel):
     category: Optional[str] = Field(None, description="Filter by category")
     query: Optional[str] = Field(None, description="Filter by short description or title")
     incident_number: Optional[str] = Field(None, description="Filter by incident number")
+    sort: Optional[
+        Literal["created_asc", "created_desc", "updated_asc", "updated_desc"]
+    ] = Field(
+        None,
+        description=(
+            "Sort order for incidents. Use 'created_desc' for the most recently "
+            "created incidents."
+        ),
+    )
     include_comments_and_work_notes: bool = Field(
         False,
         description=(
@@ -715,6 +724,14 @@ def list_incidents(
         filters.append(f"short_descriptionLIKE{params.query}^ORdescriptionLIKE{params.query}")
     if params.incident_number:
         filters.append(f"number={params.incident_number}")
+    if params.sort:
+        sort_clauses = {
+            "created_asc": "ORDERBYsys_created_on",
+            "created_desc": "ORDERBYDESCsys_created_on",
+            "updated_asc": "ORDERBYsys_updated_on",
+            "updated_desc": "ORDERBYDESCsys_updated_on",
+        }
+        filters.append(sort_clauses[params.sort])
     
     if filters:
         query_params["sysparm_query"] = "^".join(filters)

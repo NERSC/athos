@@ -32,7 +32,9 @@ WEBUI_CONTAINER_NAME="athos-openwebui-ui"
 WEBUI_PORT=19000
 PIPELINES_PORT=19099
 PIPELINES_API_KEY="M0i!XN3ybvd8"
-ATHOS_PIPELINE_ENABLED_FLOWS=lang_web_agent,lang_sfapi_agent,lang_docs_agent,lang_filesystem_agent,lang_docs_react_agent,clearml_agent
+ATHOS_PIPELINE_ENABLED_FLOWS=lang_agent,lang_hpc_consulting_agent
+#ATHOS_PIPELINE_ENABLED_FLOWS=lang_web_agent,lang_sfapi_agent,lang_docs_agent,lang_filesystem_agent,lang_docs_react_agent,clearml_agent
+BUILD_PIPELINES_IMAGE="${BUILD_PIPELINES_IMAGE:-true}"
 
 
 # Setup directory for storing Open WebUI configuration
@@ -41,8 +43,13 @@ mkdir -p "$OWUI_DATA_DIR"
 
 
 # --- Pre-flight checks ---
-REQUIRED_VARS="ATHOS_WORKSPACE CBORG_API_URL CBORG_API_KEY TAVILY_API_KEY GITHUB_TOKEN CLEARML_API_ACCESS_KEY CLEARML_API_SECRET_KEY CLEARML_API_HOST"
+REQUIRED_VARS="ATHOS_WORKSPACE CBORG_API_URL CBORG_API_KEY"
+#REQUIRED_VARS="ATHOS_WORKSPACE CBORG_API_URL CBORG_API_KEY TAVILY_API_KEY GITHUB_TOKEN CLEARML_API_ACCESS_KEY CLEARML_API_SECRET_KEY CLEARML_API_HOST"
 MISSING_VARS=""
+
+if [[ ",${ATHOS_PIPELINE_ENABLED_FLOWS}," == *",lang_hpc_consulting_agent,"* ]]; then
+    REQUIRED_VARS="$REQUIRED_VARS SERVICENOW_INSTANCE_URL SERVICENOW_USERNAME SERVICENOW_PASSWORD"
+fi
 
 for var in $REQUIRED_VARS; do
     if [ -z "${!var}" ]; then
@@ -72,9 +79,12 @@ podman-hpc pod create --name ${POD_NAME} -p ${WEBUI_PORT}:8080 -p ${PIPELINES_PO
 
 # --- Build pipelines image ---
 echo "--- Building '${PIPELINES_IMAGE}' image ---"
-echo "skipped"
-#podman-hpc build -t ${PIPELINES_IMAGE} -f integrations/openwebui/Dockerfile.pipelines .
-#podman-hpc migrate ${PIPELINES_IMAGE}
+if [ "${BUILD_PIPELINES_IMAGE}" = "true" ]; then
+    podman-hpc build -t ${PIPELINES_IMAGE} -f integrations/openwebui/Dockerfile.pipelines .
+    podman-hpc migrate ${PIPELINES_IMAGE}
+else
+    echo "skipped because BUILD_PIPELINES_IMAGE=${BUILD_PIPELINES_IMAGE}"
+fi
 
 # --- Run pipelines container ---
 echo "--- Starting '${PIPELINES_CONTAINER_NAME}' container ---"
@@ -83,21 +93,25 @@ podman-hpc run -d --pod ${POD_NAME} --name ${PIPELINES_CONTAINER_NAME} \
     --restart=unless-stopped \
     -v "$(pwd)/integrations/openwebui/pipelines:/app/pipelines:Z" \
     -v "$(pwd)/config:/workspace/config:ro,Z" \
+    -v "$(pwd)/data:/app/data:ro,Z" \
     -v "${ATHOS_WORKSPACE}:/workspace/athos:Z" \
     -e PIPELINES_API_KEY=${PIPELINES_API_KEY} \
     -e PIPELINES_DIR=/app/pipelines \
     -e ATHOS_PIPELINE_CONFIG_PATH=/workspace/config/config.yaml \
     -e ATHOS_PIPELINE_ENABLED_FLOWS=${ATHOS_PIPELINE_ENABLED_FLOWS} \
-    -e ATHOS_PIPELINE_DEFAULT_FLOW=lang_web_agent \
+    -e ATHOS_PIPELINE_DEFAULT_FLOW=lang_hpc_consulting_agent \
     -e ATHOS_WORKSPACE=/workspace/athos \
     -e CBORG_API_URL=${CBORG_API_URL} \
     -e CBORG_API_KEY=${CBORG_API_KEY} \
-    -e TAVILY_API_KEY=${TAVILY_API_KEY} \
-    -e GITHUB_TOKEN=${GITHUB_TOKEN} \
-    -e CLEARML_API_ACCESS_KEY=${CLEARML_API_ACCESS_KEY} \
-    -e CLEARML_API_SECRET_KEY=${CLEARML_API_SECRET_KEY} \
-    -e CLEARML_API_HOST=${CLEARML_API_HOST} \
+    -e SERVICENOW_INSTANCE_URL=${SERVICENOW_INSTANCE_URL} \
+    -e SERVICENOW_USERNAME=${SERVICENOW_USERNAME} \
+    -e SERVICENOW_PASSWORD=${SERVICENOW_PASSWORD} \
     ${PIPELINES_IMAGE}
+    #-e TAVILY_API_KEY=${TAVILY_API_KEY} \
+    #-e GITHUB_TOKEN=${GITHUB_TOKEN} \
+    #-e CLEARML_API_ACCESS_KEY=${CLEARML_API_ACCESS_KEY} \
+    #-e CLEARML_API_SECRET_KEY=${CLEARML_API_SECRET_KEY} \
+    #-e CLEARML_API_HOST=${CLEARML_API_HOST} \
 
 # --- Run openwebui container ---
 echo "--- Starting '${WEBUI_CONTAINER_NAME}' container ---"
