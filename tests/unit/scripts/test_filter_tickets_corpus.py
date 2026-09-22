@@ -653,7 +653,7 @@ def test_filter_resolves_unicode_normalized_attachment_paths(tmp_path: Path, mon
     output_root = tmp_path / "filtered"
     manifest_path = tmp_path / "manifest.json"
 
-    attachment_dir = incident_dir / "selected_20260212_012659_attachements"
+    attachment_dir = incident_dir / "normalized_names"
     attachment_dir.mkdir()
     composed_name = "스크린샷 2024-03-08 181537.png"
     decomposed_name = unicodedata.normalize("NFD", composed_name)
@@ -662,7 +662,9 @@ def test_filter_resolves_unicode_normalized_attachment_paths(tmp_path: Path, mon
     payload = _payload(
         incident_number="INC0001",
         contact_type="Email",
-        local_paths=[f"servicenow_incidents/INC001/01/selected_20260212_012659_attachements/{composed_name}"],
+        local_paths=[
+            f"servicenow_incidents/INC001/01/normalized_names/{composed_name}"
+        ],
     )
     incident_json = incident_dir / "selected.json"
     incident_json.write_text(json.dumps(payload), encoding="utf-8")
@@ -683,6 +685,9 @@ def test_filter_resolves_unicode_normalized_attachment_paths(tmp_path: Path, mon
 
     filter_tickets_corpus_mod.main()
 
-    assert (output_root / "INC001" / "01" / "selected_20260212_012659_attachements" / decomposed_name).exists()
+    assert (
+        output_root / "INC001" / "01" / "normalized_names" / decomposed_name
+    ).exists()
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["counts"]["attachments_missing"] == 0
+    assert manifest["counts"]["attachments_copied"] == 1
