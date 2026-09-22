@@ -10,7 +10,7 @@ from fastmcp import FastMCP
 
 from .auth.auth_manager import AuthManager
 from .utils.config import ServerConfig
-from .tools import incident_tools, user_tools
+from .tools import group_tools, incident_tools, user_tools
 
 logger = logging.getLogger(__name__)
 
@@ -214,37 +214,50 @@ class ServiceNowMCPServer:
             limit: int = 10,
             offset: int = 0,
             state: Optional[str] = None,
+            active: Optional[bool] = None,
             assigned_to: Optional[str] = None,
+            assignment_group: Optional[str] = None,
             category: Optional[str] = None,
             query: Optional[str] = None,
             incident_number: Optional[str] = None,
-            sort: Optional[
-                Literal["created_asc", "created_desc", "updated_asc", "updated_desc"]
-            ] = None,
+            sort: Literal[
+                "created_asc", "created_desc", "updated_asc", "updated_desc"
+            ] = "created_desc",
             include_comments_and_work_notes: bool = False,
         ) -> Dict[str, Any]:
-            """List incidents from ServiceNow.
+            """List and filter ServiceNow incidents, newest-created first by default.
 
             Args:
                 limit: Maximum number of incidents to return.
                 offset: Offset for pagination.
-                state: Filter by incident state.
+                state: Filter by an exact ServiceNow incident-state value.
+                active: Filter by active status; use true for open incidents.
                 assigned_to: Filter by assigned user.
+                assignment_group: Exact group sys_id returned by list_groups.
                 category: Filter by category.
-                query: Filter by short description or title.
+                query: Plain text matched only against short_description and
+                    description. Do not pass encoded queries or field expressions.
                 incident_number: Filter by incident number.
-                sort: Sort order. Use created_desc for most recently created incidents.
+                sort: Sort order; defaults to created_desc.
                 include_comments_and_work_notes: Include raw
                     u_comments_and_work_notes field in each incident.
 
             Returns:
-                Dictionary with list of incidents.
+                Incidents plus the applied filters, sort, limit, and offset.
+
+            Examples:
+                For the three newest incidents, call with limit=3. To find the
+                newest open incidents assigned to a named group, first call
+                list_groups(query="DAS"), then pass the selected group's sys_id
+                as assignment_group with active=true.
             """
             params = incident_tools.ListIncidentsParams(
                 limit=limit,
                 offset=offset,
                 state=state,
+                active=active,
                 assigned_to=assigned_to,
+                assignment_group=assignment_group,
                 category=category,
                 query=query,
                 incident_number=incident_number,
@@ -254,6 +267,45 @@ class ServiceNowMCPServer:
             try:
                 return await asyncio.to_thread(
                     incident_tools.list_incidents, self.config, self.auth, params
+                )
+            except Exception as e:  # pragma: no cover
+                return self._handle_error(e)
+
+        @self.mcp.tool()
+        async def list_groups(
+            limit: int = 10,
+            offset: int = 0,
+            active: Optional[bool] = True,
+            query: Optional[str] = None,
+        ) -> Dict[str, Any]:
+            """Find ServiceNow assignment groups and their sys_ids.
+
+            Use this before list_incidents when a user supplies a human-readable
+            assignment-group name. Select an unambiguous matching group and pass
+            its sys_id to list_incidents.assignment_group.
+
+            Args:
+                limit: Maximum number of groups to return.
+                offset: Offset for pagination.
+                active: Filter by active status; defaults to active groups only.
+                query: Plain text matched against group names with LIKE. This is
+                    not an encoded ServiceNow query.
+
+            Returns:
+                Matching groups with names and sys_ids, plus applied-query metadata.
+
+            Example:
+                To resolve the DAS group, call with query="DAS" and active=true.
+            """
+            params = group_tools.ListGroupsParams(
+                limit=limit,
+                offset=offset,
+                active=active,
+                query=query,
+            )
+            try:
+                return await asyncio.to_thread(
+                    group_tools.list_groups, self.config, self.auth, params
                 )
             except Exception as e:  # pragma: no cover
                 return self._handle_error(e)
@@ -411,4 +463,3 @@ class ServiceNowMCPServer:
         """Run the MCP server."""
         logger.info("Starting ServiceNow MCP Server")
         self.mcp.run()
-

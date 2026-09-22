@@ -18,6 +18,7 @@ def test_hpc_consulting_agent_uses_read_only_context_sources(monkeypatch):
     servicenow = cfg.mcp_servers["servicenow_ro_mcp"]
     assert servicenow.args == ["--read-only"]
     assert "list_incidents" in servicenow.allowed_tools
+    assert "list_groups" in servicenow.allowed_tools
     assert "view_incident_logs" in servicenow.allowed_tools
     assert "create_incident" in servicenow.blocked_tools
     assert "update_incident" in servicenow.blocked_tools

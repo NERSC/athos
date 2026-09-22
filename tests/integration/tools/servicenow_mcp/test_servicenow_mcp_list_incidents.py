@@ -1,5 +1,8 @@
 from unittest.mock import Mock
 
+import pytest
+from pydantic import ValidationError
+
 from athos.tools.servicenow_mcp.auth.auth_manager import AuthManager
 from athos.tools.servicenow_mcp.tools import incident_tools
 from athos.tools.servicenow_mcp.tools.incident_tools import ListIncidentsParams, list_incidents
@@ -63,3 +66,67 @@ def test_list_incidents_sorts_by_most_recent_creation(monkeypatch):
         get.call_args.kwargs["params"]["sysparm_query"]
         == "ORDERBYDESCsys_created_on"
     )
+
+
+def test_list_incidents_defaults_to_most_recent_creation(monkeypatch):
+    auth_cfg = AuthConfig(
+        type=AuthType.BASIC,
+        basic=BasicAuthConfig(username="u", password="p"),
+    )
+    config = ServerConfig(instance_url="https://example.com", auth=auth_cfg)
+    auth_manager = AuthManager(config.auth)
+
+    mock_response = Mock()
+    mock_response.json.return_value = {"result": []}
+    mock_response.raise_for_status.return_value = None
+    get = Mock(return_value=mock_response)
+    monkeypatch.setattr(incident_tools.requests, "get", get)
+
+    result = list_incidents(config, auth_manager, ListIncidentsParams(limit=3))
+
+    assert result["sort"] == "created_desc"
+    assert (
+        get.call_args.kwargs["params"]["sysparm_query"]
+        == "ORDERBYDESCsys_created_on"
+    )
+
+
+def test_list_incidents_filters_by_active_assignment_group(monkeypatch):
+    auth_cfg = AuthConfig(
+        type=AuthType.BASIC,
+        basic=BasicAuthConfig(username="u", password="p"),
+    )
+    config = ServerConfig(instance_url="https://example.com", auth=auth_cfg)
+    auth_manager = AuthManager(config.auth)
+
+    mock_response = Mock()
+    mock_response.json.return_value = {"result": []}
+    mock_response.raise_for_status.return_value = None
+    get = Mock(return_value=mock_response)
+    monkeypatch.setattr(incident_tools.requests, "get", get)
+
+    group_id = "0123456789abcdef0123456789abcdef"
+    result = list_incidents(
+        config,
+        auth_manager,
+        ListIncidentsParams(
+            limit=10,
+            active=True,
+            assignment_group=group_id,
+        ),
+    )
+
+    assert result["applied_filters"] == {
+        "active": True,
+        "assignment_group": group_id,
+    }
+    assert result["sort"] == "created_desc"
+    assert (
+        get.call_args.kwargs["params"]["sysparm_query"]
+        == f"active=true^assignment_group={group_id}^ORDERBYDESCsys_created_on"
+    )
+
+
+def test_list_incidents_rejects_group_names_as_group_ids():
+    with pytest.raises(ValidationError):
+        ListIncidentsParams(assignment_group="DAS")

@@ -105,6 +105,7 @@ mcp_servers:
       - "download_attachment"
       - "get_user"
       - "list_users"
+      - "list_groups"
     blocked_tools:
       - "create_incident"
       - "update_incident"
@@ -112,7 +113,10 @@ mcp_servers:
       - "resolve_incident"
     instructions: |
       This ServiceNow connection is read-only. Use it to inspect tickets,
-      ticket activity, attachments, and user records. Do not attempt to update
+      ticket activity, attachments, user records, and assignment groups. Resolve
+      human-readable group names with list_groups before filtering incidents by
+      assignment_group. The list_incidents query argument is plain-text search,
+      not an encoded ServiceNow query. Do not attempt to update
       ticket fields, add comments, add work notes, assign incidents, or resolve
       incidents. If a response should be posted to ServiceNow, draft the exact
       suggested comment or work note for a human consultant to review.

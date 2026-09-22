@@ -93,21 +93,40 @@ class ResolveIncidentParams(BaseModel):
 
 class ListIncidentsParams(BaseModel):
     """Parameters for listing incidents."""
-    
+
     limit: int = Field(10, description="Maximum number of incidents to return")
     offset: int = Field(0, description="Offset for pagination")
     state: Optional[str] = Field(None, description="Filter by incident state")
+    active: Optional[bool] = Field(
+        None,
+        description="Filter by active status; use true for open incidents",
+    )
     assigned_to: Optional[str] = Field(None, description="Filter by assigned user")
+    assignment_group: Optional[str] = Field(
+        None,
+        pattern=r"^[0-9a-fA-F]{32}$",
+        description=(
+            "Filter by an exact assignment-group sys_id. Use list_groups to "
+            "resolve a human-readable group name first."
+        ),
+    )
     category: Optional[str] = Field(None, description="Filter by category")
-    query: Optional[str] = Field(None, description="Filter by short description or title")
-    incident_number: Optional[str] = Field(None, description="Filter by incident number")
-    sort: Optional[
-        Literal["created_asc", "created_desc", "updated_asc", "updated_desc"]
-    ] = Field(
+    query: Optional[str] = Field(
         None,
         description=(
-            "Sort order for incidents. Use 'created_desc' for the most recently "
-            "created incidents."
+            "Plain-text term matched with LIKE against short_description and "
+            "description only. This is not an encoded ServiceNow query; do not "
+            "pass field expressions such as 'assignment_group=DAS'."
+        ),
+    )
+    incident_number: Optional[str] = Field(None, description="Filter by incident number")
+    sort: Literal[
+        "created_asc", "created_desc", "updated_asc", "updated_desc"
+    ] = Field(
+        "created_desc",
+        description=(
+            "Sort order for incidents. Defaults to 'created_desc', so results "
+            "are newest-created first."
         ),
     )
     include_comments_and_work_notes: bool = Field(
@@ -706,7 +725,7 @@ def list_incidents(
         "sysparm_display_value": "true",
         "sysparm_exclude_reference_link": "true",
         "sysparm_fields": (
-            "sys_id,number,short_description,description,state,priority,"
+            "sys_id,number,short_description,description,state,active,priority,"
             "assigned_to,assignment_group,category,subcategory,"
             "sys_created_on,sys_updated_on"
         ),
@@ -716,8 +735,12 @@ def list_incidents(
     filters = []
     if params.state:
         filters.append(f"state={params.state}")
+    if params.active is not None:
+        filters.append(f"active={str(params.active).lower()}")
     if params.assigned_to:
         filters.append(f"assigned_to={params.assigned_to}")
+    if params.assignment_group:
+        filters.append(f"assignment_group={params.assignment_group}")
     if params.category:
         filters.append(f"category={params.category}")
     if params.query:
@@ -771,6 +794,7 @@ def list_incidents(
                 "short_description": incident_data.get("short_description"),
                 "description": incident_data.get("description"),
                 "state": incident_data.get("state"),
+                "active": str(incident_data.get("active", "")).lower() == "true",
                 "priority": incident_data.get("priority"),
                 "assigned_to": assigned_to,
                 "assignment_group": assignment_group,
@@ -788,7 +812,24 @@ def list_incidents(
         return {
             "success": True,
             "message": f"Found {len(incidents)} incidents",
-            "incidents": incidents
+            "incidents": incidents,
+            "returned_count": len(incidents),
+            "limit": params.limit,
+            "offset": params.offset,
+            "sort": params.sort,
+            "applied_filters": {
+                key: value
+                for key, value in {
+                    "state": params.state,
+                    "active": params.active,
+                    "assigned_to": params.assigned_to,
+                    "assignment_group": params.assignment_group,
+                    "category": params.category,
+                    "query": params.query,
+                    "incident_number": params.incident_number,
+                }.items()
+                if value is not None
+            },
         }
         
     except requests.RequestException as e:
