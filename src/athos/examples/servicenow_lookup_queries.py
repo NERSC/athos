@@ -7,7 +7,7 @@ It exercises the MCP tools end to end without starting a separate server.
 Examples:
     python -m athos.examples.servicenow_lookup_queries
     python -m athos.examples.servicenow_lookup_queries \
-        --group-query DAS --group-query Storage --user-query alice
+        --group-query DAS --user-name sfarrell
 """
 
 from __future__ import annotations
@@ -36,17 +36,13 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--group-query",
-        action="append",
-        dest="group_queries",
-        help=(
-            "Group-name search term; repeat for multiple queries "
-            "(default: DAS, Storage)"
-        ),
+        default="DAS",
+        help="Group-name search term (default: DAS)",
     )
     parser.add_argument(
-        "--user-query",
-        default="admin",
-        help="User name, username, or email search term (default: admin)",
+        "--user-name",
+        default="sfarrell",
+        help="Exact ServiceNow username to retrieve (default: sfarrell)",
     )
     return parser.parse_args()
 
@@ -62,7 +58,6 @@ async def main() -> None:
     """Run group, group-filtered incident, and user queries."""
 
     args = parse_args()
-    group_queries = args.group_queries or ["DAS", "Storage"]
     load_dotenv()
 
     auth = AuthConfig(
@@ -80,44 +75,43 @@ async def main() -> None:
 
     server = ServiceNowMCPServer(config)
     async with Client(server.mcp) as client:
-        for index, query in enumerate(group_queries):
-            result = await client.call_tool(
-                "list_groups",
-                {"query": query, "active": True, "limit": 5},
+        result = await client.call_tool(
+            "list_groups",
+            {"query": args.group_query, "active": True, "limit": 5},
+        )
+        content = result.structured_content or {}
+        show(f'active groups matching "{args.group_query}"', content)
+
+        # Demonstrate the intended name -> sys_id -> incident lookup flow, but
+        # do not guess when the group-name search is ambiguous.
+        groups = content.get("groups", [])
+        if len(groups) == 1:
+            group = groups[0]
+            incidents = await client.call_tool(
+                "list_incidents",
+                {
+                    "assignment_group": group["sys_id"],
+                    "active": True,
+                    "limit": 3,
+                },
             )
-            content = result.structured_content or {}
-            show(f'active groups matching "{query}"', content)
+            show(
+                f'newest active incidents for "{group["name"]}"',
+                incidents.structured_content or {},
+            )
+        else:
+            print(
+                "\nIncident lookup skipped: refine the group query until it "
+                "returns exactly one group."
+            )
 
-            # Demonstrate the intended name -> sys_id -> incident lookup flow for
-            # the first query, but do not guess when the name is ambiguous.
-            groups = content.get("groups", [])
-            if index == 0 and len(groups) == 1:
-                group = groups[0]
-                incidents = await client.call_tool(
-                    "list_incidents",
-                    {
-                        "assignment_group": group["sys_id"],
-                        "active": True,
-                        "limit": 3,
-                    },
-                )
-                show(
-                    f'newest active incidents for "{group["name"]}"',
-                    incidents.structured_content or {},
-                )
-            elif index == 0:
-                print(
-                    "\nIncident lookup skipped: refine the first group query "
-                    "until it returns exactly one group."
-                )
-
-        users = await client.call_tool(
-            "list_users",
-            {"query": args.user_query, "active": True, "limit": 5},
+        user = await client.call_tool(
+            "get_user",
+            {"user_name": args.user_name},
         )
         show(
-            f'active users matching "{args.user_query}"',
-            users.structured_content or {},
+            f'user with username "{args.user_name}"',
+            user.structured_content or {},
         )
 
 
