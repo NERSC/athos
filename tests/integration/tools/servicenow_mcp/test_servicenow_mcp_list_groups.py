@@ -1,6 +1,8 @@
 from unittest.mock import Mock
 
+import pytest
 import requests
+from pydantic import ValidationError
 
 from athos.tools.servicenow_mcp.auth.auth_manager import AuthManager
 from athos.tools.servicenow_mcp.tools import group_tools
@@ -82,6 +84,24 @@ def test_list_groups_can_include_inactive_groups(monkeypatch):
 
     assert result["applied_filters"] == {}
     assert get.call_args.kwargs["params"]["sysparm_query"] == "ORDERBYname"
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "DAS^NQactive=false",
+        "DAS^ORactive=false",
+    ],
+)
+def test_list_groups_rejects_encoded_query_clauses(query):
+    with pytest.raises(ValidationError, match="query must be plain text"):
+        ListGroupsParams(query=query)
+
+
+def test_list_groups_accepts_plain_text_with_spaces():
+    params = ListGroupsParams(query="Data and Analytics Services")
+
+    assert params.query == "Data and Analytics Services"
 
 
 def test_list_groups_handles_request_errors(monkeypatch):

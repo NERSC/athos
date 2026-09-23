@@ -6,7 +6,7 @@ import logging
 from typing import Optional
 
 import requests
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..auth.auth_manager import AuthManager
 from ..utils.config import ServerConfig
@@ -30,6 +30,15 @@ class ListGroupsParams(BaseModel):
             "not an encoded ServiceNow query."
         ),
     )
+
+    @field_validator("query")
+    @classmethod
+    def reject_encoded_query_clauses(cls, value: Optional[str]) -> Optional[str]:
+        """Keep a plain-text search term from changing the encoded query."""
+
+        if value is not None and "^" in value:
+            raise ValueError("query must be plain text and cannot contain '^'")
+        return value
 
 
 def _display_value(value: object) -> object:
