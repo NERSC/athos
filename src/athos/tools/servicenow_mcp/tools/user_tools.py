@@ -37,6 +37,14 @@ class ListUsersParams(BaseModel):
     )
 
 
+def _display_value(value: object) -> object:
+    """Accept ServiceNow reference fields in display or expanded form."""
+
+    if isinstance(value, dict):
+        return value.get("display_value")
+    return value
+
+
 def get_user(
     config: ServerConfig,
     auth_manager: AuthManager,
@@ -69,7 +77,12 @@ def get_user(
 
     query = "^OR".join(query_parts)
 
-    params_dict = {"sysparm_query": query, "sysparm_limit": 1}
+    params_dict = {
+        "sysparm_query": query,
+        "sysparm_limit": 1,
+        "sysparm_display_value": "true",
+        "sysparm_exclude_reference_link": "true",
+    }
 
     try:
         response = requests.get(
@@ -97,11 +110,11 @@ def get_user(
                 "last_name": user.get("last_name"),
                 "email": user.get("email"),
                 "title": user.get("title"),
-                "department": user.get("department", {}).get("display_value"),
-                "manager": user.get("manager", {}).get("display_value"),
+                "department": _display_value(user.get("department")),
+                "manager": _display_value(user.get("manager")),
                 "phone": user.get("phone"),
                 "mobile_phone": user.get("mobile_phone"),
-                "location": user.get("location", {}).get("display_value"),
+                "location": _display_value(user.get("location")),
                 "active": user.get("active") == "true",
             },
         }
@@ -181,11 +194,11 @@ def list_users(
                     "last_name": user.get("last_name"),
                     "email": user.get("email"),
                     "title": user.get("title"),
-                    "department": user.get("department", {}).get("display_value"),
-                    "manager": user.get("manager", {}).get("display_value"),
+                    "department": _display_value(user.get("department")),
+                    "manager": _display_value(user.get("manager")),
                     "phone": user.get("phone"),
                     "mobile_phone": user.get("mobile_phone"),
-                    "location": user.get("location", {}).get("display_value"),
+                    "location": _display_value(user.get("location")),
                     "active": user.get("active") == "true",
                 }
             )
@@ -202,4 +215,3 @@ def list_users(
     except requests.exceptions.RequestException as e:
         logger.error(f"Error listing users: {str(e)}")
         return {"success": False, "message": f"Error listing users: {str(e)}", "users": []}
-

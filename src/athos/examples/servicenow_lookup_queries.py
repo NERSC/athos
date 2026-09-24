@@ -82,11 +82,19 @@ async def main() -> None:
         content = result.structured_content or {}
         show(f'active groups matching "{args.group_query}"', content)
 
-        # Demonstrate the intended name -> sys_id -> incident lookup flow, but
-        # do not guess when the group-name search is ambiguous.
+        # Prefer one exact name match when a LIKE search returns related groups
+        # such as both "DAS" and "DAS-POC". Otherwise, accept a sole result.
         groups = content.get("groups", [])
-        if len(groups) == 1:
+        exact_groups = [
+            group
+            for group in groups
+            if str(group.get("name", "")).casefold() == args.group_query.casefold()
+        ]
+        group = exact_groups[0] if len(exact_groups) == 1 else None
+        if group is None and len(groups) == 1:
             group = groups[0]
+
+        if group is not None:
             incidents = await client.call_tool(
                 "list_incidents",
                 {
@@ -101,8 +109,8 @@ async def main() -> None:
             )
         else:
             print(
-                "\nIncident lookup skipped: refine the group query until it "
-                "returns exactly one group."
+                "\nIncident lookup skipped: the group query did not produce "
+                "a unique exact match or a sole result."
             )
 
         user = await client.call_tool(
