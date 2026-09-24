@@ -12,7 +12,7 @@ from email.message import Message
 from email.utils import collapse_rfc2231_value
 
 import requests
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..auth.auth_manager import AuthManager
 from ..utils.config import ServerConfig
@@ -135,6 +135,15 @@ class ListIncidentsParams(BaseModel):
             "Include raw custom field u_comments_and_work_notes in each incident."
         ),
     )
+
+    @field_validator("query")
+    @classmethod
+    def reject_encoded_query_clauses(cls, value: Optional[str]) -> Optional[str]:
+        """Keep a plain-text search term from changing the encoded query."""
+
+        if value is not None and "^" in value:
+            raise ValueError("query must be plain text and cannot contain '^'")
+        return value
 
 
 class IncidentResponse(BaseModel):

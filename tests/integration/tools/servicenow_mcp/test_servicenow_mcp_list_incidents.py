@@ -130,3 +130,21 @@ def test_list_incidents_filters_by_active_assignment_group(monkeypatch):
 def test_list_incidents_rejects_group_names_as_group_ids():
     with pytest.raises(ValidationError):
         ListIncidentsParams(assignment_group="DAS")
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "disk^NQactive=false",
+        "disk^ORassignment_group=other",
+    ],
+)
+def test_list_incidents_rejects_encoded_query_clauses(query):
+    with pytest.raises(ValidationError, match="query must be plain text"):
+        ListIncidentsParams(query=query)
+
+
+def test_list_incidents_accepts_plain_text_query():
+    params = ListIncidentsParams(query="disk failure on login node")
+
+    assert params.query == "disk failure on login node"
