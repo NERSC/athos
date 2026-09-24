@@ -123,6 +123,55 @@ def test_list_users_empty(monkeypatch):
     }
 
 
+def test_list_users_builds_service_now_compatible_search_query(monkeypatch):
+    config, auth_manager = _setup()
+    mock_response = Mock()
+    mock_response.raise_for_status.return_value = None
+    mock_response.json.return_value = {"result": []}
+    get = Mock(return_value=mock_response)
+    monkeypatch.setattr(requests, "get", get)
+
+    list_users(
+        config,
+        auth_manager,
+        ListUsersParams(
+            query="sfarrell",
+            active=True,
+            department="Data and Analytics Services",
+        ),
+    )
+
+    assert get.call_args.kwargs["params"]["sysparm_query"] == (
+        "active=true^department.nameLIKEData and Analytics Services"
+        "^first_nameLIKEsfarrell"
+        "^NQactive=true^department.nameLIKEData and Analytics Services"
+        "^last_nameLIKEsfarrell"
+        "^NQactive=true^department.nameLIKEData and Analytics Services"
+        "^user_nameLIKEsfarrell"
+        "^NQactive=true^department.nameLIKEData and Analytics Services"
+        "^emailLIKEsfarrell"
+    )
+
+
+def test_list_users_builds_base_filters_without_search_query(monkeypatch):
+    config, auth_manager = _setup()
+    mock_response = Mock()
+    mock_response.raise_for_status.return_value = None
+    mock_response.json.return_value = {"result": []}
+    get = Mock(return_value=mock_response)
+    monkeypatch.setattr(requests, "get", get)
+
+    list_users(
+        config,
+        auth_manager,
+        ListUsersParams(active=False, department="Operations"),
+    )
+
+    assert get.call_args.kwargs["params"]["sysparm_query"] == (
+        "active=false^department.nameLIKEOperations"
+    )
+
+
 def test_list_users_error(monkeypatch):
     config, auth_manager = _setup()
 

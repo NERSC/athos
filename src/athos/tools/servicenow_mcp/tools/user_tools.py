@@ -142,26 +142,25 @@ def list_users(
     """
     api_url = f"{config.api_url}/table/sys_user"
 
-    # Build query
-    query_parts = []
+    # Build the filters that must apply to every search-field alternative.
+    base_filters = []
 
     if params.active is not None:
-        query_parts.append(f"active={str(params.active).lower()}")
+        base_filters.append(f"active={str(params.active).lower()}")
 
     if params.department:
-        query_parts.append(f"department.nameLIKE{params.department}")
+        base_filters.append(f"department.nameLIKE{params.department}")
 
     if params.query:
-        # Search across multiple fields
-        search_query = (
-            f"first_nameLIKE{params.query}"
-            f"^ORlast_nameLIKE{params.query}"
-            f"^ORuser_nameLIKE{params.query}"
-            f"^ORemailLIKE{params.query}"
+        # ServiceNow encoded queries do not support parentheses for grouping.
+        # Use separate NQ branches so base filters apply to every alternative.
+        search_fields = ("first_name", "last_name", "user_name", "email")
+        query = "^NQ".join(
+            "^".join([*base_filters, f"{field}LIKE{params.query}"])
+            for field in search_fields
         )
-        query_parts.append(f"({search_query})")
-
-    query = "^".join(query_parts) if query_parts else ""
+    else:
+        query = "^".join(base_filters)
 
     params_dict = {
         "sysparm_limit": params.limit,
