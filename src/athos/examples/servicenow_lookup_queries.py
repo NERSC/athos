@@ -113,6 +113,15 @@ async def main() -> None:
                 "a unique exact match or a sole result."
             )
 
+        users = await client.call_tool(
+            "list_users",
+            {"query": args.user_name, "active": True, "limit": 10},
+        )
+        show(
+            f'active users matching "{args.user_name}"',
+            users.structured_content or {},
+        )
+
         user = await client.call_tool(
             "get_user",
             {"user_name": args.user_name},
