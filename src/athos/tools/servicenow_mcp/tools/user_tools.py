@@ -37,6 +37,14 @@ class ListUsersParams(BaseModel):
     )
 
 
+def _display_value(value: object) -> object:
+    """Accept ServiceNow reference fields in display or expanded form."""
+
+    if isinstance(value, dict):
+        return value.get("display_value")
+    return value
+
+
 def get_user(
     config: ServerConfig,
     auth_manager: AuthManager,
@@ -69,7 +77,12 @@ def get_user(
 
     query = "^OR".join(query_parts)
 
-    params_dict = {"sysparm_query": query, "sysparm_limit": 1}
+    params_dict = {
+        "sysparm_query": query,
+        "sysparm_limit": 1,
+        "sysparm_display_value": "true",
+        "sysparm_exclude_reference_link": "true",
+    }
 
     try:
         response = requests.get(
@@ -97,11 +110,11 @@ def get_user(
                 "last_name": user.get("last_name"),
                 "email": user.get("email"),
                 "title": user.get("title"),
-                "department": user.get("department", {}).get("display_value"),
-                "manager": user.get("manager", {}).get("display_value"),
+                "department": _display_value(user.get("department")),
+                "manager": _display_value(user.get("manager")),
                 "phone": user.get("phone"),
                 "mobile_phone": user.get("mobile_phone"),
-                "location": user.get("location", {}).get("display_value"),
+                "location": _display_value(user.get("location")),
                 "active": user.get("active") == "true",
             },
         }
@@ -129,26 +142,25 @@ def list_users(
     """
     api_url = f"{config.api_url}/table/sys_user"
 
-    # Build query
-    query_parts = []
+    # Build the filters that must apply to every search-field alternative.
+    base_filters = []
 
     if params.active is not None:
-        query_parts.append(f"active={str(params.active).lower()}")
+        base_filters.append(f"active={str(params.active).lower()}")
 
     if params.department:
-        query_parts.append(f"department.nameLIKE{params.department}")
+        base_filters.append(f"department.nameLIKE{params.department}")
 
     if params.query:
-        # Search across multiple fields
-        search_query = (
-            f"first_nameLIKE{params.query}"
-            f"^ORlast_nameLIKE{params.query}"
-            f"^ORuser_nameLIKE{params.query}"
-            f"^ORemailLIKE{params.query}"
+        # ServiceNow encoded queries do not support parentheses for grouping.
+        # Use separate NQ branches so base filters apply to every alternative.
+        search_fields = ("first_name", "last_name", "user_name", "email")
+        query = "^NQ".join(
+            "^".join([*base_filters, f"{field}LIKE{params.query}"])
+            for field in search_fields
         )
-        query_parts.append(f"({search_query})")
-
-    query = "^".join(query_parts) if query_parts else ""
+    else:
+        query = "^".join(base_filters)
 
     params_dict = {
         "sysparm_limit": params.limit,
@@ -181,11 +193,11 @@ def list_users(
                     "last_name": user.get("last_name"),
                     "email": user.get("email"),
                     "title": user.get("title"),
-                    "department": user.get("department", {}).get("display_value"),
-                    "manager": user.get("manager", {}).get("display_value"),
+                    "department": _display_value(user.get("department")),
+                    "manager": _display_value(user.get("manager")),
                     "phone": user.get("phone"),
                     "mobile_phone": user.get("mobile_phone"),
-                    "location": user.get("location", {}).get("display_value"),
+                    "location": _display_value(user.get("location")),
                     "active": user.get("active") == "true",
                 }
             )
@@ -202,4 +214,3 @@ def list_users(
     except requests.exceptions.RequestException as e:
         logger.error(f"Error listing users: {str(e)}")
         return {"success": False, "message": f"Error listing users: {str(e)}", "users": []}
-

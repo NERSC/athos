@@ -17,6 +17,7 @@ from .user_tools import (
     get_user,
     list_users,
 )
+from .group_tools import list_groups
 
 __all__ = [
     # Incident tools
@@ -32,4 +33,7 @@ __all__ = [
     # User lookup tools
     "get_user",
     "list_users",
+
+    # Group lookup tools
+    "list_groups",
 ]

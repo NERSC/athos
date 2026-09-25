@@ -35,18 +35,17 @@ def test_get_user_success(monkeypatch):
                 "last_name": "Doe",
                 "email": "jdoe@example.com",
                 "title": "Developer",
-                "department": {"display_value": "Engineering"},
-                "manager": {"display_value": "Boss"},
+                "department": "Engineering",
+                "manager": "Boss",
                 "phone": "555-0000",
                 "mobile_phone": "555-1111",
-                "location": {"display_value": "HQ"},
+                "location": "HQ",
                 "active": "true",
             }
         ]
     }
-    monkeypatch.setattr(
-        requests, "get", lambda *args, **kwargs: mock_response
-    )
+    get = Mock(return_value=mock_response)
+    monkeypatch.setattr(requests, "get", get)
 
     params = GetUserParams(user_id="1")
     result = get_user(config, auth_manager, params)
@@ -68,6 +67,12 @@ def test_get_user_success(monkeypatch):
             "location": "HQ",
             "active": True,
         },
+    }
+    assert get.call_args.kwargs["params"] == {
+        "sysparm_query": "sys_id=1",
+        "sysparm_limit": 1,
+        "sysparm_display_value": "true",
+        "sysparm_exclude_reference_link": "true",
     }
 
 
