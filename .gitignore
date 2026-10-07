@@ -178,5 +178,7 @@ cython_debug/
 
 .DS_Store
 
+tests/*
+
 integrations/openwebui/pipelines/athos_flowrunner_manifold_pipeline/
 integrations/openwebui/pipelines/athos_hello_world_manifold_pipeline/

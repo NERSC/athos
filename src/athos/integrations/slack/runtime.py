@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import os
 import re
 import threading
@@ -13,11 +12,8 @@ from typing import Any, Callable, Protocol
 
 MAX_MESSAGE_LEN = 3500
 MAX_BLOCK_TEXT_LEN = 3000
+PENDING_REACTION = "hourglass_flowing_sand"
 DEDUP_TTL_SECONDS = 120.0
-REQUEST_FAILURE_TEXT = ":warning: I could not complete that request. Please try again shortly."
-PROCESSING_REACTION = "hourglass_flowing_sand"
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -44,6 +40,7 @@ class SlackMessageResponse:
     text: str
     blocks: list[dict[str, Any]] | None = None
     followup_posts: list[SlackMessagePost] = field(default_factory=list)
+    terminal_fields: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -64,6 +61,7 @@ class SlackInteractionResponse:
     replace_original: SlackMessagePost | None = None
     thread_posts: list[SlackMessagePost] = field(default_factory=list)
     open_view: dict[str, Any] | None = None
+    terminal_fields: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -78,10 +76,13 @@ class SlackViewSubmissionRequest:
 @dataclass(slots=True)
 class SlackViewSubmissionResponse:
     thread_posts: list[SlackMessagePost] = field(default_factory=list)
+    terminal_fields: dict[str, Any] = field(default_factory=dict)
 
 
 class SlackAppAdapter(Protocol):
     app_name: str
+    command_name: str | None
+    default_question: str
     empty_prompt: str
 
     def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse: ...
@@ -97,6 +98,8 @@ class FunctionSlackAdapter:
         handler: Callable[[SlackMessageRequest], str | SlackMessageResponse],
         *,
         app_name: str,
+        command_name: str | None = None,
+        default_question: str = "How can I help?",
         empty_prompt: str = "Ask me a question and I will respond in this thread.",
         on_interaction: Callable[[SlackInteractionRequest], SlackInteractionResponse | None] | None = None,
         on_view_submission: Callable[[SlackViewSubmissionRequest], SlackViewSubmissionResponse | None] | None = None,
@@ -105,6 +108,8 @@ class FunctionSlackAdapter:
         self._on_interaction = on_interaction
         self._on_view_submission = on_view_submission
         self.app_name = app_name
+        self.command_name = command_name
+        self.default_question = default_question
         self.empty_prompt = empty_prompt
 
     def handle_question(self, request: SlackMessageRequest) -> SlackMessageResponse:
@@ -209,41 +214,15 @@ def _post_response(web_client, *, channel: str, thread_ts: str | None, response:
     return posted_ts
 
 
-def _set_processing_reaction(
-    web_client, request: SlackMessageRequest, *, active: bool
-) -> None:
-    if not request.event_ts:
+def _set_pending_reaction(web_client, channel: str, timestamp: str | None, *, add: bool) -> None:
+    """Show (or clear) a pending reaction on a message while slow work runs."""
+    if not timestamp:
         return
+    method = web_client.reactions_add if add else web_client.reactions_remove
     try:
-        method = web_client.reactions_add if active else web_client.reactions_remove
-        method(
-            channel=request.channel,
-            name=PROCESSING_REACTION,
-            timestamp=request.event_ts,
-        )
-    except Exception:  # noqa: BLE001 - a cosmetic reaction must not break replies
-        logger.debug("Could not update Slack processing reaction", exc_info=True)
-
-
-def _handle_message_request(
-    adapter: SlackAppAdapter, web_client, request: SlackMessageRequest
-) -> None:
-    _set_processing_reaction(web_client, request, active=True)
-    try:
-        response = adapter.handle_question(request)
-        posted_ts = _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=response)
-        for post in response.followup_posts:
-            _post(web_client, channel=request.channel, thread_ts=post.thread_ts or request.thread_ts or posted_ts, post=post)
+        method(channel=channel, name=PENDING_REACTION, timestamp=timestamp)
     except Exception:  # noqa: BLE001
-        logger.exception("Failed to handle Slack message request")
-        _post_response(
-            web_client,
-            channel=request.channel,
-            thread_ts=request.thread_ts,
-            response=SlackMessageResponse(REQUEST_FAILURE_TEXT),
-        )
-    finally:
-        _set_processing_reaction(web_client, request, active=False)
+        pass
 
 
 def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
@@ -256,11 +235,29 @@ def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
     recent: dict[str, float] = {}
     recent_lock = threading.Lock()
 
+    def handle_request(request: SlackMessageRequest) -> None:
+        _set_pending_reaction(web_client, request.channel, request.event_ts, add=True)
+        try:
+            response = adapter.handle_question(request)
+            posted_ts = _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=response)
+            for post in response.followup_posts:
+                _post(web_client, channel=request.channel, thread_ts=post.thread_ts or request.thread_ts or posted_ts, post=post)
+        except Exception as exc:  # noqa: BLE001
+            _post_response(web_client, channel=request.channel, thread_ts=request.thread_ts, response=SlackMessageResponse(f":warning: I hit an error while answering this question:\n`{exc}`"))
+        finally:
+            _set_pending_reaction(web_client, request.channel, request.event_ts, add=False)
+
     def process(client, envelope) -> None:
-        if envelope.type not in {"events_api", "interactive"}:
+        if envelope.type not in {"events_api", "slash_commands", "interactive"}:
             return
         client.send_socket_mode_response(SocketModeResponse(envelope_id=envelope.envelope_id))
         payload = envelope.payload
+        if envelope.type == "slash_commands":
+            if adapter.command_name and payload.get("command") != adapter.command_name:
+                return
+            request = SlackMessageRequest(payload["channel_id"], None, None, payload.get("user_id"), (payload.get("text") or "").strip() or adapter.default_question, context={"payload": payload})
+            threading.Thread(target=handle_request, args=(request,), daemon=True).start()
+            return
         if envelope.type == "interactive":
             threading.Thread(
                 target=_process_interaction,
@@ -284,11 +281,7 @@ def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
             _post_response(web_client, channel=event["channel"], thread_ts=thread_ts, response=SlackMessageResponse(adapter.empty_prompt))
             return
         request = SlackMessageRequest(event["channel"], thread_ts, event.get("ts"), event.get("user"), question, event.get("text"), {"payload": payload, "event": event})
-        threading.Thread(
-            target=_handle_message_request,
-            args=(adapter, web_client, request),
-            daemon=True,
-        ).start()
+        threading.Thread(target=handle_request, args=(request,), daemon=True).start()
 
     socket_client.socket_mode_request_listeners.append(process)
     socket_client.connect()
@@ -312,6 +305,18 @@ def _process_interaction(adapter: SlackAppAdapter, web_client, payload: dict[str
     if not channel:
         return
     request = SlackInteractionRequest(channel, message.get("thread_ts") or container.get("thread_ts") or container.get("message_ts"), container.get("message_ts") or message.get("ts"), (payload.get("user") or {}).get("id"), action.get("action_id", ""), action.get("value"), payload.get("trigger_id"), payload, {"message": message})
+    # Slow actions (such as Take notes) show the pending reaction on the clicked message.
+    pending = request.action_id in getattr(adapter, "pending_actions", ())
+    if pending:
+        _set_pending_reaction(web_client, channel, request.message_ts, add=True)
+    try:
+        _apply_interaction(adapter, web_client, request, channel)
+    finally:
+        if pending:
+            _set_pending_reaction(web_client, channel, request.message_ts, add=False)
+
+
+def _apply_interaction(adapter: SlackAppAdapter, web_client, request: SlackInteractionRequest, channel: str) -> None:
     response = adapter.handle_interaction(request)
     if response is None:
         return
