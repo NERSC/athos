@@ -25,6 +25,6 @@ deployment's actual IDs in `.env`; only the example belongs in the repository.
 The launcher also accepts environment overrides for `ATHOS_CONFIG_PATH`,
 `ATHOS_FLOW_NAME`, and `ATHOS_FEEDBACK_DB`. It never stores credentials.
 
-The bot records thumbs-up/down feedback in the configured SQLite database.
+The bot records thumbs-up/down/take note feedback in the configured SQLite database.
 That database contains questions and responses, so place it in an appropriate
 access-controlled location for a deployed instance.
