@@ -6,6 +6,7 @@ data
 results
 results/
 tmp/
+config/config.yaml
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -178,5 +179,9 @@ cython_debug/
 
 .DS_Store
 
+# Saved Slack notes (see athos.tools.note_taker)
+.notes/
+
 integrations/openwebui/pipelines/athos_flowrunner_manifold_pipeline/
 integrations/openwebui/pipelines/athos_hello_world_manifold_pipeline/
+tests/

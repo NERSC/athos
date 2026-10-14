@@ -174,7 +174,7 @@ mcp_servers:
     command: "chroma-mcp"
     args: [
       "--client-type", "persistent",
-      "--data-dir", "data/chroma/aggregates/athos_eval_bundle_20260318_derived_tickets_v2"
+      "--data-dir", "${SCRATCH}/athos/data/chroma/aggregates/athos_eval_bundle_20260318_derived_tickets_v2"
     ]
     allowed_tools:
       - "chroma_list_collections"
@@ -293,6 +293,34 @@ tools:
     callable_name: "chroma_delete_documents"
     module_path: "athos.tools.chroma"
     is_class: false
+  note_taker:
+    description: "Saves and updates notes as skill folders (notes/<name>/note.md)"
+    callable_name: "note_taker"
+    module_path: "athos.tools.note_taker"
+    parameters: {}
+    is_class: false
+    framework: "langgraph"
+  list_notes:
+    description: "Lists saved notes (name and description) matching a query"
+    callable_name: "list_notes"
+    module_path: "athos.tools.note_taker"
+    parameters: {}
+    is_class: false
+    framework: "langgraph"
+  read_note:
+    description: "Loads one saved note's note.md"
+    callable_name: "read_note"
+    module_path: "athos.tools.note_taker"
+    parameters: {}
+    is_class: false
+    framework: "langgraph"
+  take_thread_note:
+    description: "Signals that the user wants the whole conversation thread saved as a note"
+    callable_name: "take_thread_note"
+    module_path: "athos.tools.note_taker"
+    parameters: {}
+    is_class: false
+    framework: "langgraph"
 
 
 # Agent flows define the agent system
@@ -445,8 +473,17 @@ flows:
     mcp_servers:
       - "servicenow_ro_mcp"
       - "consulting_chroma_ro_mcp"
+    tools: ["list_notes", "read_note", "take_thread_note"]
     max_iterations: 32
     system_prompt_path: "prompts/hpc_consulting_agent_system_prompt.txt"
+
+  lang_hpc_note_writer:
+    description: "Summarizes a Slack thread into one note and saves it with note_taker"
+    type: "langchain_agent"
+    model: "gptoss"
+    tools: ["note_taker"]
+    max_iterations: 10
+    system_prompt_path: "prompts/note_writer_system_prompt.txt"
 
   # Known issue: in the current SmolAgents MCP adapter path, some MCP tool
   # responses with multiple content items can be truncated to the first item.

@@ -8,16 +8,25 @@ import re
 import threading
 import time
 from dataclasses import dataclass, field
+from functools import partial
 from typing import Any, Callable, Protocol
 
 
 MAX_MESSAGE_LEN = 3500
 MAX_BLOCK_TEXT_LEN = 3000
+MAX_THREAD_MESSAGES = 500
 DEDUP_TTL_SECONDS = 120.0
 REQUEST_FAILURE_TEXT = ":warning: I could not complete that request. Please try again shortly."
 PROCESSING_REACTION = "hourglass_flowing_sand"
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class SlackThreadMessage:
+    user_id: str | None
+    text: str
+    from_bot: bool = False
 
 
 @dataclass(slots=True)
@@ -29,6 +38,8 @@ class SlackMessageRequest:
     question: str
     raw_text: str | None = None
     context: dict[str, Any] = field(default_factory=dict)
+    # Reads the thread's earlier messages; it costs a Slack API call, so adapters call it only when needed.
+    thread_history: Callable[[], list[SlackThreadMessage]] | None = None
 
 
 @dataclass(slots=True)
@@ -170,6 +181,36 @@ def _split_text(text: str) -> list[str]:
     return result + ([remaining] if remaining else [])
 
 
+def read_thread_history(
+    web_client, bot_user_id: str, channel: str, thread_ts: str | None, before_ts: str | None
+) -> list[SlackThreadMessage]:
+    """Return a thread's messages posted before `before_ts`, oldest first.
+
+    Needs the bot's channels/groups/im/mpim:history scopes. A message that
+    starts a thread has no history.
+    """
+    if not thread_ts or thread_ts == before_ts:
+        return []
+    messages: list[SlackThreadMessage] = []
+    cursor = None
+    while len(messages) < MAX_THREAD_MESSAGES:
+        kwargs: dict[str, Any] = {"channel": channel, "ts": thread_ts, "limit": 200}
+        if cursor:
+            kwargs["cursor"] = cursor
+        response = web_client.conversations_replies(**kwargs)
+        for message in response.get("messages") or []:
+            if before_ts and float(message.get("ts") or 0) >= float(before_ts):
+                return messages[:MAX_THREAD_MESSAGES]
+            text = (message.get("text") or "").strip()
+            if text:
+                from_bot = bool(message.get("bot_id")) or message.get("user") == bot_user_id
+                messages.append(SlackThreadMessage(message.get("user"), text, from_bot))
+        cursor = (response.get("response_metadata") or {}).get("next_cursor")
+        if not cursor:
+            break
+    return messages[:MAX_THREAD_MESSAGES]
+
+
 def _post(web_client, *, channel: str, thread_ts: str | None, post: SlackMessagePost) -> str | None:
     kwargs: dict[str, Any] = {"channel": post.channel or channel, "text": post.text}
     if post.thread_ts or thread_ts:
@@ -283,7 +324,16 @@ def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
         if not question:
             _post_response(web_client, channel=event["channel"], thread_ts=thread_ts, response=SlackMessageResponse(adapter.empty_prompt))
             return
-        request = SlackMessageRequest(event["channel"], thread_ts, event.get("ts"), event.get("user"), question, event.get("text"), {"payload": payload, "event": event})
+        request = SlackMessageRequest(
+            event["channel"],
+            thread_ts,
+            event.get("ts"),
+            event.get("user"),
+            question,
+            event.get("text"),
+            {"payload": payload, "event": event},
+            partial(read_thread_history, web_client, bot_user_id, event["channel"], thread_ts, event.get("ts")),
+        )
         threading.Thread(
             target=_handle_message_request,
             args=(adapter, web_client, request),
@@ -298,6 +348,20 @@ def run_socket_mode_app(adapter: SlackAppAdapter) -> None:
 
 
 def _process_interaction(adapter: SlackAppAdapter, web_client, payload: dict[str, Any]) -> None:
+    actions = payload.get("actions") or [{}]
+    logger.info(
+        "Slack interaction received: type=%s action=%s user=%s",
+        payload.get("type"),
+        actions[0].get("action_id"),
+        (payload.get("user") or {}).get("id"),
+    )
+    try:
+        _dispatch_interaction(adapter, web_client, payload)
+    except Exception:  # noqa: BLE001 - runs in a worker thread; keep the failure in the logs
+        logger.exception("Failed to handle Slack interaction")
+
+
+def _dispatch_interaction(adapter: SlackAppAdapter, web_client, payload: dict[str, Any]) -> None:
     if payload.get("type") == "view_submission":
         view = payload.get("view", {})
         response = adapter.handle_view_submission(SlackViewSubmissionRequest((payload.get("user") or {}).get("id"), view.get("callback_id"), view.get("private_metadata", ""), (view.get("state") or {}).get("values", {}), payload))
