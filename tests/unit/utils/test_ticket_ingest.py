@@ -319,22 +319,22 @@ def test_sanitize_ticket_record_scrubs_high_confidence_username_patterns():
 
 def test_sanitize_ticket_record_canonicalizes_composite_identity_fields():
     record = _sample_record()
-    record["incident_fields"]["watch_list"] = "Bailey, Stephen (sbailey)"
-    record["incident_fields"]["u_username_watchlist"] = "Bailey, Stephen (sbailey)"
-    record["incident_fields"]["u_itil_watch_list"] = "Bagwell, Clayton (cbagwell), Gerhardt, Lisa (lgerhard)"
+    record["incident_fields"]["watch_list"] = "Roe, Richard (rroe)"
+    record["incident_fields"]["u_username_watchlist"] = "Roe, Richard (rroe)"
+    record["incident_fields"]["u_itil_watch_list"] = "Smith, Alex (asmith), Jones, Pat (pjones)"
 
     sanitized, stats = sanitize_ticket_record(record, salt="unit-test-salt")
 
     expected_alias = sanitize_ticket_record(
-        {"incident_fields": {"sys_created_by": "sbailey"}},
+        {"incident_fields": {"sys_created_by": "rroe"}},
         salt="unit-test-salt",
     )[0]["incident_fields"]["sys_created_by"]
     assert sanitized["incident_fields"]["watch_list"] == expected_alias
     assert sanitized["incident_fields"]["u_username_watchlist"] == expected_alias
-    assert "Bailey" not in sanitized["incident_fields"]["watch_list"]
+    assert "Roe" not in sanitized["incident_fields"]["watch_list"]
     itil = sanitized["incident_fields"]["u_itil_watch_list"]
-    assert "Clayton" not in itil
-    assert "Lisa" not in itil
+    assert "Alex" not in itil
+    assert "Pat" not in itil
     assert "USER_" in itil
     assert stats.structured_user_replacements >= 4
 
