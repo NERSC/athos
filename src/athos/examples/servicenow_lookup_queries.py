@@ -7,7 +7,7 @@ It exercises the MCP tools end to end without starting a separate server.
 Examples:
     python -m athos.examples.servicenow_lookup_queries
     python -m athos.examples.servicenow_lookup_queries \
-        --group-query DAS --user-name sfarrell
+        --group-query DAS --user-name jdoe
 """
 
 from __future__ import annotations
@@ -41,8 +41,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--user-name",
-        default="sfarrell",
-        help="Exact ServiceNow username to retrieve (default: sfarrell)",
+        default="jdoe",
+        help="Exact ServiceNow username to retrieve (default: jdoe)",
     )
     return parser.parse_args()
 

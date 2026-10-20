@@ -148,7 +148,7 @@ Example:
     --cases-dir evals/test_cases \
     --output-dir results \
     --experiment-id cug2026_main \
-    --aggregate-manifest /pscratch/sd/s/sfarrell/athos/chroma/aggregates/manifests/current.json
+    --aggregate-manifest /path/to/athos/chroma/aggregates/manifests/current.json
   ```
 
 ## Scoring canonical runs
@@ -225,9 +225,17 @@ Summary aggregates include `run_count`, `scored_count`, `skipped_count`,
 
 ## CUG wrapper note
 
-[`scripts/run_cug_eval.sh`](/Users/sfarrell/Work/agentic-ops/athos/scripts/run_cug_eval.sh)
+[`scripts/run_cug_eval.sh`](../scripts/run_cug_eval.sh)
 provides a higher-level wrapper around execution, scoring, and summarization for
-the CUG paper workflows.
+the CUG paper workflows. Flow profiles map to the `cug_*` flows in
+`config/paper/cug_m1.yaml`.
+
+Dataset profiles `full_tickets` and `full` expect a `data/ticket_cases`
+directory built from your own ServiceNow export; that data is not included in
+this repository. The `mini`, `mini_qa`, `mini_tickets` and `full_qa` profiles
+use the datasets under `evals/`. Chroma-backed flows additionally need an
+aggregate manifest (`--aggregate-manifest`); see
+`scripts/build_chroma_aggregate.py`.
 
 Useful modes:
 

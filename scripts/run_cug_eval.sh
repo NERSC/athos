@@ -18,9 +18,9 @@ Dataset profiles:
   mini_tickets  -> evals/test_cases
   mini_qa       -> evals/simple_qa.jsonl
   mini          -> evals/test_cases + evals/simple_qa.jsonl
-  full_tickets  -> data/ticket_cases
+  full_tickets  -> data/ticket_cases (requires your own ServiceNow ticket-case export; not included)
   full_qa       -> evals/nersc_qa.v2.jsonl
-  full          -> data/ticket_cases + evals/nersc_qa.v2.jsonl
+  full          -> data/ticket_cases (see above) + evals/nersc_qa.v2.jsonl
 
 Flow profiles:
   lang_base_gptoss         -> cug_lang_base_gptoss
@@ -269,7 +269,7 @@ start_epoch="$(date +%s)"
 start_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if [[ "${FLOW_NAME}" == *"chroma"* && -n "${AGGREGATE_MANIFEST}" && ! -f "${AGGREGATE_MANIFEST}" ]]; then
-  echo "ERROR: aggregate manifest not found: ${AGGREGATE_MANIFEST}" >&2
+  echo "ERROR: aggregate manifest not found: ${AGGREGATE_MANIFEST} (build one with scripts/build_chroma_aggregate.py and pass --aggregate-manifest)" >&2
   exit 2
 fi
 

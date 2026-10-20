@@ -1,5 +1,0 @@
-# Source list for scripts/render_cug_paper_table.sh
-# Format per line: runs_dir::judgments_dir
-
-results/cug_m2_canonical::results/cug_m2_canonical/judgments
-results/cug_m4::results/cug_m4/judgments

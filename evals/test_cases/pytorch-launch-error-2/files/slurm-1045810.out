@@ -16,14 +16,14 @@
 2: [rank0]:[W530 16:07:23.695433335 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 0]  using GPU 0 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
 3: [rank7]:[W530 16:07:23.245183874 ProcessGroupNCCL.cpp:4561] [PG ID 0 PG GUID 0 Rank 7]  using GPU 3 to perform barrier as devices used by this process are currently unknown. This can potentially cause a hang if this rank to GPU mapping is incorrect. Specify device_ids in barrier() to force use of a particular device, or call init_process_group() with a device_id.
 2: [rank0]: Traceback (most recent call last):
-2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank0]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 2: [rank0]:     main()
-2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+2: [rank0]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216, in main
 2: [rank0]:     training_function(config, args)
-2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank0]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 2: [rank0]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
 2: [rank0]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2: [rank0]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: [rank0]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
 2: [rank0]:     with accelerator.main_process_first():
 2: [rank0]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 2: [rank0]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib
@@ -58,23 +58,23 @@
 2: [rank0]: Last error:
 2: [rank0]: Duplicate GPU detected : rank 0 and rank 4 both on CUDA device 3000
 2: [rank3]: Traceback (most recent call last):
-2: [rank3]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank3]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 2: [rank3]:     main()
-2: [rank3]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+2: [rank3]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216, in main
 2: [rank3]:     training_function(config, args)
-2: [rank3]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank3]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 2: [rank3]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
 2: [rank3]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2: [rank3]:   File "/global/u2/s/
+2: [rank3]:   File "/global/homes/u/
 3: [rank4]: Traceback (most recent call last):
-3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank4]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 3: [rank4]:     main()
-3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank4]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216, in main
 3: [rank4]:     training_function(config, args)
-3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank4]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 3: [rank4]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
 3: [rank4]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-3: [rank4]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+3: [rank4]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
 3: [rank4]:     with accelerator.main_process_first():
 3: [rank4]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 3: [rank4]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib
@@ -112,13 +112,13 @@
 3: [rank4]: Last error:
 3: [rank4]: Duplicate GPU detected : rank 4 and rank 0 both on CUDA device 3000
 3: [rank5]: Traceback (most recent call last):
-3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank5]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 3: [rank5]:     main()
-3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank5]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216, in main
 3: [rank5]:     training_function(config, args)
-3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank5]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 3: [rank5]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, bat
-2: sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: user/tests/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
 2: [rank3]:     with accelerator.main_process_first():
 2: [rank3]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 2: [rank3]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
@@ -155,15 +155,15 @@
 2: [rank3]: Last error:
 2: [rank3]: Duplicate GPU detected : rank 3 and rank 7 both on CUDA device c1000
 2: [rank2]: Traceback (most recent call last):
-2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank2]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 2: [rank2]:     main()
-2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216
+2: [rank2]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216
 2: , in main
 2: [rank2]:     training_function(config, args)
-2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank2]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 2: [rank2]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
 2: [rank2]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2: [rank2]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: [rank2]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
 2: [rank2]:     with accelerator.main_process_first():
 2: [rank2]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 2: [rank2]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
@@ -174,7 +174,7 @@
 2: [rank
 3: ch_size)
 3: [rank5]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-3: [rank5]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+3: [rank5]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
 3: [rank5]:     with accelerator.main_process_first():
 3: [rank5]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 3: [rank5]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
@@ -211,15 +211,15 @@
 3: [rank5]: Last error:
 3: [rank5]: Duplicate GPU detected : rank 5 and rank 1 both on CUDA device 41000
 3: [rank6]: Traceback (most recent call last):
-3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank6]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 3: [rank6]:     mai
 3: n()
-3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank6]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216, in main
 3: [rank6]:     training_function(config, args)
-3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank6]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 3: [rank6]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
 3: [rank6]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-3: [rank6]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+3: [rank6]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
 3: [rank6]:     with accelerator.main_process_first():
 3: [rank6]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 3: [rank6]:   File "/global/common/software/nersc9/pytorch/2.6.0/lib/python3.12/contextlib.py", line 137, in __enter__
@@ -255,14 +255,14 @@
 2: error:
 2: [rank2]: Duplicate GPU detected : rank 2 and rank 6 both on CUDA device 82000
 2: [rank1]: Traceback (most recent call last):
-2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+2: [rank1]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 2: [rank1]:     main()
-2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+2: [rank1]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216, in main
 2: [rank1]:     training_function(config, args)
-2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+2: [rank1]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 2: [rank1]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
 2: [rank1]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-2: [rank1]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
+2: [rank1]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 72, in get_dataloaders
 2: [rank1]:     with accelerator.main_process_first():
 2: [rank1]:          ^^^^^^^^^^^^^
 2: ^^^^^^^^^^^^^^^^^^^
@@ -311,14 +311,14 @@
 3: [rank6]: Last error:
 3: [rank6]: Duplicate GPU detected : rank 6 and rank 2 both on CUDA device 82000
 3: [rank7]: Traceback (most recent call last):
-3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
+3: [rank7]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 220, in <module>
 3: [rank7]:     main()
-3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 216, in main
+3: [rank7]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 216, in main
 3: [rank7]:     training_function(config, args)
-3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
+3: [rank7]:   File "/global/homes/u/user/tests/pytorch-launch-error-2/nlp_example.py", line 143, in training_function
 3: [rank7]:     train_dataloader, eval_dataloader = get_dataloaders(accelerator, batch_size)
 3: [rank7]:                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-3: [rank7]:   File "/global/u2/s/sfarrell/WorkAreas/ai-agents/agents-test-cases/pytorch-launch-error-2
+3: [rank7]:   File "/global/homes/u/user/tests/pytorch-launch-error-2
 3: /nlp_example.py", line 72, in get_dataloaders
 3: [rank7]:     with accelerator.main_process_first():
 3: [rank7]:          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
