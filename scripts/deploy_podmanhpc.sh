@@ -7,6 +7,7 @@
 # 1. Make sure you have a .env file in the project root with required environment variables:
 #    - ATHOS_WORKSPACE (e.g., $(pwd) or ${SCRATCH}/athos/workspace)
 #    - CBORG_API_URL, CBORG_API_KEY
+#    - PIPELINES_API_KEY (shared secret between Open WebUI and pipelines; e.g. `openssl rand -base64 24 | tr -d '/+='`)
 #    - TAVILY_API_KEY
 #    - GITHUB_TOKEN
 #    - CLEARML_API_ACCESS_KEY, CLEARML_API_SECRET_KEY, CLEARML_API_HOST
@@ -31,7 +32,7 @@ WEBUI_CONTAINER_NAME="athos-openwebui-ui"
 # PIPELINES_PORT="9099"
 WEBUI_PORT=19000
 PIPELINES_PORT=19099
-PIPELINES_API_KEY="M0i!XN3ybvd8"
+PIPELINES_API_KEY="${PIPELINES_API_KEY:?Set PIPELINES_API_KEY in .env}"
 ATHOS_PIPELINE_ENABLED_FLOWS=lang_agent,lang_hpc_consulting_agent
 #ATHOS_PIPELINE_ENABLED_FLOWS=lang_web_agent,lang_sfapi_agent,lang_docs_agent,lang_filesystem_agent,lang_docs_react_agent,clearml_agent
 BUILD_PIPELINES_IMAGE="${BUILD_PIPELINES_IMAGE:-true}"
@@ -95,7 +96,7 @@ podman-hpc run -d --pod ${POD_NAME} --name ${PIPELINES_CONTAINER_NAME} \
     -v "$(pwd)/config:/workspace/config:ro,Z" \
     -v "$(pwd)/data:/app/data:ro,Z" \
     -v "${ATHOS_WORKSPACE}:/workspace/athos:Z" \
-    -e PIPELINES_API_KEY=${PIPELINES_API_KEY} \
+    -e PIPELINES_API_KEY="${PIPELINES_API_KEY}" \
     -e PIPELINES_DIR=/app/pipelines \
     -e ATHOS_PIPELINE_CONFIG_PATH=/workspace/config/config.yaml \
     -e ATHOS_PIPELINE_ENABLED_FLOWS=${ATHOS_PIPELINE_ENABLED_FLOWS} \
