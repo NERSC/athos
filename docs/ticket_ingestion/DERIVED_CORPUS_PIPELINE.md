@@ -1,7 +1,6 @@
 # Derived Ticket Corpus Pipeline
 
-This documents the current derived-ticket retrieval pipeline implemented from
-[`DERIVED_CORPUS_PLAN.md`](./DERIVED_CORPUS_PLAN.md).
+This documents the current derived-ticket retrieval pipeline.
 
 ## Outputs
 
