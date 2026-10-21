@@ -203,6 +203,9 @@ python evals/import_runs.py \
   --dataset-id hpc_troubleshooting_v1
 ```
 
+To generate external-run JSONL with Claude Code or Codex, see
+[`docs/evals/external_agents.md`](../docs/evals/external_agents.md).
+
 Required fields per record:
 - `case_id`
 - `agent_system`
