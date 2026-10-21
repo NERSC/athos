@@ -7,6 +7,7 @@ name = "athos"
 version = "0.1.0"
 description = "ATHOS - Agentic HPC support framework"
 authors = [{name = "NERSC"}]
+license = {file = "LICENSE.txt"}
 requires-python = ">=3.10"
 dependencies = [
     "openai>=1.0.0,<2.0.0",
