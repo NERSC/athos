@@ -9,6 +9,17 @@ from athos.tools.servicenow_mcp.utils.config import (
 )
 
 
+def _tool_text(tool, param):
+    """Return a tool's description plus one parameter's description.
+
+    Older fastmcp releases (e.g. 3.0.2) keep a docstring's Args: section in the
+    tool description, while newer ones (e.g. 3.4) move each entry into the
+    parameter description.
+    """
+    param_description = tool.parameters["properties"][param].get("description") or ""
+    return f"{tool.description}\n{param_description}"
+
+
 @pytest.mark.asyncio
 async def test_read_only_mode_disables_write_tools():
     auth_cfg = AuthConfig(
@@ -47,9 +58,8 @@ async def test_read_only_mode_disables_write_tools():
 
     incident_tool = tools_by_name["list_incidents"]
     assert incident_tool.parameters["properties"]["sort"]["default"] == "created_desc"
-    incident_params = incident_tool.parameters["properties"]
-    assert "Do not pass encoded queries" in incident_params["query"]["description"]
-    assert "list_groups" in incident_params["assignment_group"]["description"]
+    assert "Do not pass encoded queries" in _tool_text(incident_tool, "query")
+    assert "list_groups" in _tool_text(incident_tool, "assignment_group")
 
     group_tool = tools_by_name["list_groups"]
     assert group_tool.parameters["properties"]["active"]["default"] is True
