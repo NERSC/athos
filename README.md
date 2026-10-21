@@ -260,7 +260,7 @@ all that is required to extend the available tooling.
 
 ## License and notices
 
-ATHOS is released under a modified BSD license; see [`license.txt`](license.txt).
+ATHOS is released under a modified BSD license; see [`LICENSE.txt`](LICENSE.txt).
 
 ### Copyright Notice
 
