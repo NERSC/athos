@@ -6,7 +6,7 @@ This document defines a scalable evaluation workflow for ATHOS and external agen
 - Support many configs, repeated runs, and asynchronous execution over time.
 - Keep raw execution outputs immutable and auditable.
 - Decouple execution from judging/scoring.
-- Allow non-ATHOS systems (e.g., Codex, human baselines) to submit compatible outputs.
+- Allow non-ATHOS systems (e.g., Codex, Claude Code, human baselines) to submit compatible outputs.
 
 ## Storage Model
 
@@ -17,7 +17,7 @@ Directory contract:
 `results/<experiment_id>/<agent_system>/<config_id>/<dataset_id>/<case_id>/<run_index>/run.json`
 
 Where:
-- `experiment_id`: campaign grouping (e.g., `cug2026_main`).
+- `experiment_id`: campaign grouping (e.g., `my_experiment`).
 - `agent_system`: `athos`, `codex`, `human`, etc.
 - `config_id`: deterministic ID for model/flow/prompt/tooling config.
 - `dataset_id`: source dataset namespace (e.g., `test_cases`, `simple_qa`).
@@ -50,7 +50,7 @@ Cases should have stable IDs and versioning:
 {
   "schema_version": "athos.run.v1",
   "run_id": "uuid",
-  "experiment_id": "cug2026_main",
+  "experiment_id": "my_experiment",
   "dataset_id": "hpc_troubleshooting_v1",
   "dataset_version": "2026-02-14",
   "case_id": "sbatch-qos-error",
@@ -58,7 +58,7 @@ Cases should have stable IDs and versioning:
   "agent_system": "athos",
   "agent_version": "git:cef7f764a02b9ef0b6f8bd3bfa8fde82c1a15ffd",
   "config_id": "lang_chat__cborg_coder__abc12345",
-  "config_ref": "config/paper/lang_chat_baseline.yaml",
+  "config_ref": "config/config.yaml",
   "execution": {
     "started_at_utc": "2026-02-14T12:00:00Z",
     "finished_at_utc": "2026-02-14T12:00:13Z",
@@ -83,8 +83,8 @@ Cases should have stable IDs and versioning:
     "tool_calls": []
   },
   "provenance": {
-    "runner": "athos-eval generate",
-    "command": "athos-eval generate ...",
+    "runner": "evals/run_evaluations.py",
+    "command": "python evals/run_evaluations.py ...",
     "hostname": "perlmutter",
     "git_sha": "cef7f764a02b9ef0b6f8bd3bfa8fde82c1a15ffd",
     "env_fingerprint": "sha256:..."
@@ -142,72 +142,21 @@ Recommended grouping keys:
 - `run_id`: UUIDv4.
 - `score_id`: UUIDv4.
 
-## Migration Plan from Current Script
+## Tools
 
-1. Make `evals/run_evaluations.py` canonical-output-first (`run.json` only).
-2. Add a scorer command that reads run files and writes judgments.
-3. Keep summaries as a separate derived report (`evals/summarize_results.py`).
+| Step | Tool | Notes |
+| --- | --- | --- |
+| Generate runs | `evals/run_evaluations.py` | Writes one immutable `run.json` per attempt; use `--run-count` / `--run-start` for repeats. |
+| Import external runs | `evals/import_runs.py` | Normalizes JSONL/JSON from other systems into the same layout. Required: `case_id`, `agent_system`, `config_id`, and either `response.output_text` or a non-success status. Invalid records are rejected with explicit errors. |
+| Score runs | `evals/score_runs.py` | Reads run files (`--runs-dir` or `--runs-manifest`) and appends judgments (`athos.judgment.v1`). Re-scoring with another judge writes a separate file. |
+| Summarize | `evals/summarize_results.py` | Joins runs and judgments; aggregates by experiment, agent system, config and dataset, with variance metrics. |
 
-## Current Status (2026-02-19)
+Wrapper scripts: `scripts/run_evals.sh` (execution only),
+`scripts/run_test_evals.sh` (end-to-end smoke test) and `scripts/run_cug_eval.sh`
+(run, score and summarize with the CUG paper profiles).
+`scripts/run_claude_code_eval.py` and `scripts/run_codex_eval.py` run external
+coding agents on the same cases and emit JSONL for `evals/import_runs.py`.
 
-- Phase 1: Implemented with immutable canonical write behavior by default.
-- Phase 2: Implemented (`evals/score_runs.py`).
-- Phase 3: Implemented (`evals/import_runs.py`).
-- Phase 4: Implemented (`evals/summarize_results.py`).
-
-## Implementation Plan (Detailed)
-
-### Phase 1: Canonical Execution Output
-
-Extend `evals/run_evaluations.py` with:
-- `--experiment-id <str>`: required when `--output-dir` is set.
-- `--agent-system <str>`: default `athos`.
-- `--output-dir <path>`: enables canonical per-run writes.
-- `--run-count <int>`: default `1`; emits `run_index = K..K+N-1`.
-- `--run-start <int>`: default `0`; starting `run_index`.
-
-Behavior:
-- Write one `run.json` for each `(flow, dataset, case, run_index)`.
-
-Acceptance checks:
-- Existing integration tests for `evals/run_evaluations.py` still pass.
-- Re-running later with higher `--run-start` writes new run directories without mutating prior `run.json`.
-
-### Phase 2: Separate Scoring Command
-
-Add `evals/score_runs.py`:
-- Input: run files discovered under `--runs-dir` or listed via `--runs-manifest`.
-- Options: `--judge-model`, `--judge-prompt-version`, `--judge-id`, `--output`.
-- Output: append-only judgments JSONL (`athos.judgment.v1`).
-
-Acceptance checks:
-- Scoring succeeds against both ATHOS-generated and imported run files.
-- Re-scoring identical runs with a different judge prompt/model produces a separate judgments file.
-- Judge metadata (`judge_id`, `judge_prompt_version`) is always populated.
-
-### Phase 3: External Run Import
-
-Add `evals/import_runs.py`:
-- Input: JSONL/JSON with external system outputs.
-- Required fields: `case_id`, `agent_system`, `config_id`, and either `response.output_text` or non-success status.
-- Output: normalized canonical `run.json` files under v2 directory layout.
-
-Acceptance checks:
-- Invalid records are rejected with explicit validation errors.
-- Valid external records score correctly with `score_runs.py`.
-
-### Phase 4: Derived Summaries
-
-Add `evals/summarize_results.py`:
-- Join canonical runs and judgments.
-- Emit aggregate tables by `experiment_id`, `agent_system`, `config_id`, `dataset_id`.
-- Include variance metrics (`mean`, `stddev`, and confidence interval where sample count permits).
-
-Acceptance checks:
-- Summary values match direct recomputation from raw records.
-- For legacy-compatible runs, aggregate score/pass outputs match current script within tolerance.
-
-## Legacy Inline Scoring
-
-Inline scoring in `evals/run_evaluations.py` has been removed.
-Scoring is now performed only via `evals/score_runs.py`.
+Runs are never modified after being written. Inline scoring in
+`evals/run_evaluations.py` has been removed; scoring happens only through
+`evals/score_runs.py`.

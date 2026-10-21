@@ -233,9 +233,9 @@ def test_filter_canonicalizes_watchlist_display_names(tmp_path: Path, monkeypatc
         contact_type="Email",
         local_paths=[],
     )
-    payload["incident_fields"]["watch_list"] = "Bailey, Stephen (sbailey)"
-    payload["incident_fields"]["u_username_watchlist"] = "Bailey, Stephen (sbailey)"
-    payload["incident_fields"]["u_itil_watch_list"] = "Bagwell, Clayton (cbagwell), Gerhardt, Lisa (lgerhard)"
+    payload["incident_fields"]["watch_list"] = "Roe, Richard (rroe)"
+    payload["incident_fields"]["u_username_watchlist"] = "Roe, Richard (rroe)"
+    payload["incident_fields"]["u_itil_watch_list"] = "Smith, Alex (asmith), Jones, Pat (pjones)"
 
     incident_json = incident_dir / "selected.json"
     incident_json.write_text(json.dumps(payload), encoding="utf-8")
@@ -261,9 +261,9 @@ def test_filter_canonicalizes_watchlist_display_names(tmp_path: Path, monkeypatc
     fields = selected_payload["incident_fields"]
     assert fields["watch_list"].startswith("USER_")
     assert fields["u_username_watchlist"] == fields["watch_list"]
-    assert "Bailey" not in fields["watch_list"]
-    assert "Clayton" not in fields["u_itil_watch_list"]
-    assert "Lisa" not in fields["u_itil_watch_list"]
+    assert "Roe" not in fields["watch_list"]
+    assert "Alex" not in fields["u_itil_watch_list"]
+    assert "Pat" not in fields["u_itil_watch_list"]
 
 
 def test_filter_fails_on_missing_attachment_by_default(tmp_path: Path, monkeypatch):
