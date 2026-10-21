@@ -25,7 +25,7 @@ dependencies = [
     "anyio>=4,<5",
     "PyYAML",
     "matplotlib",
-    "fastmcp>=2.10.6",
+    "fastmcp>=3.0,<4",
     "authlib",
     "ipykernel",
     "uv",
@@ -34,7 +34,9 @@ dependencies = [
     "langchain-openai~=1.0.0",
     "langchain-mcp-adapters==0.1.14",
     "langchain-community~=0.4",
-    "langgraph~=1.0.0",
+    "langgraph>=1.0.9,<1.1",
+    "langgraph-prebuilt==1.0.8",  # newer prebuilt imports APIs missing from langgraph 1.0.x
+    "langgraph-checkpoint>=4.0,<4.1",  # 4.1+ requires a newer langchain-core than ~=1.0
     "langchain-tavily",
     "chromadb~=1.5.0",
     "chroma-mcp",

@@ -47,8 +47,9 @@ async def test_read_only_mode_disables_write_tools():
 
     incident_tool = tools_by_name["list_incidents"]
     assert incident_tool.parameters["properties"]["sort"]["default"] == "created_desc"
-    assert "Do not pass encoded queries" in incident_tool.description
-    assert "list_groups" in incident_tool.description
+    incident_params = incident_tool.parameters["properties"]
+    assert "Do not pass encoded queries" in incident_params["query"]["description"]
+    assert "list_groups" in incident_params["assignment_group"]["description"]
 
     group_tool = tools_by_name["list_groups"]
     assert group_tool.parameters["properties"]["active"]["default"] is True
