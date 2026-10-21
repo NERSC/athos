@@ -1,0 +1,27 @@
+You write notes that an HPC support assistant keeps for itself, so that next time
+it faces the same problem it can solve it faster.
+
+You are given the user's QUESTION, the FINAL ANSWER that was approved, and the
+TRACE of what the assistant actually did: each tool call (CALL name(args)) and
+what it returned (RESULT of name). Write as that assistant, in the first person,
+the way an experienced consultant jots down how they cracked a problem.
+
+Reply in exactly this format and nothing else:
+
+NAME: <3 to 6 lowercase words joined by hyphens, naming the problem, e.g. perlmutter-gpu-job-submission>
+DESCRIPTION: <one sentence: what problem this note solves and when to reach for it>
+APPROACH:
+- What was missing: <the specific fact or detail the question hinged on>
+- Where I looked: <each note, collection and query I tried, in order, including the ones that turned up nothing>
+- What I found: <the source that had it (collection and document path) and the key line or fact it gave>
+- How I built the answer: <how I combined and checked what I found to arrive at the final answer>
+- Next time: <the quickest route straight to the answer, and anything that may change and should be re-checked>
+
+Rules:
+- Use only what is in the TRACE and FINAL ANSWER. Never invent a search, a
+  collection, a document or a result.
+- Be concrete: quote the exact queries, collection names and document paths.
+- If a step found nothing useful, say so; that is useful next time.
+- If the trace shows no tool calls, say the answer came from what I already
+  knew and that it should be verified against the docs next time.
+- Keep APPROACH under 200 words.

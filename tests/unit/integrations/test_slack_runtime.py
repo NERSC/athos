@@ -1,29 +1,19 @@
-from unittest.mock import Mock
-
 from athos.integrations.slack.runtime import (
-    REQUEST_FAILURE_TEXT,
-    SlackMessageRequest,
+    PENDING_REACTION,
     SlackMessageResponse,
-    _handle_message_request,
     _post_response,
+    _process_interaction,
+    _set_pending_reaction,
 )
 
 
 class FakeWebClient:
     def __init__(self):
         self.calls = []
-        self.events = []
 
     def chat_postMessage(self, **kwargs):
         self.calls.append(kwargs)
-        self.events.append("post")
         return {"ts": "123.456"}
-
-    def reactions_add(self, **kwargs):
-        self.events.append(("reaction_add", kwargs))
-
-    def reactions_remove(self, **kwargs):
-        self.events.append(("reaction_remove", kwargs))
 
 
 def test_runtime_drops_invalid_long_blocks_and_delivers_the_answer():
@@ -41,53 +31,81 @@ def test_runtime_drops_invalid_long_blocks_and_delivers_the_answer():
     assert client.calls[0]["thread_ts"] == "123.000"
 
 
-def test_runtime_logs_handler_errors_without_exposing_details(monkeypatch):
-    class FailingAdapter:
-        def handle_question(self, request):
-            raise RuntimeError("credential details must not reach Slack")
+class ReactionClient:
+    def __init__(self, fail=False):
+        self.calls = []
+        self.fail = fail
 
-    client = FakeWebClient()
-    request = SlackMessageRequest("C123", "123.000", "123.001", "U123", "help")
-    log_exception = Mock()
-    monkeypatch.setattr("athos.integrations.slack.runtime.logger.exception", log_exception)
+    def reactions_add(self, **kwargs):
+        self.calls.append(("add", kwargs))
+        if self.fail:
+            raise RuntimeError("already_reacted")
 
-    _handle_message_request(FailingAdapter(), client, request)
-
-    log_exception.assert_called_once_with("Failed to handle Slack message request")
-    assert client.calls[0]["text"] == REQUEST_FAILURE_TEXT
-    assert [event[0] if isinstance(event, tuple) else event for event in client.events] == [
-        "reaction_add",
-        "post",
-        "reaction_remove",
-    ]
+    def reactions_remove(self, **kwargs):
+        self.calls.append(("remove", kwargs))
 
 
-def test_runtime_marks_a_question_as_processing_until_the_reply_is_posted():
-    class Adapter:
-        def handle_question(self, request):
-            return SlackMessageResponse("answer")
+def test_pending_reaction_is_added_and_removed_on_the_question():
+    client = ReactionClient()
 
-    client = FakeWebClient()
-    request = SlackMessageRequest("C123", "123.000", "123.001", "U123", "help")
+    _set_pending_reaction(client, "C123", "100.001", add=True)
+    _set_pending_reaction(client, "C123", "100.001", add=False)
 
-    _handle_message_request(Adapter(), client, request)
+    expected = {"channel": "C123", "name": PENDING_REACTION, "timestamp": "100.001"}
+    assert client.calls == [("add", expected), ("remove", expected)]
 
-    assert client.events == [
-        (
-            "reaction_add",
-            {
-                "channel": "C123",
-                "name": "hourglass_flowing_sand",
-                "timestamp": "123.001",
-            },
-        ),
-        "post",
-        (
-            "reaction_remove",
-            {
-                "channel": "C123",
-                "name": "hourglass_flowing_sand",
-                "timestamp": "123.001",
-            },
-        ),
-    ]
+
+def test_pending_reaction_skips_slash_commands_and_ignores_slack_errors():
+    client = ReactionClient(fail=True)
+
+    _set_pending_reaction(client, "C123", None, add=True)
+    _set_pending_reaction(client, "C123", "100.001", add=True)
+
+    assert [kind for kind, _ in client.calls] == ["add"]
+
+
+class InteractionClient(ReactionClient):
+    def chat_update(self, **kwargs):
+        self.calls.append(("update", kwargs))
+
+
+class SlowActionAdapter:
+    pending_actions = frozenset({"take_notes"})
+
+    def __init__(self, client):
+        self.client = client
+
+    def handle_interaction(self, request):
+        # The reaction must already be on the message while the action runs.
+        assert [kind for kind, _ in self.client.calls] == ["add"]
+        return None
+
+
+def _block_action(action_id):
+    return {
+        "type": "block_actions",
+        "actions": [{"action_id": action_id, "value": "{}"}],
+        "channel": {"id": "C123"},
+        "container": {"message_ts": "200.002"},
+        "message": {"ts": "200.002", "thread_ts": "100.000"},
+        "user": {"id": "U1"},
+    }
+
+
+def test_slow_action_shows_pending_reaction_on_clicked_message():
+    client = InteractionClient()
+
+    _process_interaction(SlowActionAdapter(client), client, _block_action("take_notes"))
+
+    expected = {"channel": "C123", "name": PENDING_REACTION, "timestamp": "200.002"}
+    assert client.calls == [("add", expected), ("remove", expected)]
+
+
+def test_fast_action_does_not_show_pending_reaction():
+    client = InteractionClient()
+    adapter = SlowActionAdapter(client)
+    adapter.handle_interaction = lambda request: None
+
+    _process_interaction(adapter, client, _block_action("feedback_up"))
+
+    assert client.calls == []

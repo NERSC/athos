@@ -24,18 +24,18 @@ models:
     max_tokens: 2048
 
   mistral_large_3:
-    description: "Mistral Large 3 via AmSC i2 API"
+    description: "Mistral Large 3 via CBORG"
     model_id: "mistral-large-3"
-    api_key: "${AMSC_I2_API_KEY}"
-    api_base: "${AMSC_I2_API_URL}"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
     temperature: 0.0
     max_tokens: 2048
 
   llama_4_maverick:
-    description: "Llama 4 Maverick via AmSC i2 API"
-    model_id: "llama-4-maverick"
-    api_key: "${AMSC_I2_API_KEY}"
-    api_base: "${AMSC_I2_API_URL}"
+    description: "Llama 4 Maverick via CBORG"
+    model_id: "amazon/llama-4-maverick"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
     temperature: 0.0
     max_tokens: 2048
 
@@ -132,6 +132,27 @@ tools:
     callable_name: "chroma_get_documents"
     module_path: "athos.tools.chroma"
     is_class: false
+  note_taker:
+    description: "Saves and updates notes as skill folders (notes/<name>/note.md)"
+    callable_name: "note_taker"
+    module_path: "athos.tools.note_taker"
+    parameters: {}
+    is_class: false
+    framework: "langgraph"
+  list_notes:
+    description: "Lists saved notes (name and description) matching a query"
+    callable_name: "list_notes"
+    module_path: "athos.tools.note_taker"
+    parameters: {}
+    is_class: false
+    framework: "langgraph"
+  read_note:
+    description: "Loads one saved note's note.md"
+    callable_name: "read_note"
+    module_path: "athos.tools.note_taker"
+    parameters: {}
+    is_class: false
+    framework: "langgraph"
 
 flows:
   cug_lang_base_gptoss:
@@ -175,8 +196,16 @@ flows:
     type: "langchain_agent"
     model: "gptoss"
     mcp_servers: ["chroma_ro_mcp"]
+    tools: ["list_notes", "read_note"]
     max_iterations: 24
-    system_prompt_path: "../prompts/cug_lang_chroma_opt_system_prompt.txt"
+    system_prompt_path: "../prompts/cug_lang_chroma_notes_system_prompt.txt"
+
+  cug_note_writer_gptoss:
+    description: "Writes a note's name, description and approach from an answered run's trace (no tools)"
+    type: "langchain_agent"
+    model: "gptoss"
+    max_iterations: 4
+    system_prompt_path: "../prompts/note_writer_system_prompt.txt"
 
   cug_lang_chroma_sonnet_opt:
     description: "LangChain Chroma-retrieval optimized prompt on Claude Sonnet"
