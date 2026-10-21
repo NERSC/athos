@@ -291,7 +291,7 @@ artificial intelligence in the creation and maintenance of this project.
 #### Scope of usage
 
 AI tools have been used to assist in various stages of the development
-lifecycle, including Claude (Claude Code) and Codex.
+lifecycle, including Claude Code and Codex.
 
 #### Human oversight and verification
 

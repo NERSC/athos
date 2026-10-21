@@ -6,7 +6,7 @@ Laboratory (subject to receipt of any required approvals from the U.S. Dept. of
 Energy). All rights reserved.
 
 Portions of this codebase were generated using artificial intelligence tools,
-specifically Claude (Claude Code) and Codex. All AI-generated code has been
+specifically Claude Code and Codex. All AI-generated code has been
 manually reviewed, tested, and integrated by human software developers to
 ensure quality and security.
 
