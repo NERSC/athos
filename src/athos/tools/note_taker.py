@@ -1,11 +1,15 @@
 """Note tools for LangGraph agent flows, stored as agent-style skills.
 
-Each note is a folder under the notes directory holding one note.md:
-frontmatter with a `name` and a `description` of when the note applies,
-then the question, the answer and the approach that produced it.
+Each note is a folder under the notes directory holding one note.md. Its
+frontmatter holds the searchable fields: `name`, a `description` of when the
+note applies, `category`, `status`, `confidence`, and lists of `tags`, exact
+`errors`, `job_ids`, `incidents` and `sources` (JSON arrays, which are also
+valid YAML). The body has the Question, Recommendation, What was tried and
+Approach sections. Notes written before these fields existed (with an Answer
+section) still load; they gain the new fields when next updated.
 
 - note_taker: save a new note or update an existing one.
-- list_notes: find notes by name and description.
+- list_notes: find notes by text, category, status or tag.
 - read_note: load one note's note.md.
 - take_thread_note: tell the front end the user wants the conversation
   noted. The Slack bot then hands the whole thread to a note-writer flow,
@@ -22,28 +26,49 @@ storage on the host, e.g. $ATHOS_WORKSPACE/notes in a container), else
 from __future__ import annotations
 
 import fcntl
+import json
 import os
 import re
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, List, Literal, Optional
+from typing import Iterator, List, Literal, Optional, get_args
 
 from langchain_core.tools import tool
 
 # src/athos/tools/note_taker.py -> repo root
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
+Category = Literal[
+    "job-failure",
+    "job-submission",
+    "qos-account",
+    "modules-software",
+    "filesystem-quota",
+    "data-transfer",
+    "performance",
+    "licensing",
+    "access-login",
+    "other",
+]
+Status = Literal["resolved", "waiting-on-user", "needs-escalation"]
+Confidence = Literal["high", "medium", "low"]
+CATEGORIES = get_args(Category)
+STATUSES = get_args(Status)
+CONFIDENCES = get_args(Confidence)
+
 _NOTE_FILE = "note.md"
 _NAME_MAX = 64
 _DESCRIPTION_MAX = 1024
+_ITEM_MAX = 500
 _NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _FRONTMATTER_RE = re.compile(r"\A---\n(.*?)\n---\n(.*)\Z", re.DOTALL)
-# Answer is greedy so a "## Approach" heading inside it cannot end it early.
-_BODY_RE = re.compile(
-    r"\A\s*## Question\n(.*?)\n## Answer\n(.*)\n## Approach\n(.*?)\s*\Z", re.DOTALL
+# "Answer" is the Recommendation heading of notes from before the structured format.
+_SECTION_RE = re.compile(
+    r"^## (Question|Recommendation|Answer|What was tried|Approach)[ \t]*$", re.MULTILINE
 )
+_LIST_FIELDS = ("tags", "errors", "job_ids", "incidents", "sources")
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = frozenset(
     "a an and are as at be by can could do does for from how i if in is it me my "
@@ -65,9 +90,24 @@ class _Note:
     name: str
     description: str
     question: str = ""
-    answer: str = ""
+    recommendation: str = ""
+    tried: str = ""
     approach: str = ""
+    category: str = ""
+    status: str = ""
+    confidence: str = ""
+    tags: List[str] = field(default_factory=list)
+    errors: List[str] = field(default_factory=list)
+    job_ids: List[str] = field(default_factory=list)
+    incidents: List[str] = field(default_factory=list)
+    sources: List[str] = field(default_factory=list)
     created: str = ""
+
+    def search_text(self) -> str:
+        return " ".join(
+            [self.name, self.description, self.question, self.category]
+            + self.tags + self.errors + self.job_ids + self.incidents
+        )
 
 
 def _slugify(text: str) -> str:
@@ -75,8 +115,62 @@ def _slugify(text: str) -> str:
     return slug[:_NAME_MAX].rstrip("-")
 
 
-def _one_line(text: str) -> str:
-    return " ".join(text.split())[:_DESCRIPTION_MAX]
+def _one_line(text: str, limit: int = _DESCRIPTION_MAX) -> str:
+    return " ".join(text.split())[:limit]
+
+
+def _clean_list(items: Optional[List[str]], *, slug: bool = False) -> List[str]:
+    """One-line, non-empty, de-duplicated items (slugs for tags)."""
+    cleaned: List[str] = []
+    for item in items or []:
+        value = _slugify(item) if slug else _one_line(str(item), _ITEM_MAX)
+        if value and value not in cleaned:
+            cleaned.append(value)
+    return cleaned
+
+
+def _parse_list(value: str) -> List[str]:
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return [part.strip() for part in value.strip("[]").split(",") if part.strip()]
+    return [str(item) for item in parsed] if isinstance(parsed, list) else [str(parsed)]
+
+
+def _sections(body: str) -> dict[str, str]:
+    """Split the body into its sections.
+
+    Question is the first heading, Approach the last, so a heading-like line
+    inside the recommendation (say, in a pasted file) cannot end it early.
+    """
+    matches = list(_SECTION_RE.finditer(body))
+    question = next((m for m in matches if m.group(1) == "Question"), None)
+    if question is None:
+        return {}
+    later = [m for m in matches if m.start() > question.start()]
+    recommendation = next((m for m in later if m.group(1) in ("Recommendation", "Answer")), None)
+    if recommendation is None:
+        return {}
+    approach = next(
+        (m for m in reversed(later) if m.group(1) == "Approach" and m.start() > recommendation.start()),
+        None,
+    )
+    end = approach.start() if approach else len(body)
+    tried = next(
+        (
+            m
+            for m in reversed(later)
+            if m.group(1) == "What was tried" and recommendation.start() < m.start() < end
+        ),
+        None,
+    )
+    used = [
+        (key, m)
+        for key, m in (("question", question), ("recommendation", recommendation), ("tried", tried), ("approach", approach))
+        if m
+    ]
+    ends = [m.start() for _, m in used[1:]] + [len(body)]
+    return {key: body[m.end() : end].strip() for (key, m), end in zip(used, ends)}
 
 
 def _parse(name: str, text: str) -> Optional[_Note]:
@@ -86,11 +180,17 @@ def _parse(name: str, text: str) -> Optional[_Note]:
     fields = dict(
         line.split(": ", 1) for line in match.group(1).splitlines() if ": " in line
     )
-    note = _Note(name, fields.get("description", ""), created=fields.get("created", ""))
-    body = _BODY_RE.match(match.group(2))
-    if body:
-        note.question, note.answer, note.approach = (p.strip() for p in body.groups())
-    return note
+    lists = {key: _parse_list(fields[key]) for key in _LIST_FIELDS if key in fields}
+    return _Note(
+        name,
+        fields.get("description", ""),
+        category=fields.get("category", ""),
+        status=fields.get("status", ""),
+        confidence=fields.get("confidence", ""),
+        created=fields.get("created", ""),
+        **lists,
+        **_sections(match.group(2)),
+    )
 
 
 def _load(root: Path) -> List[_Note]:
@@ -107,15 +207,23 @@ def _load(root: Path) -> List[_Note]:
 
 
 def _render(note: _Note, now: str) -> str:
+    lists = "".join(
+        f"{key}: {json.dumps(getattr(note, key), ensure_ascii=False)}\n" for key in _LIST_FIELDS
+    )
     return (
         "---\n"
         f"name: {note.name}\n"
         f"description: {_one_line(note.description)}\n"
+        f"category: {note.category}\n"
+        f"status: {note.status}\n"
+        f"confidence: {note.confidence}\n"
+        f"{lists}"
         f"created: {note.created or now}\n"
         f"updated: {now}\n"
         "---\n\n"
         f"## Question\n{note.question.strip()}\n\n"
-        f"## Answer\n{note.answer.strip()}\n\n"
+        f"## Recommendation\n{note.recommendation.strip()}\n\n"
+        f"## What was tried\n{note.tried.strip() or 'Nothing recorded.'}\n\n"
         f"## Approach\n{note.approach.strip()}\n"
     )
 
@@ -161,25 +269,32 @@ def _save(root: Path, note: _Note) -> None:
     _write_atomic(root / note.name / _NOTE_FILE, _render(note, now))
 
 
+def _labels(note: _Note) -> str:
+    return " | ".join(value for value in (note.category, note.status, note.confidence) if value)
+
+
 def _candidates_message(candidates: List[_Note]) -> str:
     lines = [
         "Similar note(s) already exist, so nothing was saved yet. Compare them with "
-        "the current question and your answer, then call note_taker again with the "
-        "same arguments plus one decision:",
+        "the current question and your recommendation, then call note_taker again "
+        "with the same arguments plus one decision:",
         "- decision='update', note_name=N: note N asks the same thing, but your "
-        "answer is more correct or complete. Your answer and note replace it, so "
-        "fold in anything from note N that is still correct.",
-        "- decision='no_change', note_name=N: note N asks the same thing and its "
-        "answer is already correct and complete.",
+        "recommendation is more correct or complete. Your entry replaces it, so "
+        "fold in anything from note N that is still correct (errors, job IDs, "
+        "sources, what was tried).",
+        "- decision='no_change', note_name=N: note N asks the same thing and is "
+        "already correct and complete.",
         "- decision='new': none of these asks the same thing.",
     ]
     for note in candidates:
         lines += [
             "",
-            f"[note_name={note.name}]",
+            f"[note_name={note.name}] {_labels(note)}",
             f"Description: {note.description}",
+            f"Errors: {', '.join(note.errors) or 'none'}",
             f"Question: {note.question}",
-            f"Answer: {note.answer}",
+            f"Recommendation: {note.recommendation}",
+            f"What was tried: {note.tried}",
             f"Approach: {note.approach}",
         ]
     return "\n".join(lines)
@@ -189,33 +304,53 @@ def _candidates_message(candidates: List[_Note]) -> str:
 def note_taker(
     name: str,
     description: str,
+    category: Category,
+    status: Status,
+    confidence: Confidence,
     question: str,
-    answer: str,
-    note: str,
+    recommendation: str,
+    approach: str,
+    what_was_tried: str = "",
+    tags: Optional[List[str]] = None,
+    errors: Optional[List[str]] = None,
+    job_ids: Optional[List[str]] = None,
+    incidents: Optional[List[str]] = None,
+    sources: Optional[List[str]] = None,
     decision: Optional[Literal["new", "update", "no_change"]] = None,
     note_name: Optional[str] = None,
 ) -> str:
-    """Save the user's question, your final answer and your approach as a reusable note.
+    """Save a solved (or partly solved) support problem as a structured, reusable note.
 
     Each note is stored like a skill: a folder named `name` holding a
-    note.md. Call this when your final answer is ready but before you send
-    it. Leave `decision` unset on the first call. If similar notes already
-    exist, nothing is saved and they are shown to you; compare, then call
-    again with a decision. After this tool confirms, reply to the user with
-    your final answer.
+    note.md. Leave `decision` unset on the first call. If similar notes
+    already exist, nothing is saved and they are shown to you; compare, then
+    call again with a decision.
 
     Args:
         name: Short folder name for the note: lowercase words joined by
             hyphens, e.g. "perlmutter-gpus-per-node" (max 64 characters).
         description: One sentence saying what the note covers and when to use
-            it, e.g. "How many GPUs a Perlmutter GPU node has; use for node
-            hardware questions." This is what list_notes shows later.
-        question: The user's question, as asked.
-        answer: The final answer you are about to give the user, in full.
-        note: A short reflection on how you solved it, in the form "For this
-            problem, I took this approach, because ...". Mention which
-            tools/collections you used, what worked or didn't, and why the
-            answer is justified.
+            it. This is what list_notes shows later.
+        category: The kind of problem: job-failure, job-submission,
+            qos-account, modules-software, filesystem-quota, data-transfer,
+            performance, licensing, access-login, or other.
+        status: resolved, waiting-on-user (needs something from the user), or
+            needs-escalation (needs staff action beyond consulting).
+        confidence: high (confirmed by a source or the user), medium (well
+            supported but unconfirmed), or low (a best guess).
+        question: The problem, as one self-contained question.
+        recommendation: The final recommendation, complete enough to act on.
+        approach: How it was solved: what was missing, inputs that were
+            needed but not available (e.g. job ID, Slurm output), where you
+            looked, what you found, and the quickest route next time.
+        what_was_tried: What the user or consultants already tried and what
+            happened, one item per line.
+        tags: Short lowercase search tags, e.g. ["perlmutter", "gpu", "sbatch"].
+        errors: Exact error texts, verbatim, e.g. ["QOSMaxWallDurationPerJobLimit"].
+        job_ids: Slurm job IDs mentioned.
+        incidents: ServiceNow incident numbers, e.g. ["INC0012345"].
+        sources: Sources cited: doc URLs or paths, Chroma collections and
+            documents, incidents, saved note names.
         decision: Only on a follow-up call after similar notes were shown:
             'update' to replace note `note_name` with this entry, 'no_change'
             if note `note_name` is already correct, or 'new' to save a
@@ -226,6 +361,22 @@ def note_taker(
     Returns:
         What was saved, or the similar notes to compare against.
     """
+    entry = _Note(
+        "",
+        description,
+        question=question,
+        recommendation=recommendation,
+        tried=what_was_tried,
+        approach=approach,
+        category=category,
+        status=status,
+        confidence=confidence,
+        tags=_clean_list(tags, slug=True),
+        errors=_clean_list(errors),
+        job_ids=_clean_list(job_ids),
+        incidents=_clean_list(incidents),
+        sources=_clean_list(sources),
+    )
     root = _notes_dir()
     root.mkdir(parents=True, exist_ok=True)
     with _locked(root):
@@ -250,11 +401,8 @@ def note_taker(
                     f"No changes made; note '{note_name}' already covers this. "
                     "Now send your final answer to the user."
                 )
-            old = names[note_name]
-            _save(
-                root,
-                _Note(note_name, description, question, answer, note, old.created),
-            )
+            entry.name, entry.created = note_name, names[note_name].created
+            _save(root, entry)
             return (
                 f"Updated note '{note_name}'. Now send your final answer to the user."
             )
@@ -271,40 +419,59 @@ def note_taker(
                 f"with decision='update', note_name='{slug}' if it asks the same "
                 "thing, or with a different name."
             )
-        _save(root, _Note(slug, description, question, answer, note))
+        entry.name = slug
+        _save(root, entry)
         return f"Saved as note '{slug}'. Now send your final answer to the user."
 
 
 @tool
-def list_notes(query: str = "") -> str:
-    """List saved notes (name and description) from earlier solved questions.
+def list_notes(
+    query: str = "",
+    category: Optional[Category] = None,
+    status: Optional[Status] = None,
+    tag: Optional[str] = None,
+) -> str:
+    """List saved notes from earlier support problems, best match first.
 
-    Call this before answering, with the user's question as `query`, to find
-    notes on the same or a related problem. Then call read_note with a
-    matching name to load its full answer and approach.
+    Call this before answering, with the user's question (or an exact error
+    text, job ID or incident number) as `query`, to find notes on the same
+    or a related problem. Then call read_note with a matching name to load
+    its recommendation and approach.
 
     Args:
-        query: Words to match against note names, descriptions and questions.
-            Leave empty to list notes by name.
+        query: Words to match against note names, descriptions, questions,
+            tags, error texts, job IDs and incidents. Leave empty to list
+            notes by name.
+        category: Only notes in this category, e.g. "qos-account".
+        status: Only notes with this status, e.g. "needs-escalation".
+        tag: Only notes carrying this tag, e.g. "perlmutter".
 
     Returns:
-        Matching notes as "- name: description" lines, best match first.
+        Matching notes as "- name [category | status | confidence]:
+        description" lines.
     """
     notes = _load(_notes_dir())
     if not notes:
         return "No notes saved yet."
+    tag_slug = _slugify(tag or "")
+    notes = [
+        n
+        for n in notes
+        if (not category or n.category == category)
+        and (not status or n.status == status)
+        and (not tag_slug or tag_slug in n.tags)
+    ]
     if query.strip():
-        scored = [
-            (_similarity(query, f"{n.name} {n.description} {n.question}"), n)
-            for n in notes
-        ]
+        scored = [(_similarity(query, n.search_text()), n) for n in notes]
         scored = [item for item in scored if item[0] > 0]
         scored.sort(key=lambda item: item[0], reverse=True)
         notes = [n for _, n in scored]
-        if not notes:
-            return f"No notes match '{query}'."
+    if not notes:
+        return "No notes match."
     shown = notes[:_MAX_LISTED]
-    lines = [f"- {n.name}: {n.description}" for n in shown]
+    lines = [
+        f"- {n.name}{f' [{_labels(n)}]' if _labels(n) else ''}: {n.description}" for n in shown
+    ]
     if len(notes) > len(shown):
         lines.append(
             f"({len(notes) - len(shown)} more; use a more specific query to narrow.)"
@@ -315,11 +482,12 @@ def list_notes(query: str = "") -> str:
 
 @tool
 def read_note(name: str) -> str:
-    """Load one saved note's note.md: its question, answer and approach.
+    """Load one saved note's note.md: its fields, question, recommendation and approach.
 
-    Use a note as a prior solution. If it asks the same thing and its answer
-    fully resolves the user's question, answer from it; otherwise fall back to
-    the other retrieval tools.
+    Use a note as a prior solution. If it asks the same thing and its
+    recommendation fully resolves the user's question, answer from it;
+    otherwise fall back to the other retrieval tools. Weigh its status and
+    confidence: a low-confidence or unresolved note is a lead, not an answer.
 
     Args:
         name: The note's name, as shown by list_notes.

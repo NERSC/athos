@@ -29,6 +29,7 @@ Flow profiles:
   lang_chroma_sonnet       -> cug_lang_chroma_sonnet
   lang_chroma_gptoss_opt   -> cug_lang_chroma_gptoss_opt
   lang_chroma_sonnet_opt   -> cug_lang_chroma_sonnet_opt
+  lang_chroma_glm_5.3_flash_opt   -> cug_lang_chroma_glm_5.3_flash_opt
   smol_chroma_gptoss       -> cug_smol_chroma_gptoss
   smol_chroma_sonnet       -> cug_smol_chroma_sonnet
   lang_filesystem_gptoss   -> cug_lang_filesystem_gptoss
@@ -116,6 +117,7 @@ resolve_flow_profile() {
     lang_chroma_sonnet) FLOW_NAME="cug_lang_chroma_sonnet" ;;
     lang_chroma_gptoss_opt) FLOW_NAME="cug_lang_chroma_gptoss_opt" ;;
     lang_chroma_sonnet_opt) FLOW_NAME="cug_lang_chroma_sonnet_opt" ;;
+    lang_chroma_glm_5.3_flash_opt) FLOW_NAME="cug_lang_chroma_glm_5.3_flash_opt" ;;
     smol_chroma_gptoss) FLOW_NAME="cug_smol_chroma_gptoss" ;;
     smol_chroma_sonnet) FLOW_NAME="cug_smol_chroma_sonnet" ;;
     lang_filesystem_gptoss) FLOW_NAME="cug_lang_filesystem_gptoss" ;;
