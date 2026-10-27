@@ -49,6 +49,11 @@ mcp_servers:
       "--client-type", "persistent",
       "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
+    # chroma_get_collection_info is disabled: upstream chroma-mcp returns raw
+    # numpy embeddings from collection.peek(), which fail JSON serialization
+    # (https://github.com/chroma-core/chroma-mcp/issues/43). Use
+    # chroma_get_collection_count / chroma_get_documents instead.
+    blocked_tools: ["chroma_get_collection_info"]
   chroma_ro_mcp:
     description: "Read-only ChromaDB MCP server for paper eval retrieval"
     mcp_type: "mcp_stdio"
@@ -57,13 +62,17 @@ mcp_servers:
       "--client-type", "persistent",
       "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
+    # chroma_get_collection_info is disabled: upstream chroma-mcp returns raw
+    # numpy embeddings from collection.peek(), which fail JSON serialization
+    # (https://github.com/chroma-core/chroma-mcp/issues/43). Use
+    # chroma_get_collection_count / chroma_get_documents instead.
     allowed_tools: [
       "chroma_list_collections",
-      "chroma_get_collection_info",
       "chroma_get_collection_count",
       "chroma_query_documents",
       "chroma_get_documents"
     ]
+    blocked_tools: ["chroma_get_collection_info"]
   filesystem_mcp:
     description: "Filesystem MCP server restricted to the paper eval bundle subtree"
     mcp_type: "mcp_stdio"

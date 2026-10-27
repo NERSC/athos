@@ -167,6 +167,12 @@ mcp_servers:
       "--client-type", "persistent",
       "--data-dir", "${ATHOS_WORKSPACE}/chroma"
     ]
+    # chroma_get_collection_info is disabled: upstream chroma-mcp returns raw
+    # numpy embeddings from collection.peek(), which fail JSON serialization
+    # (https://github.com/chroma-core/chroma-mcp/issues/43). Use
+    # chroma_get_collection_count / chroma_get_documents instead.
+    blocked_tools:
+      - "chroma_get_collection_info"
 
   consulting_chroma_ro_mcp:
     description: "Read-only ChromaDB MCP server for combined tickets, NERSC docs, and consulting docs retrieval"
@@ -176,13 +182,17 @@ mcp_servers:
       "--client-type", "persistent",
       "--data-dir", "data/chroma/aggregates/athos_eval_bundle_20260318_derived_tickets_v2"
     ]
+    # chroma_get_collection_info is disabled: upstream chroma-mcp returns raw
+    # numpy embeddings from collection.peek(), which fail JSON serialization
+    # (https://github.com/chroma-core/chroma-mcp/issues/43). Use
+    # chroma_get_collection_count / chroma_get_documents instead.
     allowed_tools:
       - "chroma_list_collections"
-      - "chroma_get_collection_info"
       - "chroma_get_collection_count"
       - "chroma_query_documents"
       - "chroma_get_documents"
     blocked_tools:
+      - "chroma_get_collection_info"
       - "chroma_create_collection"
       - "chroma_modify_collection"
       - "chroma_fork_collection"
