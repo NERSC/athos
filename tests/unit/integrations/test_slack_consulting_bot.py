@@ -177,6 +177,37 @@ def test_feedback_keeps_the_full_slack_message_and_valid_metadata(portal):
     assert json.loads(metadata)["session_id"] == "C123:171234.000100"
 
 
+def test_feedback_reuses_the_original_mrkdwn_blocks(portal):
+    answer = "*Heading*\n• item with <https://nersc.gov|a link> & more"
+    runner = FakeRunner(
+        SimpleNamespace(success=True, output=SimpleNamespace(content=answer, metadata={}))
+    )
+    adapter = make_adapter(runner, portal)
+    response = adapter.handle_question(
+        SlackMessageRequest("C123", "171234.000100", "171234.000200", "U123", "help")
+    )
+    value = response.blocks[1]["elements"][0]["value"]
+    # Slack echoes a lossy, entity-escaped fallback in message.text.
+    echoed = {"text": "Heading item with a link &amp; more", "blocks": response.blocks}
+
+    interaction = adapter.handle_interaction(
+        SlackInteractionRequest(
+            "C123",
+            "171234.000100",
+            "171234.000300",
+            "U123",
+            "feedback_up",
+            value,
+            context={"message": echoed},
+        )
+    )
+
+    blocks = interaction.replace_original.blocks
+    assert blocks[0] == response.blocks[0]
+    assert [block["type"] for block in blocks] == ["section", "context"]
+    assert interaction.replace_original.text == answer
+
+
 def test_consulting_adapter_returns_a_safe_message_when_the_flow_fails(portal):
     runner = FakeRunner(SimpleNamespace(success=False, output=None, error="credential details must not reach Slack"))
     adapter = make_adapter(runner, portal)
