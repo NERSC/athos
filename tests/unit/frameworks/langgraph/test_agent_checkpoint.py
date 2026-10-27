@@ -525,5 +525,55 @@ async def test_mcp_tool_filtering_defaults_to_all_tools(mock_model, athos_config
     ]
 
 
+@pytest.mark.asyncio
+async def test_mcp_tool_errors_returned_to_model(mock_model, athos_config):
+    """MCP tool failures should become error ToolMessages, not abort the run."""
+    from langchain_core.messages import ToolMessage
+    from langchain_core.tools import StructuredTool, ToolException
+
+    athos_config.mcp_servers["chroma_mcp"] = MCPServerConfig(
+        mcp_type="mcp_stdio",
+        command="chroma-mcp",
+    )
+
+    async def _failing_tool(collection_name: str) -> str:
+        raise ToolException("Unable to serialize unknown type: <class 'numpy.ndarray'>")
+
+    failing_tool = StructuredTool.from_function(
+        coroutine=_failing_tool,
+        name="chroma_get_collection_info",
+        description="Get collection info",
+    )
+
+    mock_client = MagicMock()
+    mock_client.get_tools = AsyncMock(return_value=[failing_tool])
+
+    flow = LangChainAgentFlow(
+        model=mock_model,
+        tools=[],
+        mcp_clients=[mock_client],
+        mcp_server_names=["chroma_mcp"],
+        system_prompt=None,
+        max_iterations=10,
+        verbosity_level=1,
+        full_config=athos_config,
+    )
+
+    await flow._ensure_mcp_tools_loaded()
+
+    result = await flow.tools[0].ainvoke(
+        {
+            "name": "chroma_get_collection_info",
+            "args": {"collection_name": "docs"},
+            "id": "call_1",
+            "type": "tool_call",
+        }
+    )
+
+    assert isinstance(result, ToolMessage)
+    assert result.status == "error"
+    assert "Unable to serialize" in result.content
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
