@@ -42,7 +42,7 @@ and the bot then:
    nothing to note.
 2. Sends the thread to the `lang_hpc_note_writer` flow, which summarizes it
    into a question, the final answer (later corrections win) and the approach,
-   and saves it with `note_taker` as `<notes dir>/<name>/note.md`. If a similar
+   and saves it with `note_taker` in the notes Chroma collection. If a similar
    note exists, the writer updates it, keeps it, or saves a new one.
 3. Replies with the saved note's name, or that the thread had nothing worth
    noting.
@@ -55,8 +55,17 @@ The consulting flow also has the `list_notes` and `read_note` tools and checks
 notes before Chroma retrieval. An answer that came only from notes ends with an
 _Answered from saved note_ footer.
 
-Notes live in `$ATHOS_NOTES_DIR`, or `.notes/` at the repository root when it is
-unset.
+Notes live in the `consulting_notes` collection of a Chroma database at
+`$ATHOS_NOTES_CHROMA_DIR`, or `<notes dir>/chroma` when it is unset, where the
+notes directory is `$ATHOS_NOTES_DIR` or `.notes/` at the repository root.
+`list_notes` matches them by meaning as well as by exact error text, job ID or
+tag. Notes saved as `<notes dir>/<name>/note.md` by earlier versions are
+imported the first time the collection is empty.
+
+The bot process holds the only Chroma client for that database, so a note is
+searchable on the next question without a restart. Don't point `chroma-mcp`,
+a CLI run or a second bot at the same directory while the bot is running:
+Chroma does not support several processes writing one database.
 
 The bot records thumbs-up/down feedback in the configured SQLite database.
 That database contains questions and responses, so place it in an appropriate

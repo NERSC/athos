@@ -1,16 +1,20 @@
-"""Note tools for LangGraph agent flows, stored as agent-style skills.
+"""Note tools for LangGraph agent flows, stored in a Chroma collection.
 
-Each note is a folder under the notes directory holding one note.md. Its
-frontmatter holds the searchable fields: `name`, a `description` of when the
-note applies, `category`, `status`, `confidence`, and lists of `tags`, exact
-`errors`, `job_ids`, `incidents` and `sources` (JSON arrays, which are also
-valid YAML). The body has the Question, Recommendation, What was tried and
-Approach sections. Notes written before these fields existed (with an Answer
-section) still load; they gain the new fields when next updated.
+Each note is one record in the `consulting_notes` collection, with the note's
+name as its id. The record's document (description, question and errors) is
+what gets embedded for semantic search; its metadata holds `category`,
+`status` and `confidence` and the full note as markdown under `note`. That
+markdown has frontmatter with the searchable fields: `name`, a `description`
+of when the note applies, `category`, `status`, `confidence`, and lists of
+`tags`, exact `errors`, `job_ids`, `incidents` and `sources` (JSON arrays,
+which are also valid YAML), and a body with the Question, Recommendation,
+What was tried and Approach sections. Notes written before these fields
+existed (with an Answer section) still load; they gain the new fields when
+next updated.
 
 - note_taker: save a new note or update an existing one.
-- list_notes: find notes by text, category, status or tag.
-- read_note: load one note's note.md.
+- list_notes: find notes by meaning and by exact text, category, status or tag.
+- read_note: load one note's markdown.
 - take_thread_note: tell the front end the user wants the conversation
   noted. The Slack bot then hands the whole thread to a note-writer flow,
   which saves it with note_taker.
@@ -18,23 +22,32 @@ section) still load; they gain the new fields when next updated.
 Generic, flow-agnostic tools: any flow can pick them up by adding their
 names to its `tools:` list in config.yaml.
 
-The notes directory is $ATHOS_NOTES_DIR when set (point it at persistent
-storage on the host, e.g. $ATHOS_WORKSPACE/notes in a container), else
-<repo root>/.notes.
+The Chroma database is $ATHOS_NOTES_CHROMA_DIR when set, else <notes
+dir>/chroma, where the notes directory is $ATHOS_NOTES_DIR when set (point it
+at persistent storage on the host, e.g. $ATHOS_WORKSPACE/notes in a
+container), else <repo root>/.notes. Notes saved as <notes dir>/<name>/note.md
+by earlier versions are imported the first time the collection is empty.
+
+One client per process reads and writes the collection, so a note saved by
+the note-writer flow is visible to the consulting flow running in the same
+process (the Slack bot) right away. Chroma does not support several
+processes writing one database: don't point chroma-mcp or a second bot at
+this directory.
 """
 
 from __future__ import annotations
 
-import fcntl
 import json
 import os
 import re
-from contextlib import contextmanager
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator, List, Literal, Optional, get_args
+from typing import Any, Dict, List, Literal, Optional, get_args
 
+import chromadb
+from chromadb.utils import embedding_functions
 from langchain_core.tools import tool
 
 # src/athos/tools/note_taker.py -> repo root
@@ -69,20 +82,43 @@ _SECTION_RE = re.compile(
     r"^## (Question|Recommendation|Answer|What was tried|Approach)[ \t]*$", re.MULTILINE
 )
 _LIST_FIELDS = ("tags", "errors", "job_ids", "incidents", "sources")
+_NOTHING_TRIED = "Nothing recorded."
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOPWORDS = frozenset(
     "a an and are as at be by can could do does for from how i if in is it me my "
     "of on or should so that the there this to was what when where which who why "
     "will with would you your".split()
 )
-_SIMILARITY_THRESHOLD = 0.6
+# A note matching a query by words alone must contain at least this share of
+# its words: an exact error text, job ID or tag, not one shared word like "job".
+_WORD_MATCH_MIN = 0.5
+# Cosine distances with Chroma's default all-MiniLM-L6-v2 model: the same
+# question reworded scores about 0.2-0.35, a related note up to about 0.6,
+# and an unrelated one 0.7 or more.
+_SIMILAR_DISTANCE = 0.4
+_LISTED_DISTANCE = 0.65
 _MAX_CANDIDATES = 3
 _MAX_LISTED = 20
+_COLLECTION = "consulting_notes"
+
+_collections: Dict[str, Any] = {}
+_collections_lock = threading.Lock()
+# Serializes note_taker's check-then-save.
+_write_lock = threading.Lock()
 
 
 def _notes_dir() -> Path:
     configured = os.getenv("ATHOS_NOTES_DIR")
     return Path(configured) if configured else _REPO_ROOT / ".notes"
+
+
+def _chroma_dir() -> Path:
+    configured = os.getenv("ATHOS_NOTES_CHROMA_DIR")
+    return Path(configured) if configured else _notes_dir() / "chroma"
+
+
+def _embedding_function():
+    return embedding_functions.DefaultEmbeddingFunction()
 
 
 @dataclass
@@ -181,6 +217,9 @@ def _parse(name: str, text: str) -> Optional[_Note]:
         line.split(": ", 1) for line in match.group(1).splitlines() if ": " in line
     )
     lists = {key: _parse_list(fields[key]) for key in _LIST_FIELDS if key in fields}
+    sections = _sections(match.group(2))
+    if sections.get("tried") == _NOTHING_TRIED:
+        sections["tried"] = ""
     return _Note(
         name,
         fields.get("description", ""),
@@ -189,11 +228,12 @@ def _parse(name: str, text: str) -> Optional[_Note]:
         confidence=fields.get("confidence", ""),
         created=fields.get("created", ""),
         **lists,
-        **_sections(match.group(2)),
+        **sections,
     )
 
 
-def _load(root: Path) -> List[_Note]:
+def _load_markdown(root: Path) -> List[_Note]:
+    """Notes saved as <root>/<name>/note.md by earlier versions."""
     if not root.is_dir():
         return []
     notes = []
@@ -223,7 +263,7 @@ def _render(note: _Note, now: str) -> str:
         "---\n\n"
         f"## Question\n{note.question.strip()}\n\n"
         f"## Recommendation\n{note.recommendation.strip()}\n\n"
-        f"## What was tried\n{note.tried.strip() or 'Nothing recorded.'}\n\n"
+        f"## What was tried\n{note.tried.strip() or _NOTHING_TRIED}\n\n"
         f"## Approach\n{note.approach.strip()}\n"
     )
 
@@ -243,30 +283,73 @@ def _similarity(a: str, b: str) -> float:
     return len(ta & tb) / min(len(ta), len(tb))
 
 
-def _find_similar(question: str, notes: List[_Note]) -> List[_Note]:
-    scored = [(_similarity(question, note.question), note) for note in notes]
-    scored = [item for item in scored if item[0] >= _SIMILARITY_THRESHOLD]
-    scored.sort(key=lambda item: item[0], reverse=True)
-    return [note for _, note in scored[:_MAX_CANDIDATES]]
-
-
-@contextmanager
-def _locked(root: Path) -> Iterator[None]:
-    with open(root / ".notes.lock", "w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        yield
-
-
-def _write_atomic(path: Path, text: str) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(f".{path.name}.tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(tmp, path)
-
-
-def _save(root: Path, note: _Note) -> None:
+def _upsert(collection: Any, notes: List[_Note]) -> None:
     now = datetime.now(timezone.utc).isoformat()
-    _write_atomic(root / note.name / _NOTE_FILE, _render(note, now))
+    for note in notes:
+        note.created = note.created or now
+    collection.upsert(
+        ids=[note.name for note in notes],
+        documents=["\n".join([note.description, note.question, *note.errors]) for note in notes],
+        metadatas=[
+            {
+                "category": note.category,
+                "status": note.status,
+                "confidence": note.confidence,
+                "created": note.created,
+                "updated": now,
+                "note": _render(note, now),
+            }
+            for note in notes
+        ],
+    )
+
+
+def _collection() -> Any:
+    """This process's notes collection, created (and seeded from note.md files) on first use."""
+    path = str(_chroma_dir())
+    with _collections_lock:
+        if path not in _collections:
+            collection = chromadb.PersistentClient(path=path).get_or_create_collection(
+                _COLLECTION,
+                embedding_function=_embedding_function(),
+                configuration={"hnsw": {"space": "cosine"}},
+            )
+            if collection.count() == 0:
+                legacy = _load_markdown(_notes_dir())
+                if legacy:
+                    _upsert(collection, legacy)
+            _collections[path] = collection
+        return _collections[path]
+
+
+def _load() -> List[_Note]:
+    result = _collection().get(include=["metadatas"])
+    notes = [
+        _parse(name, (metadata or {}).get("note", ""))
+        for name, metadata in zip(result["ids"], result["metadatas"])
+    ]
+    return sorted((note for note in notes if note), key=lambda note: note.name)
+
+
+def _nearest(text: str, max_distance: float, limit: int) -> List[str]:
+    """Names of the notes closest in meaning to `text`, nearest first."""
+    collection = _collection()
+    count = collection.count()
+    if not count or not text.strip():
+        return []
+    result = collection.query(query_texts=[text], n_results=min(limit, count), include=["distances"])
+    return [
+        name
+        for name, distance in zip(result["ids"][0], result["distances"][0])
+        if distance <= max_distance
+    ]
+
+
+def _find_similar(question: str, notes: List[_Note]) -> List[_Note]:
+    """Notes close enough in meaning that they may ask the same thing."""
+    by_name = {note.name: note for note in notes}
+    names = _nearest(question, _SIMILAR_DISTANCE, _MAX_CANDIDATES)
+    return [by_name[name] for name in names if name in by_name]
 
 
 def _labels(note: _Note) -> str:
@@ -321,8 +404,8 @@ def note_taker(
 ) -> str:
     """Save a solved (or partly solved) support problem as a structured, reusable note.
 
-    Each note is stored like a skill: a folder named `name` holding a
-    note.md. Leave `decision` unset on the first call. If similar notes
+    Each note is stored under its `name` in the notes database, where
+    list_notes finds it from then on. Leave `decision` unset on the first call. If similar notes
     already exist, nothing is saved and they are shown to you; compare, then
     call again with a decision.
 
@@ -377,10 +460,9 @@ def note_taker(
         incidents=_clean_list(incidents),
         sources=_clean_list(sources),
     )
-    root = _notes_dir()
-    root.mkdir(parents=True, exist_ok=True)
-    with _locked(root):
-        notes = _load(root)
+    collection = _collection()
+    with _write_lock:
+        notes = _load()
         names = {n.name: n for n in notes}
 
         if decision is None:
@@ -402,7 +484,7 @@ def note_taker(
                     "Now send your final answer to the user."
                 )
             entry.name, entry.created = note_name, names[note_name].created
-            _save(root, entry)
+            _upsert(collection, [entry])
             return (
                 f"Updated note '{note_name}'. Now send your final answer to the user."
             )
@@ -420,7 +502,7 @@ def note_taker(
                 "thing, or with a different name."
             )
         entry.name = slug
-        _save(root, entry)
+        _upsert(collection, [entry])
         return f"Saved as note '{slug}'. Now send your final answer to the user."
 
 
@@ -431,7 +513,7 @@ def list_notes(
     status: Optional[Status] = None,
     tag: Optional[str] = None,
 ) -> str:
-    """List saved notes from earlier support problems, best match first.
+    """List saved notes from earlier support problems, closest in meaning first.
 
     Call this before answering, with the user's question (or an exact error
     text, job ID or incident number) as `query`, to find notes on the same
@@ -439,9 +521,10 @@ def list_notes(
     its recommendation and approach.
 
     Args:
-        query: Words to match against note names, descriptions, questions,
-            tags, error texts, job IDs and incidents. Leave empty to list
-            notes by name.
+        query: The question, or an exact error text, job ID or incident
+            number. Matched by meaning against note descriptions, questions
+            and errors, and by words against those plus names, tags, job IDs
+            and incidents. Leave empty to list notes by name.
         category: Only notes in this category, e.g. "qos-account".
         status: Only notes with this status, e.g. "needs-escalation".
         tag: Only notes carrying this tag, e.g. "perlmutter".
@@ -450,7 +533,7 @@ def list_notes(
         Matching notes as "- name [category | status | confidence]:
         description" lines.
     """
-    notes = _load(_notes_dir())
+    notes = _load()
     if not notes:
         return "No notes saved yet."
     tag_slug = _slugify(tag or "")
@@ -462,10 +545,13 @@ def list_notes(
         and (not tag_slug or tag_slug in n.tags)
     ]
     if query.strip():
-        scored = [(_similarity(query, n.search_text()), n) for n in notes]
-        scored = [item for item in scored if item[0] > 0]
+        # Matches by meaning first, then notes that only share words.
+        by_name = {n.name: n for n in notes}
+        names = [name for name in _nearest(query, _LISTED_DISTANCE, _MAX_LISTED) if name in by_name]
+        scored = [(_similarity(query, n.search_text()), n.name) for n in notes]
+        scored = [item for item in scored if item[0] >= _WORD_MATCH_MIN and item[1] not in names]
         scored.sort(key=lambda item: item[0], reverse=True)
-        notes = [n for _, n in scored]
+        notes = [by_name[name] for name in names + [name for _, name in scored]]
     if not notes:
         return "No notes match."
     shown = notes[:_MAX_LISTED]
@@ -482,7 +568,7 @@ def list_notes(
 
 @tool
 def read_note(name: str) -> str:
-    """Load one saved note's note.md: its fields, question, recommendation and approach.
+    """Load one saved note: its fields, question, recommendation and approach.
 
     Use a note as a prior solution. If it asks the same thing and its
     recommendation fully resolves the user's question, answer from it;
@@ -493,12 +579,12 @@ def read_note(name: str) -> str:
         name: The note's name, as shown by list_notes.
 
     Returns:
-        The note's full note.md text.
+        The note's full text.
     """
-    path = _notes_dir() / name / _NOTE_FILE
-    if not _NAME_RE.match(name) or not path.is_file():
+    result = _collection().get(ids=[name], include=["metadatas"]) if _NAME_RE.match(name) else None
+    if not result or not result["ids"]:
         return f"No note named '{name}'. Call list_notes to see available notes."
-    return path.read_text(encoding="utf-8")
+    return result["metadatas"][0]["note"]
 
 
 @tool

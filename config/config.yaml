@@ -294,21 +294,21 @@ tools:
     module_path: "athos.tools.chroma"
     is_class: false
   note_taker:
-    description: "Saves and updates notes as skill folders (notes/<name>/note.md)"
+    description: "Saves and updates notes in the notes Chroma collection"
     callable_name: "note_taker"
     module_path: "athos.tools.note_taker"
     parameters: {}
     is_class: false
     framework: "langgraph"
   list_notes:
-    description: "Lists saved notes (name and description) matching a query"
+    description: "Lists saved notes (name and description) matching a query by meaning or exact text"
     callable_name: "list_notes"
     module_path: "athos.tools.note_taker"
     parameters: {}
     is_class: false
     framework: "langgraph"
   read_note:
-    description: "Loads one saved note's note.md"
+    description: "Loads one saved note"
     callable_name: "read_note"
     module_path: "athos.tools.note_taker"
     parameters: {}
