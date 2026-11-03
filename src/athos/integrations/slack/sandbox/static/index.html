@@ -73,7 +73,7 @@
 <header>
   <div>
     <h1 id="channel"># athos-sandbox</h1>
-    <div class="sub" id="sub">Slack sandbox, nothing is sent to Slack</div>
+    <div class="sub" id="sub">Slack sandbox</div>
   </div>
   <label>You are <input id="user" value="USANDBOX" spellcheck="false" autocomplete="off"></label>
 </header>
@@ -267,7 +267,7 @@
       bootId = state.boot_id;
       bot = state.bot;
       $("channel").textContent = `# ${state.channel.name}`;
-      $("sub").textContent = `${state.app_name} · Slack sandbox, nothing is sent to Slack`;
+      $("sub").textContent = `${state.app_name} · Slack sandbox`;
       if (state.version !== version || userId() !== lastUser) {
         version = state.version; lastUser = userId();
         renderThreads(state.threads);
