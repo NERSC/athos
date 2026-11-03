@@ -207,6 +207,33 @@ mcp_servers:
       querying, list collections and choose collection names only from the
       returned list.
 
+  # Saved consulting notes, in their own Chroma database (<notes dir>/chroma),
+  # apart from the retrieval bundles above. Over stdio each tool call is a new
+  # process, so a saved note is searchable on the next call. A stdio server
+  # inherits only HOME/PATH/..., so the notes location and PYTHONPATH are
+  # passed explicitly; relative defaults resolve against the bot's working
+  # directory (the repo root).
+  notes_mcp:
+    description: "Saved consulting notes with write access, for the note writer"
+    mcp_type: "mcp_stdio"
+    command: "python"
+    args: ["-m", "athos.tools.notes_mcp", "--notes-dir", "${ATHOS_NOTES_DIR:-.notes}"]
+    env:
+      PYTHONPATH: "${PYTHONPATH:-src}"
+    allowed_tools:
+      - "note_taker"
+
+  notes_ro_mcp:
+    description: "Read-only saved consulting notes, for answering from earlier problems"
+    mcp_type: "mcp_stdio"
+    command: "python"
+    args: ["-m", "athos.tools.notes_mcp", "--notes-dir", "${ATHOS_NOTES_DIR:-.notes}", "--read-only"]
+    env:
+      PYTHONPATH: "${PYTHONPATH:-src}"
+    allowed_tools:
+      - "list_notes"
+      - "read_note"
+
 
 # Regular and custom tools (non-MCP)
 tools:
@@ -303,27 +330,8 @@ tools:
     callable_name: "chroma_delete_documents"
     module_path: "athos.tools.chroma"
     is_class: false
-  note_taker:
-    description: "Saves and updates notes in the notes Chroma collection"
-    callable_name: "note_taker"
-    module_path: "athos.tools.note_taker"
-    parameters: {}
-    is_class: false
-    framework: "langgraph"
-  list_notes:
-    description: "Lists saved notes (name and description) matching a query by meaning or exact text"
-    callable_name: "list_notes"
-    module_path: "athos.tools.note_taker"
-    parameters: {}
-    is_class: false
-    framework: "langgraph"
-  read_note:
-    description: "Loads one saved note"
-    callable_name: "read_note"
-    module_path: "athos.tools.note_taker"
-    parameters: {}
-    is_class: false
-    framework: "langgraph"
+  # note_taker, list_notes and read_note are served by the notes_mcp and
+  # notes_ro_mcp servers above.
   take_thread_note:
     description: "Signals that the user wants the whole conversation thread saved as a note"
     callable_name: "take_thread_note"
@@ -483,7 +491,8 @@ flows:
     mcp_servers:
       - "servicenow_ro_mcp"
       - "consulting_chroma_ro_mcp"
-    tools: ["list_notes", "read_note", "take_thread_note"]
+      - "notes_ro_mcp"
+    tools: ["take_thread_note"]
     max_iterations: 32
     system_prompt_path: "prompts/hpc_consulting_agent_system_prompt.txt"
 
@@ -491,7 +500,7 @@ flows:
     description: "Summarizes a Slack thread into one note and saves it with note_taker"
     type: "langchain_agent"
     model: "gptoss"
-    tools: ["note_taker"]
+    mcp_servers: ["notes_mcp"]
     max_iterations: 10
     system_prompt_path: "prompts/note_writer_system_prompt.txt"
 

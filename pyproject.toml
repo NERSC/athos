@@ -79,3 +79,6 @@ markers = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"athos.integrations.slack.sandbox" = ["static/*.html"]

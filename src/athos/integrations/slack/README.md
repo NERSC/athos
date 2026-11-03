@@ -30,6 +30,41 @@ runs this code even if the environment's editable install points elsewhere.
 While the bot works on a request it adds an :hourglass_flowing_sand: reaction
 to the message.
 
+## Sandbox mode
+
+To try the bot without Slack, run it in sandbox mode. It needs no Slack
+tokens and never connects to Slack:
+
+```bash
+scripts/run_slack_consulting_bot.sh --mode sandbox   # or ATHOS_SLACK_MODE=sandbox
+# then open http://127.0.0.1:8765
+```
+
+`production` is the default mode and runs the Slack bot exactly as before.
+
+The sandbox serves a one-channel, Slack-like page. It builds the same adapter
+and flows as production from the same `ATHOS_CONFIG_PATH`, `ATHOS_FLOW_NAME`
+and `ATHOS_NOTE_WRITER_FLOW`. An in-memory workspace
+(`athos.integrations.slack.sandbox`) stands in for Slack's Web API, so
+messages go through the production runtime's own code: mention detection,
+thread history, the working reaction, long-reply splitting, the feedback
+buttons, message updates and the feedback modal.
+
+- Mention `@athos` to ask the bot. Messages without a mention are posted to the
+  thread without a reply, and the bot reads them when asked to take a note.
+- "You are" sets the user you post as. The bot answers only the sandbox's
+  allowed users (`USANDBOX` by default, `--allowed-users` to change), so any
+  other ID shows the unauthorized reply.
+- The page keeps nothing. Every start begins with an empty channel, and an open
+  page reloads when the sandbox restarts.
+- Notes and feedback go to `data/slack_sandbox/notes` and
+  `data/slack_sandbox/feedback.db`, apart from production's. Use `--notes-dir`
+  and `--feedback-db`, or `ATHOS_SANDBOX_NOTES_DIR` and
+  `ATHOS_SANDBOX_FEEDBACK_DB`, to point elsewhere, such as a copy of the
+  production notes.
+- It listens on `127.0.0.1:8765` (`--host`, `--port`). From a NERSC login node,
+  forward the port to view it: `ssh -L 8765:localhost:8765 perlmutter`.
+
 ## Notes
 
 To keep a thread as a note, mention the bot in that thread and ask in your own
@@ -62,10 +97,15 @@ notes directory is `$ATHOS_NOTES_DIR` or `.notes/` at the repository root.
 tag. Notes saved as `<notes dir>/<name>/note.md` by earlier versions are
 imported the first time the collection is empty.
 
-The bot process holds the only Chroma client for that database, so a note is
-searchable on the next question without a restart. Don't point `chroma-mcp`,
-a CLI run or a second bot at the same directory while the bot is running:
-Chroma does not support several processes writing one database.
+Flows reach the notes through the notes MCP server (`athos.tools.notes_mcp`):
+the note writer through `notes_mcp`, which allows only `note_taker`, and the
+consulting flow through the read-only `notes_ro_mcp` (`list_notes`,
+`read_note`). The server runs over stdio, so every tool call is a fresh
+process that opens the database: a saved note is searchable on the next
+question, with no restart. A file lock beside the database keeps overlapping
+calls from touching it at once. Each call takes a few seconds, most of it
+loading the embedding model. The notes database is separate from the
+retrieval databases that `chroma_mcp` and `consulting_chroma_ro_mcp` serve.
 
 The bot records thumbs-up/down feedback in the configured SQLite database.
 That database contains questions and responses, so place it in an appropriate

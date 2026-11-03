@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ATHOS Slack Sandbox</title>
+<style>
+  :root {
+    --bg: #f8f8f8; --panel: #ffffff; --text: #1d1c1d; --muted: #616061; --border: #dddddd;
+    --accent: #1264a3; --accent-text: #ffffff; --code-bg: #f4f4f4; --bot: #2bac76; --warn: #e8912d;
+    --mention-bg: #e8f5fa; --mention-text: #1264a3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1d21; --panel: #222529; --text: #d1d2d3; --muted: #9a9b9e; --border: #35373b;
+      --accent: #1d9bd1; --accent-text: #ffffff; --code-bg: #2c2f33; --bot: #2bac76; --warn: #e8912d;
+      --mention-bg: #1d3a4f; --mention-text: #8ccfef;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.46 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+           padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  header h1 { margin: 0; font-size: 17px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  header label { font-size: 13px; color: var(--muted); }
+  header input { width: 130px; margin-left: 6px; padding: 4px 6px; font: inherit; font-size: 13px; text-transform: uppercase;
+                 color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 4px; }
+  main { max-width: 860px; margin: 0 auto; padding: 16px 16px 180px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+  .empty { color: var(--muted); text-align: center; padding: 48px 0; }
+  .thread { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+  .msg { display: flex; gap: 10px; padding: 10px 14px; }
+  .replies { border-top: 1px solid var(--border); padding-left: 28px; }
+  .avatar { flex: 0 0 34px; height: 34px; border-radius: 6px; display: grid; place-items: center; font-weight: 700; font-size: 13px;
+            background: var(--accent); color: var(--accent-text); }
+  .avatar.bot { background: var(--bot); }
+  .body { min-width: 0; flex: 1; }
+  .meta { font-size: 13px; }
+  .meta b { font-size: 15px; margin-right: 6px; }
+  .meta .tag { font-size: 10px; font-weight: 700; padding: 1px 4px; border-radius: 3px; background: var(--border); color: var(--muted); margin-right: 6px; }
+  .meta .time, .meta .edited { color: var(--muted); }
+  .text { white-space: normal; overflow-wrap: anywhere; }
+  .text pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px; overflow-x: auto; white-space: pre-wrap; margin: 4px 0; }
+  .text code { background: var(--code-bg); border: 1px solid var(--border); border-radius: 3px; padding: 0 3px; font-size: 13px; }
+  .text a { color: var(--accent); }
+  .mention { background: var(--mention-bg); color: var(--mention-text); border-radius: 3px; padding: 0 2px; }
+  .context { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .actions button, .composer button, .modal button { font: inherit; font-size: 14px; padding: 4px 12px; border-radius: 4px; cursor: pointer;
+           border: 1px solid var(--border); background: var(--panel); color: var(--text); }
+  .actions button:hover { border-color: var(--accent); }
+  .reaction { display: inline-block; margin-top: 4px; font-size: 12px; padding: 1px 8px; border-radius: 10px; border: 1px solid var(--warn); color: var(--warn); }
+  .composer { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+  .composer textarea { flex: 1; min-height: 38px; max-height: 200px; resize: vertical; padding: 8px; font: inherit;
+                       color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  .composer button.send { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  #new-thread { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--border); }
+  #new-thread .composer { max-width: 860px; margin: 0 auto; border-top: 0; }
+  #error { color: var(--warn); font-size: 13px; text-align: center; padding: 0 16px 8px; min-height: 1em; }
+  .overlay { position: fixed; inset: 0; z-index: 5; background: rgba(0,0,0,.45); display: grid; place-items: center; padding: 16px; }
+  .modal { width: min(520px, 100%); background: var(--panel); border-radius: 8px; border: 1px solid var(--border); }
+  .modal h2 { margin: 0; padding: 14px 18px; font-size: 18px; border-bottom: 1px solid var(--border); }
+  .modal .content { padding: 14px 18px; }
+  .modal label { display: block; font-weight: 600; margin: 8px 0 6px; }
+  .modal textarea, .modal input { width: 100%; padding: 8px; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+  .modal textarea { min-height: 90px; }
+  .modal footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--border); }
+  .modal button.primary { background: var(--bot); border-color: var(--bot); color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 id="channel"># athos-sandbox</h1>
+    <div class="sub" id="sub">Slack sandbox, nothing is sent to Slack</div>
+  </div>
+  <label>You are <input id="user" value="USANDBOX" spellcheck="false" autocomplete="off"></label>
+</header>
+<main>
+  <p class="hint">Mention <b>@athos</b> to ask the bot, as in Slack. Messages without a mention are posted to the thread
+    but get no reply, and the bot reads them when you ask it to take a note. Change "You are" to act as another user,
+    e.g. one who is not allowed to use the bot. Restarting the sandbox starts an empty channel.</p>
+  <div id="threads"><div class="empty">No messages yet.</div></div>
+</main>
+<div id="new-thread">
+  <div id="error"></div>
+  <div class="composer">
+    <textarea id="new-text" placeholder="Message #athos-sandbox (e.g. @athos how do I submit a job?)"></textarea>
+    <button class="send" id="new-send">Send</button>
+  </div>
+</div>
+<div id="modal-root"></div>
+
+<script>
+(() => {
+  "use strict";
+  let bootId = null, version = -1, lastUser = null, bot = { id: "", name: "athos" }, openModalKey = null;
+  const threadNodes = new Map();
+  const $ = (id) => document.getElementById(id);
+  const userId = () => $("user").value.trim().toUpperCase();
+
+  function escapeHtml(text) {
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // Slack mrkdwn -> HTML, on escaped text.
+  function mrkdwn(raw) {
+    const blocks = [];
+    let text = escapeHtml(raw || "").replace(/```([\s\S]*?)```/g, (_, code) => {
+      blocks.push(`<pre>${code.replace(/^\n/, "")}</pre>`);
+      return `\u0000${blocks.length - 1}\u0000`;
+    });
+    const inline = [];
+    text = text.replace(/`([^`\n]+)`/g, (_, code) => { inline.push(`<code>${code}</code>`); return `\u0001${inline.length - 1}\u0001`; });
+    text = text
+      .replace(/&lt;@([A-Z0-9]+)(?:\|[^&]*)?&gt;/g, (_, id) => `<span class="mention">@${id === bot.id ? bot.name : id}</span>`)
+      .replace(/&lt;(https?:\/\/[^|&\s]+)\|([^&]+)&gt;/g, '<a href="$1" target="_blank" rel="noopener">$2</a>')
+      .replace(/&lt;(https?:\/\/[^&\s]+)&gt;/g, '<a href="$1" target="_blank" rel="noopener">$1</a>')
+      .replace(/(^|[\s(])\*([^*\n]+)\*(?=$|[\s).,:;!?])/g, "$1<b>$2</b>")
+      .replace(/(^|[\s(])_([^_\n]+)_(?=$|[\s).,:;!?])/g, "$1<i>$2</i>")
+      .replace(/(^|[\s(])~([^~\n]+)~(?=$|[\s).,:;!?])/g, "$1<s>$2</s>")
+      .replace(/\n/g, "<br>");
+    return text
+      .replace(/\u0001(\d+)\u0001/g, (_, i) => inline[+i])
+      .replace(/\u0000(\d+)\u0000/g, (_, i) => blocks[+i]);
+  }
+
+  function plain(obj) { return obj && obj.type === "mrkdwn" ? mrkdwn(obj.text) : escapeHtml((obj && obj.text) || ""); }
+
+  function renderBlocks(message, container) {
+    for (const block of message.blocks || []) {
+      if (block.type === "section" && block.text) {
+        const div = document.createElement("div"); div.className = "text"; div.innerHTML = plain(block.text); container.appendChild(div);
+      } else if (block.type === "context") {
+        const div = document.createElement("div"); div.className = "context";
+        div.innerHTML = (block.elements || []).map(plain).join(" "); container.appendChild(div);
+      } else if (block.type === "actions") {
+        const div = document.createElement("div"); div.className = "actions";
+        for (const element of block.elements || []) {
+          if (element.type !== "button") continue;
+          const button = document.createElement("button");
+          button.innerHTML = plain(element.text);
+          button.addEventListener("click", () => post("/api/action", {
+            message_ts: message.ts, action_id: element.action_id, value: element.value ?? null,
+          }));
+          div.appendChild(button);
+        }
+        container.appendChild(div);
+      }
+    }
+  }
+
+  function renderMessage(message) {
+    const isBot = Boolean(message.bot_id);
+    const row = document.createElement("div"); row.className = "msg";
+    const name = isBot ? "ATHOS" : message.user || "unknown";
+    row.innerHTML = `<div class="avatar${isBot ? " bot" : ""}">${escapeHtml(name.slice(0, 2))}</div>`;
+    const body = document.createElement("div"); body.className = "body";
+    const time = new Date(parseFloat(message.ts) * 1000).toLocaleTimeString();
+    body.innerHTML = `<div class="meta"><b>${escapeHtml(name)}</b>${isBot ? '<span class="tag">APP</span>' : ""}` +
+      `<span class="time">${time}</span>${message.edited ? ' <span class="edited">(edited)</span>' : ""}</div>`;
+    if (message.blocks && message.blocks.length) {
+      renderBlocks(message, body);
+    } else {
+      const div = document.createElement("div"); div.className = "text"; div.innerHTML = mrkdwn(message.text); body.appendChild(div);
+    }
+    if ((message.reactions || []).includes("hourglass_flowing_sand")) {
+      const span = document.createElement("span"); span.className = "reaction"; span.textContent = "⏳ ATHOS is working…";
+      body.appendChild(span);
+    }
+    row.appendChild(body);
+    return row;
+  }
+
+  function composer(placeholder, onSend) {
+    const box = document.createElement("div"); box.className = "composer";
+    const area = document.createElement("textarea"); area.placeholder = placeholder;
+    const button = document.createElement("button"); button.className = "send"; button.textContent = "Reply";
+    const send = async () => { if (area.value.trim() && await onSend(area.value)) area.value = ""; };
+    button.addEventListener("click", send);
+    area.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+    box.append(area, button);
+    return box;
+  }
+
+  function renderThreads(threads) {
+    const root = $("threads");
+    if (!threads.length) { root.innerHTML = '<div class="empty">No messages yet.</div>'; threadNodes.clear(); return; }
+    root.querySelector(".empty")?.remove();
+    for (const thread of threads) {
+      const ts = thread.root.ts;
+      let node = threadNodes.get(ts);
+      if (!node) {
+        // Composers are built once per thread, so a reply being typed survives each refresh.
+        const card = document.createElement("section"); card.className = "thread";
+        const rootBox = document.createElement("div"), replies = document.createElement("div");
+        replies.className = "replies";
+        card.append(rootBox, replies, composer("Reply in thread…", (text) => post("/api/message", { text, thread_ts: ts })));
+        root.appendChild(card);
+        node = { rootBox, replies };
+        threadNodes.set(ts, node);
+      }
+      node.rootBox.replaceChildren(renderMessage(thread.root));
+      node.replies.replaceChildren(...thread.replies.map(renderMessage));
+      node.replies.style.display = thread.replies.length ? "" : "none";
+    }
+  }
+
+  function renderModal(view) {
+    const root = $("modal-root");
+    const key = view ? JSON.stringify(view) : null;
+    if (key === openModalKey) return;
+    openModalKey = key;
+    if (!view) { root.replaceChildren(); return; }
+    const overlay = document.createElement("div"); overlay.className = "overlay";
+    const modal = document.createElement("div"); modal.className = "modal";
+    modal.innerHTML = `<h2>${escapeHtml((view.title || {}).text || "")}</h2>`;
+    const content = document.createElement("div"); content.className = "content";
+    const inputs = [];
+    for (const block of view.blocks || []) {
+      if (block.type === "input" && block.element) {
+        const label = document.createElement("label"); label.innerHTML = plain(block.label);
+        const field = document.createElement(block.element.multiline ? "textarea" : "input");
+        inputs.push([block.element.action_id, field]);
+        content.append(label, field);
+      } else if (block.type === "section" && block.text) {
+        const div = document.createElement("div"); div.className = "text"; div.innerHTML = plain(block.text); content.appendChild(div);
+      }
+    }
+    const footer = document.createElement("footer");
+    const cancel = document.createElement("button"); cancel.textContent = (view.close || {}).text || "Cancel";
+    const submit = document.createElement("button"); submit.className = "primary"; submit.textContent = (view.submit || {}).text || "Submit";
+    cancel.addEventListener("click", () => post("/api/view/close", {}));
+    submit.addEventListener("click", () => post("/api/view/submit", {
+      values: Object.fromEntries(inputs.map(([id, field]) => [id, field.value])),
+    }));
+    footer.append(cancel, submit);
+    modal.append(content, footer);
+    overlay.appendChild(modal);
+    root.replaceChildren(overlay);
+    inputs[0]?.[1].focus();
+  }
+
+  async function post(path, body) {
+    try {
+      const response = await fetch(path, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: userId(), ...body }),
+      });
+      const data = await response.json();
+      $("error").textContent = response.ok ? "" : (data.error || `Request failed (${response.status})`);
+      poll();
+      return response.ok;
+    } catch (err) {
+      $("error").textContent = "Sandbox server is not reachable.";
+      return false;
+    }
+  }
+
+  async function poll() {
+    try {
+      const response = await fetch(`/api/state?user=${encodeURIComponent(userId())}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const state = await response.json();
+      if (bootId && state.boot_id !== bootId) { location.reload(); return; }  // restarted: start fresh
+      bootId = state.boot_id;
+      bot = state.bot;
+      $("channel").textContent = `# ${state.channel.name}`;
+      $("sub").textContent = `${state.app_name} · Slack sandbox, nothing is sent to Slack`;
+      if (state.version !== version || userId() !== lastUser) {
+        version = state.version; lastUser = userId();
+        renderThreads(state.threads);
+      }
+      renderModal(state.view);
+      if ($("error").textContent === "Sandbox server is not reachable.") $("error").textContent = "";
+    } catch (err) {
+      $("error").textContent = "Sandbox server is not reachable.";
+    }
+  }
+
+  const newText = $("new-text");
+  const sendNew = async () => { if (newText.value.trim() && await post("/api/message", { text: newText.value })) newText.value = ""; };
+  $("new-send").addEventListener("click", sendNew);
+  newText.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendNew(); } });
+  $("user").addEventListener("change", poll);
+
+  poll();
+  setInterval(poll, 1000);
+})();
+</script>
+</body>
+</html>

@@ -19,8 +19,11 @@ next updated.
   noted. The Slack bot then hands the whole thread to a note-writer flow,
   which saves it with note_taker.
 
-Generic, flow-agnostic tools: any flow can pick them up by adding their
-names to its `tools:` list in config.yaml.
+Flows reach note_taker, list_notes and read_note through the notes MCP
+server (athos.tools.notes_mcp, the `notes_mcp` and `notes_ro_mcp` entries in
+config.yaml). It runs over stdio, so every tool call is a fresh process that
+opens the database and sees every note saved before it. take_thread_note
+touches no notes, so flows list it under `tools:`.
 
 The Chroma database is $ATHOS_NOTES_CHROMA_DIR when set, else <notes
 dir>/chroma, where the notes directory is $ATHOS_NOTES_DIR when set (point it
@@ -28,23 +31,24 @@ at persistent storage on the host, e.g. $ATHOS_WORKSPACE/notes in a
 container), else <repo root>/.notes. Notes saved as <notes dir>/<name>/note.md
 by earlier versions are imported the first time the collection is empty.
 
-One client per process reads and writes the collection, so a note saved by
-the note-writer flow is visible to the consulting flow running in the same
-process (the Slack bot) right away. Chroma does not support several
-processes writing one database: don't point chroma-mcp or a second bot at
-this directory.
+Chroma does not coordinate several processes on one database, so every tool
+holds a file lock beside it while it works: shared to read, exclusive to
+write. The lock works between processes on one host, which is where the
+MCP server's processes run.
 """
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, get_args
+from typing import Any, Dict, Iterator, List, Literal, Optional, get_args
 
 import chromadb
 from chromadb.utils import embedding_functions
@@ -103,8 +107,6 @@ _COLLECTION = "consulting_notes"
 
 _collections: Dict[str, Any] = {}
 _collections_lock = threading.Lock()
-# Serializes note_taker's check-then-save.
-_write_lock = threading.Lock()
 
 
 def _notes_dir() -> Path:
@@ -119,6 +121,20 @@ def _chroma_dir() -> Path:
 
 def _embedding_function():
     return embedding_functions.DefaultEmbeddingFunction()
+
+
+@contextmanager
+def _db_lock(*, exclusive: bool) -> Iterator[None]:
+    """Hold the notes database's file lock: shared to read, exclusive to write.
+
+    Each `with` opens its own file description, so the lock also orders
+    threads of one process. Take it once per tool call, never nested.
+    """
+    chroma_dir = _chroma_dir()
+    chroma_dir.parent.mkdir(parents=True, exist_ok=True)
+    with open(chroma_dir.parent / f".{chroma_dir.name}.lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        yield
 
 
 @dataclass
@@ -305,19 +321,23 @@ def _upsert(collection: Any, notes: List[_Note]) -> None:
 
 
 def _collection() -> Any:
-    """This process's notes collection, created (and seeded from note.md files) on first use."""
+    """This process's notes collection, created (and seeded from note.md files) on first use.
+
+    Tools call it before taking _db_lock: the first call takes the lock itself.
+    """
     path = str(_chroma_dir())
     with _collections_lock:
         if path not in _collections:
-            collection = chromadb.PersistentClient(path=path).get_or_create_collection(
-                _COLLECTION,
-                embedding_function=_embedding_function(),
-                configuration={"hnsw": {"space": "cosine"}},
-            )
-            if collection.count() == 0:
-                legacy = _load_markdown(_notes_dir())
-                if legacy:
-                    _upsert(collection, legacy)
+            with _db_lock(exclusive=True):
+                collection = chromadb.PersistentClient(path=path).get_or_create_collection(
+                    _COLLECTION,
+                    embedding_function=_embedding_function(),
+                    configuration={"hnsw": {"space": "cosine"}},
+                )
+                if collection.count() == 0:
+                    legacy = _load_markdown(_notes_dir())
+                    if legacy:
+                        _upsert(collection, legacy)
             _collections[path] = collection
         return _collections[path]
 
@@ -461,7 +481,7 @@ def note_taker(
         sources=_clean_list(sources),
     )
     collection = _collection()
-    with _write_lock:
+    with _db_lock(exclusive=True):
         notes = _load()
         names = {n.name: n for n in notes}
 
@@ -533,7 +553,10 @@ def list_notes(
         Matching notes as "- name [category | status | confidence]:
         description" lines.
     """
-    notes = _load()
+    _collection()
+    with _db_lock(exclusive=False):
+        notes = _load()
+        nearest = _nearest(query, _LISTED_DISTANCE, _MAX_LISTED) if notes else []
     if not notes:
         return "No notes saved yet."
     tag_slug = _slugify(tag or "")
@@ -547,7 +570,7 @@ def list_notes(
     if query.strip():
         # Matches by meaning first, then notes that only share words.
         by_name = {n.name: n for n in notes}
-        names = [name for name in _nearest(query, _LISTED_DISTANCE, _MAX_LISTED) if name in by_name]
+        names = [name for name in nearest if name in by_name]
         scored = [(_similarity(query, n.search_text()), n.name) for n in notes]
         scored = [item for item in scored if item[0] >= _WORD_MATCH_MIN and item[1] not in names]
         scored.sort(key=lambda item: item[0], reverse=True)
@@ -581,7 +604,11 @@ def read_note(name: str) -> str:
     Returns:
         The note's full text.
     """
-    result = _collection().get(ids=[name], include=["metadatas"]) if _NAME_RE.match(name) else None
+    result = None
+    if _NAME_RE.match(name):
+        collection = _collection()
+        with _db_lock(exclusive=False):
+            result = collection.get(ids=[name], include=["metadatas"])
     if not result or not result["ids"]:
         return f"No note named '{name}'. Call list_notes to see available notes."
     return result["metadatas"][0]["note"]
