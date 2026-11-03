@@ -125,6 +125,23 @@ def _transcript(messages: list[SlackThreadMessage]) -> list[tuple[str, str]]:
         )
         for message in messages
     ]
+def _original_body(message: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    """Return the posted answer text and its blocks without the feedback buttons.
+
+    Slack's echoed ``message.text`` is a lossy fallback, so prefer the
+    original mrkdwn section blocks when rebuilding the message.
+    """
+    blocks = [block for block in message.get("blocks") or [] if block.get("type") != "actions"]
+    sections = [
+        block["text"]["text"]
+        for block in blocks
+        if block.get("type") == "section" and isinstance((block.get("text") or {}).get("text"), str)
+    ]
+    if sections:
+        return "\n".join(sections), blocks
+    text = message.get("text", "")
+    return text, [{"type": "section", "text": {"type": "mrkdwn", "text": text}}]
+
 
 class AthosConsultingSlackAdapter:
     """Bridge Slack requests to a configured ATHOS consulting flow."""
@@ -297,7 +314,10 @@ class AthosConsultingSlackAdapter:
         rating = "up" if request.action_id == "feedback_up" else "down"
         message = request.context.get("message") or {}
         detached = bool(payload.get("detached"))
-        response_text = payload.get("response_text", "") if detached else message.get("text", "")
+        if detached:
+            response_text, body_blocks = payload.get("response_text", ""), []
+        else:
+            response_text, body_blocks = _original_body(message)
         self._record_feedback(
             {
                 "rating": rating,
@@ -318,7 +338,7 @@ class AthosConsultingSlackAdapter:
                     replace_original=SlackMessagePost("Thanks for the feedback! 👍")
                 )
             blocks = [
-                {"type": "section", "text": {"type": "mrkdwn", "text": response_text}},
+                *body_blocks,
                 {"type": "context", "elements": [{"type": "mrkdwn", "text": "Thanks for the feedback! 👍"}]},
             ]
             return SlackInteractionResponse(replace_original=SlackMessagePost(response_text, blocks))
@@ -340,7 +360,7 @@ class AthosConsultingSlackAdapter:
         replacement = SlackMessagePost(acknowledgement)
         if not detached:
             blocks = [
-                {"type": "section", "text": {"type": "mrkdwn", "text": response_text}},
+                *body_blocks,
                 {"type": "context", "elements": [{"type": "mrkdwn", "text": acknowledgement}]},
             ]
             replacement = SlackMessagePost(response_text, blocks)

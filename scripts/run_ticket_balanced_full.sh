@@ -7,12 +7,12 @@ set -euo pipefail
 #
 # Example:
 #   scripts/run_ticket_balanced_full.sh \
-#     /pscratch/sd/s/sfarrell/agentic-ops/get-sn-tickets/servicenow_incidents \
-#     /pscratch/sd/s/sfarrell/athos/data \
+#     /path/to/servicenow_incidents \
+#     /path/to/athos/data \
 #     20260303 \
 #     "Solved (Permanently)" \
 #     2025-09-01 \
-#     /pscratch/sd/s/sfarrell/athos/data/chroma
+#     /path/to/athos/data/chroma
 
 SOURCE_ROOT="${1:-./data/servicenow_incidents}"
 PERSIST_ROOT="${2:-./data}"

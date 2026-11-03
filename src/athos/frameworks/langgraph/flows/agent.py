@@ -641,6 +641,11 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                         allowed_tools=cfg.allowed_tools,
                         blocked_tools=cfg.blocked_tools,
                     )
+                    # MCP servers report tool failures as ToolException; return
+                    # them to the model as error results instead of aborting
+                    # the whole graph run.
+                    for tool in filtered_tools:
+                        tool.handle_tool_error = True
                     if filtered_tools:
                         self.tools.extend(filtered_tools)
                         new_tools_loaded = True

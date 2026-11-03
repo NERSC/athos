@@ -333,7 +333,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config-id", default="claude_code_fs_bundle_v1")
     parser.add_argument(
         "--config-ref",
-        default="docs/cug_paper/CLAUDE_CODE_EVAL_GUIDE.md",
+        default="scripts/run_claude_code_eval.py",
     )
     parser.add_argument("--model", default=None)
     parser.add_argument(

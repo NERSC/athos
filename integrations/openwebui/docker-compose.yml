@@ -8,7 +8,7 @@ services:
     ports:
       - "9099:9099"
     environment:
-      - PIPELINES_API_KEY=0p3n-w3bu!
+      - PIPELINES_API_KEY=${PIPELINES_API_KEY:-0p3n-w3bu!}
       - PIPELINES_DIR=/app/pipelines
       - ATHOS_PIPELINE_CONFIG_PATH=/workspace/config/config.yaml
       - ATHOS_PIPELINE_ENABLED_FLOWS=lang_hpc_consulting_agent,lang_agent
