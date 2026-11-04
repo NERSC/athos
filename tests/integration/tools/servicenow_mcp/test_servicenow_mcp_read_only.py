@@ -61,6 +61,17 @@ async def test_read_only_mode_disables_write_tools():
     assert "Do not pass encoded queries" in _tool_text(incident_tool, "query")
     assert "list_groups" in _tool_text(incident_tool, "assignment_group")
 
+    # Comments/work notes stay opt-in, but the docs must say where they live.
+    comments_param = incident_tool.parameters["properties"]["include_comments_and_work_notes"]
+    assert comments_param["default"] is False
+    comments_text = _tool_text(incident_tool, "include_comments_and_work_notes")
+    assert "work notes" in comments_text
+    assert "set it to true" in comments_text
+
+    logs_tool = tools_by_name["view_incident_logs"]
+    assert "journal entries" in _tool_text(logs_tool, "limit")
+    assert "incidents to return" not in _tool_text(logs_tool, "limit")
+
     group_tool = tools_by_name["list_groups"]
     assert group_tool.parameters["properties"]["active"]["default"] is True
     assert "list_incidents.assignment_group" in group_tool.description

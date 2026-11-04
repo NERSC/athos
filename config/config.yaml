@@ -100,7 +100,6 @@ mcp_servers:
       SERVICENOW_PASSWORD: "${SERVICENOW_PASSWORD}"
     allowed_tools:
       - "list_incidents"
-      - "view_incident_logs"
       - "get_incident_attachments"
       - "download_attachment"
       - "get_user"
@@ -111,6 +110,12 @@ mcp_servers:
       - "update_incident"
       - "add_comment"
       - "resolve_incident"
+      # view_incident_logs reads sys_journal_field, which the current service
+      # account cannot read (queries return a row count but no rows), so it
+      # always reports 0 entries. Comments and work notes come from
+      # list_incidents(include_comments_and_work_notes=true) instead.
+      # Re-enable if the account is granted sys_journal_field read access.
+      - "view_incident_logs"
     instructions: |
       This ServiceNow connection is read-only. Use it to inspect tickets,
       ticket activity, attachments, user records, and assignment groups. Resolve
