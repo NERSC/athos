@@ -50,6 +50,15 @@ models:
     temperature: 0.3
     max_tokens: 16384
 
+  # CBorg coder max model (GLM 5.3 flash as of Oct 2026)
+  cborg_coder_max:
+    description: "CBORG max coding ability model"
+    model_id: "lbl/cborg-coder-max"
+    api_key: "${CBORG_API_KEY}"
+    api_base: "${CBORG_API_URL}"
+    temperature: 0.3
+    max_tokens: 16384
+
   # Anthropic Claude Sonnet model
   claude_sonnet:
     description: "Anthropic Claude Sonnet model used for code-capable agents"
@@ -456,7 +465,7 @@ flows:
   lang_hpc_consulting_agent:
     description: "Prototype read-only NERSC consultant support agent using ServiceNow and combined Chroma retrieval"
     type: "langchain_agent"
-    model: "gptoss"
+    model: "cborg_coder_max"
     mcp_servers:
       - "servicenow_ro_mcp"
       - "consulting_chroma_ro_mcp"
