@@ -30,6 +30,8 @@ from athos.frameworks.langgraph.utils.messages import BaseMessage, HumanMessage
 from athos.frameworks.langgraph.utils.metrics import (
     aggregate_token_usage,
     collect_tool_call_names,
+    current_turn_messages,
+    summarize_tool_calls,
 )
 from athos.models.enums import ExecutionMode
 from athos.models.flow import FlowInput, FlowOutput
@@ -232,6 +234,8 @@ class LangChainAgentFlow(BaseLangGraphFlow):
                 result_state,
                 include_raw=execution_verbosity >= 3,
             )
+
+        self._log_tool_calls(result_state)
 
         content = self._extract_response(result_state)
         metadata: Dict[str, Any] = {
@@ -577,6 +581,23 @@ class LangChainAgentFlow(BaseLangGraphFlow):
             messages = getattr(state, "messages", [])
 
         return collect_tool_call_names(messages)
+
+    def _log_tool_calls(self, state: Any) -> None:
+        """Log each tool call from the latest turn with its args and result summary."""
+
+        if isinstance(state, dict):
+            messages = state.get("messages", [])
+        else:
+            messages = getattr(state, "messages", [])
+
+        for call in summarize_tool_calls(current_turn_messages(messages)):
+            logger.info(
+                "Tool call: name=%s args=%s status=%s result=%s",
+                call["name"],
+                json.dumps(call["args"], default=str)[:500],
+                call["status"],
+                json.dumps(call["result"], default=str),
+            )
 
     def _build_langgraph_config(self, session_id: str) -> "RunnableConfig":
         """Build LangGraph configuration with thread_id.

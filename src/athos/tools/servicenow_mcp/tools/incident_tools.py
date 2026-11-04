@@ -132,7 +132,9 @@ class ListIncidentsParams(BaseModel):
     include_comments_and_work_notes: bool = Field(
         False,
         description=(
-            "Include raw custom field u_comments_and_work_notes in each incident."
+            "Include each incident's user comments and staff work notes (the "
+            "custom u_comments_and_work_notes field) as comments_and_work_notes. "
+            "Set to true when the ticket conversation is needed."
         ),
     )
 
@@ -158,14 +160,25 @@ class IncidentResponse(BaseModel):
 class ViewIncidentLogsParams(BaseModel):
     """Parameters for viewing the activity logs for an incident."""
 
-    limit: int = Field(10, description="Maximum number of incidents to return")
-    offset: int = Field(0, description="Offset for pagination")
-    state: Optional[str] = Field(None, description="Filter by incident state")
-    assigned_to: Optional[str] = Field(None, description="Filter by assigned user")
-    category: Optional[str] = Field(None, description="Filter by category")
-    query: Optional[str] = Field(None, description="Filter by short description or title")
-    incident_number: Optional[str] = Field(None, description="Filter by incident number")
-    sys_id: Optional[str] = Field(None, description="Filter by sys_id")
+    limit: int = Field(10, description="Maximum number of journal entries to return")
+    offset: int = Field(0, description="Offset into the journal entries for pagination")
+    state: Optional[str] = Field(
+        None, description="Incident-state filter used only to locate the incident"
+    )
+    assigned_to: Optional[str] = Field(
+        None, description="Assigned-user filter used only to locate the incident"
+    )
+    category: Optional[str] = Field(
+        None, description="Category filter used only to locate the incident"
+    )
+    query: Optional[str] = Field(
+        None,
+        description="Short-description search used only to locate the incident",
+    )
+    incident_number: Optional[str] = Field(
+        None, description="Number of the incident whose journal entries to view"
+    )
+    sys_id: Optional[str] = Field(None, description="Incident sys_id to view entries for")
 
 
 def view_incident_logs(

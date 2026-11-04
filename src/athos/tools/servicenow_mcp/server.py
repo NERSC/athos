@@ -239,8 +239,10 @@ class ServiceNowMCPServer:
                     description. Do not pass encoded queries or field expressions.
                 incident_number: Filter by incident number.
                 sort: Sort order; defaults to created_desc.
-                include_comments_and_work_notes: Include raw
-                    u_comments_and_work_notes field in each incident.
+                include_comments_and_work_notes: Include user comments and
+                    staff work notes (the ticket's activity history; the
+                    description is often empty). Set true to summarize or
+                    triage a ticket.
 
             Returns:
                 Incidents plus the applied filters, sort, limit, and offset.
@@ -321,20 +323,23 @@ class ServiceNowMCPServer:
             incident_number: Optional[str] = None,
             sys_id: Optional[str] = None,
         ) -> Dict[str, Any]:
-            """View the activity logs for an incident in ServiceNow.
+            """View an incident's journal entries (comments and work notes).
+
+            Requires read access to sys_journal_field. Without incident_number
+            or sys_id, the first incident matching the other filters is used.
 
             Args:
-                limit: Maximum number of incidents to return.
-                offset: Offset for pagination.
-                state: Filter by incident state.
-                assigned_to: Filter by assigned user.
-                category: Filter by category.
-                query: Filter by short description or title.
-                incident_number: Filter by incident number.
-                sys_id: Incident sys_id to view logs for directly.
+                limit: Maximum number of journal entries to return.
+                offset: Offset into the journal entries for pagination.
+                state: Filter used to locate the incident.
+                assigned_to: Filter used to locate the incident.
+                category: Filter used to locate the incident.
+                query: Short-description search used to locate the incident.
+                incident_number: Number of the incident whose entries to view.
+                sys_id: Incident sys_id to view entries for directly.
 
             Returns:
-                Dictionary with list of incident logs.
+                Dictionary with the incident's journal entries.
             """
             params = incident_tools.ViewIncidentLogsParams(
                 limit=limit,
