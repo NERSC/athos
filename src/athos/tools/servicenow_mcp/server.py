@@ -239,29 +239,19 @@ class ServiceNowMCPServer:
                     description. Do not pass encoded queries or field expressions.
                 incident_number: Filter by incident number.
                 sort: Sort order; defaults to created_desc.
-                include_comments_and_work_notes: Include each incident's user
-                    comments and staff work notes (the ticket's activity
-                    history) as a single text field, comments_and_work_notes.
-                    Off by default, so set it to true whenever you need the
-                    ticket conversation, e.g. to summarize, triage, or answer
-                    questions about a specific incident. The incident
-                    description is often empty; the user's request and all
-                    follow-up discussion usually live in this field.
+                include_comments_and_work_notes: Include user comments and
+                    staff work notes (the ticket's activity history; the
+                    description is often empty). Set true to summarize or
+                    triage a ticket.
 
             Returns:
                 Incidents plus the applied filters, sort, limit, and offset.
-                When include_comments_and_work_notes is false, the returned
-                incidents contain no comments or work notes; an absent field
-                does not mean the ticket has no activity.
 
             Examples:
                 For the three newest incidents, call with limit=3. To find the
                 newest open incidents assigned to a named group, first call
                 list_groups(query="DAS"), then pass the selected group's sys_id
-                as assignment_group with active=true. To read a single ticket
-                with its full activity history, call with
-                incident_number="INC0123456" and
-                include_comments_and_work_notes=true.
+                as assignment_group with active=true.
             """
             params = incident_tools.ListIncidentsParams(
                 limit=limit,
@@ -335,22 +325,16 @@ class ServiceNowMCPServer:
         ) -> Dict[str, Any]:
             """View an incident's journal entries (comments and work notes).
 
-            Reads individual entries from the ServiceNow sys_journal_field
-            table, which requires read access to that table. Pass
-            incident_number or sys_id to select the incident; if neither is
-            given, the first incident matching the other filters is used.
+            Requires read access to sys_journal_field. Without incident_number
+            or sys_id, the first incident matching the other filters is used.
 
             Args:
                 limit: Maximum number of journal entries to return.
                 offset: Offset into the journal entries for pagination.
-                state: Incident-state filter used only to locate the incident
-                    when incident_number and sys_id are not given.
-                assigned_to: Assigned-user filter used only to locate the
-                    incident when incident_number and sys_id are not given.
-                category: Category filter used only to locate the incident
-                    when incident_number and sys_id are not given.
-                query: Plain-text short-description search used only to locate
-                    the incident when incident_number and sys_id are not given.
+                state: Filter used to locate the incident.
+                assigned_to: Filter used to locate the incident.
+                category: Filter used to locate the incident.
+                query: Short-description search used to locate the incident.
                 incident_number: Number of the incident whose entries to view.
                 sys_id: Incident sys_id to view entries for directly.
 

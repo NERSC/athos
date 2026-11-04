@@ -66,7 +66,7 @@ async def test_read_only_mode_disables_write_tools():
     assert comments_param["default"] is False
     comments_text = _tool_text(incident_tool, "include_comments_and_work_notes")
     assert "work notes" in comments_text
-    assert "set it to true" in comments_text
+    assert "Set true to summarize" in comments_text
 
     logs_tool = tools_by_name["view_incident_logs"]
     assert "journal entries" in _tool_text(logs_tool, "limit")
